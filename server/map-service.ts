@@ -152,6 +152,7 @@ export class MapService {
   #state: WorldState;
   #dimension: Dimension = OVERWORLD;
   #surfaces = new Map<string, ChunkSurface | null>();
+  #surfacesInFlight = new Map<string, Promise<ChunkSurface | null>>();
   #inFlight = new Map<string, Promise<TileResult>>();
   #emptyTile: Uint8Array;
   #decodedChunks = 0;
@@ -237,7 +238,8 @@ export class MapService {
 
   /**
    * Decoded surface for a chunk, memoised. Chunks the world does not store are
-   * never looked up in the database.
+   * never looked up in the database, and two tiles wanting the same chunk at the
+   * same time share one decode.
    */
   async surface(chunkX: number, chunkZ: number): Promise<ChunkSurface | null> {
     const key = chunkId(chunkX, chunkZ);
@@ -247,15 +249,23 @@ export class MapService {
       return null;
     }
 
-    const surface = await readChunkSurface(this.#world, this.#dimension, chunkX, chunkZ);
-    this.#decodedChunks++;
-    if (this.#surfaces.size >= SURFACE_CACHE_LIMIT) {
-      // Plain FIFO eviction; panning tends to move on rather than come back.
-      const oldest = this.#surfaces.keys().next().value;
-      if (oldest !== undefined) this.#surfaces.delete(oldest);
-    }
-    this.#surfaces.set(key, surface);
-    return surface;
+    const pending = this.#surfacesInFlight.get(key);
+    if (pending) return pending;
+
+    const work = (async (): Promise<ChunkSurface | null> => {
+      const surface = await readChunkSurface(this.#world, this.#dimension, chunkX, chunkZ);
+      this.#decodedChunks++;
+      if (this.#surfaces.size >= SURFACE_CACHE_LIMIT) {
+        // Plain FIFO eviction; panning tends to move on rather than come back.
+        const oldest = this.#surfaces.keys().next().value;
+        if (oldest !== undefined) this.#surfaces.delete(oldest);
+      }
+      this.#surfaces.set(key, surface);
+      return surface;
+    })().finally(() => this.#surfacesInFlight.delete(key));
+
+    this.#surfacesInFlight.set(key, work);
+    return work;
   }
 
   /** PNG for a tile. Empty areas resolve to a fully transparent tile. */
@@ -379,9 +389,8 @@ export class MapService {
     stats.changedChunks = diff.changed.length;
     stats.removedChunks = diff.removed.length;
 
-    // Let tiles that are already being drawn from the old snapshot finish before
-    // it is closed.
-    await Promise.allSettled([...this.#inFlight.values()]);
+    // Let work already reading the old snapshot finish before it is closed.
+    await Promise.allSettled([...this.#inFlight.values(), ...this.#surfacesInFlight.values()]);
 
     const previous = this.#world;
     this.#world = next;
