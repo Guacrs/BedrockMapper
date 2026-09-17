@@ -60,18 +60,13 @@ function sampleHeight(
  * Shade factor for a column: brighter when it stands above the columns to its
  * north and west, darker when it sits below them. Not a lighting model, just
  * enough relief to read hills and cliffs.
+ *
+ * Tile rendering uses this directly with heights that cross chunk borders, so
+ * the shading is identical whether a column is drawn on its own or as part of
+ * a tile.
  */
-export function shadeFactor(
-  surface: ChunkSurface,
-  x: number,
-  z: number,
-  y: number,
-  neighborHeight?: RenderOptions['neighborHeight'],
-): number {
-  const samples = [
-    sampleHeight(surface, x, z - 1, neighborHeight),
-    sampleHeight(surface, x - 1, z, neighborHeight),
-  ].filter((height): height is number => height !== null);
+export function shadeFromNeighbors(y: number, north: number | null, west: number | null): number {
+  const samples = [north, west].filter((height): height is number => height !== null);
   if (!samples.length) return 1;
 
   const average = samples.reduce((sum, height) => sum + height, 0) / samples.length;
@@ -79,7 +74,21 @@ export function shadeFactor(
   return Math.min(SHADE_MAX, Math.max(SHADE_MIN, factor));
 }
 
-function applyShade(color: Rgb, factor: number): Rgb {
+export function shadeFactor(
+  surface: ChunkSurface,
+  x: number,
+  z: number,
+  y: number,
+  neighborHeight?: RenderOptions['neighborHeight'],
+): number {
+  return shadeFromNeighbors(
+    y,
+    sampleHeight(surface, x, z - 1, neighborHeight),
+    sampleHeight(surface, x - 1, z, neighborHeight),
+  );
+}
+
+export function applyShade(color: Rgb, factor: number): Rgb {
   return [
     Math.min(255, Math.max(0, Math.round(color[0] * factor))),
     Math.min(255, Math.max(0, Math.round(color[1] * factor))),

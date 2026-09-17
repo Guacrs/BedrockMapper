@@ -1,0 +1,47 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #10151c;
+  color: #e6edf3;
+  font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+#map {
+  position: absolute;
+  inset: 0;
+  background: #10151c;
+}
+
+/* Keep the terrain crisp when Leaflet scales the native tiles. */
+.leaflet-tile,
+.leaflet-tile-container img {
+  image-rendering: pixelated;
+}
+
+.leaflet-container {
+  background: #10151c;
+}
+
+#hud {
+  position: absolute;
+  z-index: 500;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  background: rgba(13, 17, 23, 0.85);
+  pointer-events: none;
+}
+
+#cursor {
+  min-width: 15ch;
+}
+
+#world {
+  color: #9aa7b4;
+}

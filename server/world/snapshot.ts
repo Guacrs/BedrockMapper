@@ -27,6 +27,11 @@ export interface SnapshotResult {
   copied: boolean;
   fileCount: number;
   byteCount: number;
+  /**
+   * Identifies the source world's contents. Changes whenever the BDS world
+   * changes, so derived caches (map tiles) can tell when they are stale.
+   */
+  sourceId: string;
 }
 
 interface SourceFingerprint {
@@ -72,9 +77,11 @@ export async function snapshotWorld(worldPath: string, cacheDir: string): Promis
 
   const fileNames = Object.keys(fingerprint.files);
   const byteCount = fileNames.reduce((sum, name) => sum + fingerprint.files[name]!.size, 0);
+  const serialized = JSON.stringify(fingerprint);
+  const sourceId = createHash('sha1').update(serialized).digest('hex').slice(0, 16);
 
-  if (previous && JSON.stringify(previous) === JSON.stringify(fingerprint)) {
-    return { dbPath, copied: false, fileCount: fileNames.length, byteCount };
+  if (previous && JSON.stringify(previous) === serialized) {
+    return { dbPath, copied: false, fileCount: fileNames.length, byteCount, sourceId };
   }
 
   // Opening the snapshot mutates it (log replay, compaction), so a changed
@@ -84,7 +91,7 @@ export async function snapshotWorld(worldPath: string, cacheDir: string): Promis
   for (const name of fileNames) {
     await fs.copyFile(path.join(sourceDb, name), path.join(dbPath, name));
   }
-  await fs.writeFile(fingerprintPath, JSON.stringify(fingerprint));
+  await fs.writeFile(fingerprintPath, serialized);
 
-  return { dbPath, copied: true, fileCount: fileNames.length, byteCount };
+  return { dbPath, copied: true, fileCount: fileNames.length, byteCount, sourceId };
 }
