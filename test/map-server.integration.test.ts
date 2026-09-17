@@ -237,6 +237,16 @@ describe(
   },
 );
 
+interface PlayerSnapshotResponse {
+  players: { name: string; id?: string; x: number; y: number; z: number; dimension: string }[];
+  updatedAt: string | null;
+  stale: boolean;
+  ageMs: number | null;
+  timeoutMs: number;
+}
+
+const API_KEY = 'test-api-key';
+
 describe(
   'map server HTTP interface',
   { skip: worldPath ? false : 'set TEST_WORLD_PATH to a BDS world' },
@@ -245,6 +255,16 @@ describe(
     let cacheDir: string;
     let base: string;
 
+    const postPlayers = (players: unknown[]) =>
+      fetch(`${base}/api/players`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${API_KEY}` },
+        body: JSON.stringify({ players }),
+      });
+
+    const getPlayers = (query = ''): Promise<PlayerSnapshotResponse> =>
+      fetch(`${base}/api/players${query}`).then((response) => response.json() as Promise<PlayerSnapshotResponse>);
+
     before(async () => {
       cacheDir = await fs.mkdtemp(path.join(os.tmpdir(), 'bedrock-map-http-'));
       started = await startServer({
@@ -252,7 +272,8 @@ describe(
         cacheDir,
         port: 0,
         playerUpdateInterval: 3000,
-        apiKey: 'test',
+        playerDataTimeout: 10000,
+        apiKey: API_KEY,
       });
       base = `http://127.0.0.1:${started.port}`;
     });
@@ -310,6 +331,211 @@ describe(
       const response = await fetch(`${base}/tiles/overworld/0/-1/-1.png`);
       assert.equal(response.status, 200);
       assert.equal(response.headers.get('content-type'), 'image/png');
+    });
+
+    it('reports no players before any update arrives', async () => {
+      const snapshot = (await fetch(`${base}/api/players`).then((response) => response.json())) as {
+        players: unknown[];
+        updatedAt: string | null;
+        stale: boolean;
+      };
+      assert.deepEqual(snapshot.players, []);
+      assert.equal(snapshot.updatedAt, null);
+      assert.equal(snapshot.stale, true);
+    });
+
+    it('accepts an authenticated player update and serves it back', async () => {
+      const posted = await postPlayers([
+        { name: 'Alex', id: '1', x: 1234.5, y: 68, z: -543.2, dimension: 'minecraft:overworld' },
+        { name: 'Steve', id: '2', x: -12.25, y: 71, z: 8, dimension: 'minecraft:overworld' },
+      ]);
+      assert.equal(posted.status, 200);
+      assert.deepEqual(await posted.json(), { ok: true, players: 2 });
+
+      const snapshot = await getPlayers();
+      assert.equal(snapshot.stale, false);
+      assert.ok(snapshot.updatedAt);
+      assert.deepEqual(snapshot.players, [
+        { name: 'Alex', id: '1', x: 1234.5, y: 68, z: -543.2, dimension: 'overworld' },
+        { name: 'Steve', id: '2', x: -12.25, y: 71, z: 8, dimension: 'overworld' },
+      ]);
+    });
+
+    it('replaces the list, so movement and disconnects are reflected', async () => {
+      await postPlayers([
+        { name: 'Alex', id: '1', x: 0, y: 68, z: 0, dimension: 'overworld' },
+        { name: 'Steve', id: '2', x: 50, y: 68, z: 50, dimension: 'overworld' },
+      ]);
+      await postPlayers([{ name: 'Alex', id: '1', x: 64.5, y: 70, z: -32.5, dimension: 'overworld' }]);
+
+      const snapshot = await getPlayers();
+      assert.equal(snapshot.players.length, 1, 'Steve left, so he is gone');
+      assert.deepEqual(snapshot.players[0], {
+        name: 'Alex',
+        id: '1',
+        x: 64.5,
+        y: 70,
+        z: -32.5,
+        dimension: 'overworld',
+      });
+
+      await postPlayers([]);
+      const empty = await getPlayers();
+      assert.deepEqual(empty.players, []);
+      assert.equal(empty.stale, false, 'an empty server is not stale data');
+    });
+
+    it('keeps the dimension and can filter by it', async () => {
+      await postPlayers([
+        { name: 'Alex', x: 0, y: 68, z: 0, dimension: 'minecraft:overworld' },
+        { name: 'Steve', x: 10, y: 40, z: 10, dimension: 'minecraft:nether' },
+        { name: 'Zuri', x: 100, y: 60, z: 100, dimension: 'minecraft:the_end' },
+      ]);
+
+      const all = await getPlayers();
+      assert.deepEqual(
+        all.players.map((player) => `${player.name}:${player.dimension}`),
+        ['Alex:overworld', 'Steve:nether', 'Zuri:the_end'],
+      );
+
+      const overworld = await getPlayers('?dimension=overworld');
+      assert.deepEqual(
+        overworld.players.map((player) => player.name),
+        ['Alex'],
+        'nether and end players are not on the overworld map',
+      );
+      const nether = await getPlayers('?dimension=minecraft:nether');
+      assert.deepEqual(
+        nether.players.map((player) => player.name),
+        ['Steve'],
+      );
+    });
+
+    it('rejects updates without a valid API key', async () => {
+      await postPlayers([{ name: 'Ghost', x: 0, y: 0, z: 0, dimension: 'overworld' }]);
+
+      const noHeader = await fetch(`${base}/api/players`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ players: [] }),
+      });
+      assert.equal(noHeader.status, 401);
+      assert.match(noHeader.headers.get('www-authenticate') ?? '', /Bearer/);
+
+      const wrongKey = await fetch(`${base}/api/players`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer wrong-key' },
+        body: JSON.stringify({ players: [] }),
+      });
+      assert.equal(wrongKey.status, 401);
+
+      const wrongScheme = await fetch(`${base}/api/players`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: API_KEY },
+        body: JSON.stringify({ players: [] }),
+      });
+      assert.equal(wrongScheme.status, 401);
+
+      const snapshot = await getPlayers();
+      assert.deepEqual(
+        snapshot.players.map((player) => player.name),
+        ['Ghost'],
+        'a rejected update must not change the stored list',
+      );
+    });
+
+    it('rejects malformed and oversized bodies', async () => {
+      const malformed = await fetch(`${base}/api/players`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${API_KEY}` },
+        body: '{"players": [{"name": "Alex", ',
+      });
+      assert.equal(malformed.status, 400);
+      assert.match(((await malformed.json()) as { error: string }).error, /valid JSON/);
+
+      const invalid = await fetch(`${base}/api/players`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${API_KEY}` },
+        body: JSON.stringify({ players: [{ name: 'Alex', x: 'over there', y: 1, z: 2, dimension: 'overworld' }] }),
+      });
+      assert.equal(invalid.status, 400);
+      assert.match(((await invalid.json()) as { error: string }).error, /players\[0\]\.x/);
+
+      const huge = await fetch(`${base}/api/players`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${API_KEY}` },
+        body: JSON.stringify({ players: [], padding: 'x'.repeat(100_000) }),
+      });
+      assert.equal(huge.status, 413);
+    });
+
+    it('drops players once the data goes stale', async () => {
+      // A second server with a very short timeout, so this does not wait long.
+      const staleCache = await fs.mkdtemp(path.join(os.tmpdir(), 'bedrock-map-stale-'));
+      const shortLived = await startServer({
+        worldPath: worldPath!,
+        cacheDir: staleCache,
+        port: 0,
+        playerUpdateInterval: 1000,
+        playerDataTimeout: 300,
+        apiKey: API_KEY,
+      });
+      try {
+        const url = `http://127.0.0.1:${shortLived.port}/api/players`;
+        await fetch(url, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: `Bearer ${API_KEY}` },
+          body: JSON.stringify({ players: [{ name: 'Alex', x: 0, y: 68, z: 0, dimension: 'overworld' }] }),
+        });
+
+        const fresh = (await fetch(url).then((response) => response.json())) as PlayerSnapshotResponse;
+        assert.equal(fresh.players.length, 1);
+        assert.equal(fresh.stale, false);
+
+        await new Promise((resolve) => setTimeout(resolve, 400));
+
+        const stale = (await fetch(url).then((response) => response.json())) as PlayerSnapshotResponse;
+        assert.deepEqual(stale.players, [], 'stale data must not keep showing players');
+        assert.equal(stale.stale, true);
+        assert.ok(stale.updatedAt, 'it still reports when the last update arrived');
+        assert.equal(stale.timeoutMs, 300);
+      } finally {
+        await shortLived.close();
+        await fs.rm(staleCache, { recursive: true, force: true });
+      }
+    });
+
+    it('publishes the poll interval and staleness timeout to the browser', async () => {
+      const info = (await fetch(`${base}/api/map/info`).then((response) => response.json())) as MapInfo & {
+        playerPollInterval: number;
+        playerDataTimeout: number;
+      };
+      assert.equal(info.playerPollInterval, 3000);
+      assert.equal(info.playerDataTimeout, 10000);
+    });
+
+    it('refuses player updates when no API key is configured', async () => {
+      const openCache = await fs.mkdtemp(path.join(os.tmpdir(), 'bedrock-map-nokey-'));
+      const unconfigured = await startServer({
+        worldPath: worldPath!,
+        cacheDir: openCache,
+        port: 0,
+        playerUpdateInterval: 3000,
+        playerDataTimeout: 10000,
+        apiKey: '',
+      });
+      try {
+        const response = await fetch(`http://127.0.0.1:${unconfigured.port}/api/players`, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: 'Bearer anything' },
+          body: JSON.stringify({ players: [] }),
+        });
+        assert.equal(response.status, 503);
+        assert.match(((await response.json()) as { error: string }).error, /API_KEY/);
+      } finally {
+        await unconfigured.close();
+        await fs.rm(openCache, { recursive: true, force: true });
+      }
     });
 
     it('refuses unknown routes, other methods and path traversal', async () => {

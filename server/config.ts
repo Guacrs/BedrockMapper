@@ -10,7 +10,11 @@ export interface Config {
   worldPath: string;
   port: number;
   cacheDir: string;
+  /** How often the browser polls for player positions, milliseconds. */
   playerUpdateInterval: number;
+  /** After this long without a player update the list is treated as unavailable. */
+  playerDataTimeout: number;
+  /** Shared secret required by POST /api/players. */
   apiKey: string;
 }
 
@@ -39,6 +43,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     cacheDir: path.resolve(overrides.cacheDir ?? process.env.MAP_CACHE ?? './cache'),
     playerUpdateInterval:
       overrides.playerUpdateInterval ?? number(process.env.PLAYER_UPDATE_INTERVAL, 3000),
+    playerDataTimeout: overrides.playerDataTimeout ?? number(process.env.PLAYER_DATA_TIMEOUT, 10000),
     apiKey: overrides.apiKey ?? process.env.API_KEY ?? '',
   };
 }

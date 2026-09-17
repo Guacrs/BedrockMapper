@@ -5,12 +5,14 @@
  * snapshot copy created by the world reader.
  */
 
+import { timingSafeEqual } from 'node:crypto';
 import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, type Config } from './config.ts';
 import { MapService } from './map-service.ts';
+import { PlayerStore, PlayerValidationError, parsePlayerUpdate } from './players/store.ts';
 import { dimensionById } from './world/dimensions.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -61,15 +63,49 @@ async function sendFile(
   return true;
 }
 
+/** Player updates are tiny; anything larger is a mistake or an attack. */
+const MAX_BODY_BYTES = 64 * 1024;
+
+class BodyTooLargeError extends Error {}
+
+async function readBody(request: http.IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  let size = 0;
+  for await (const chunk of request) {
+    size += (chunk as Buffer).length;
+    if (size > MAX_BODY_BYTES) throw new BodyTooLargeError('request body too large');
+    chunks.push(chunk as Buffer);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+/** Compares secrets without leaking their length through timing. */
+function secretsMatch(expected: string, provided: string): boolean {
+  const a = Buffer.from(expected);
+  const b = Buffer.from(provided);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
+}
+
+/** Reads the shared secret from `Authorization: Bearer <key>`. */
+function bearerToken(request: http.IncomingMessage): string | null {
+  const header = request.headers.authorization;
+  if (!header) return null;
+  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
+  return match ? match[1]!.trim() : null;
+}
+
 export interface StartedServer {
   server: http.Server;
   map: MapService;
+  players: PlayerStore;
   port: number;
   close: () => Promise<void>;
 }
 
 export async function startServer(config: Config): Promise<StartedServer> {
   const map = await MapService.create({ worldPath: config.worldPath, cacheDir: config.cacheDir });
+  const players = new PlayerStore(config.playerDataTimeout);
 
   const server = http.createServer((request, response) => {
     void handle(request, response).catch((error: unknown) => {
@@ -80,16 +116,30 @@ export async function startServer(config: Config): Promise<StartedServer> {
   });
 
   async function handle(request: http.IncomingMessage, response: http.ServerResponse): Promise<void> {
+    const url = new URL(request.url ?? '/', 'http://localhost');
+    const pathname = decodeURIComponent(url.pathname);
+
+    if (request.method === 'POST' && pathname === '/api/players') {
+      await handlePlayerUpdate(request, response);
+      return;
+    }
+
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       sendText(response, 405, 'method not allowed');
       return;
     }
 
-    const url = new URL(request.url ?? '/', 'http://localhost');
-    const pathname = decodeURIComponent(url.pathname);
-
     if (pathname === '/api/map/info') {
-      sendJson(response, 200, map.info);
+      sendJson(response, 200, {
+        ...map.info,
+        playerPollInterval: config.playerUpdateInterval,
+        playerDataTimeout: config.playerDataTimeout,
+      });
+      return;
+    }
+
+    if (pathname === '/api/players') {
+      sendJson(response, 200, players.snapshot(url.searchParams.get('dimension') ?? undefined));
       return;
     }
 
@@ -127,6 +177,59 @@ export async function startServer(config: Config): Promise<StartedServer> {
     sendText(response, 404, 'not found');
   }
 
+  /**
+   * Accepts one player-position report from the BDS addon and replaces the
+   * in-memory list with it. Nothing is written to disk.
+   */
+  async function handlePlayerUpdate(
+    request: http.IncomingMessage,
+    response: http.ServerResponse,
+  ): Promise<void> {
+    if (!config.apiKey) {
+      sendJson(response, 503, {
+        error: 'API_KEY is not configured, so player updates are refused. Set it in .env.',
+      });
+      return;
+    }
+
+    const token = bearerToken(request);
+    if (!token) {
+      response.setHeader('www-authenticate', 'Bearer');
+      sendJson(response, 401, { error: 'missing Authorization: Bearer <API_KEY> header' });
+      return;
+    }
+    if (!secretsMatch(config.apiKey, token)) {
+      sendJson(response, 401, { error: 'invalid API key' });
+      return;
+    }
+
+    let raw: string;
+    try {
+      raw = await readBody(request);
+    } catch (error) {
+      if (error instanceof BodyTooLargeError) sendJson(response, 413, { error: error.message });
+      else sendJson(response, 400, { error: 'could not read request body' });
+      return;
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      sendJson(response, 400, { error: 'body is not valid JSON' });
+      return;
+    }
+
+    try {
+      const update = parsePlayerUpdate(parsed);
+      players.replace(update);
+      sendJson(response, 200, { ok: true, players: update.length });
+    } catch (error) {
+      if (error instanceof PlayerValidationError) sendJson(response, 400, { error: error.message });
+      else throw error;
+    }
+  }
+
   await new Promise<void>((resolve) => server.listen(config.port, resolve));
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : config.port;
@@ -134,6 +237,7 @@ export async function startServer(config: Config): Promise<StartedServer> {
   return {
     server,
     map,
+    players,
     port,
     close: async () => {
       await new Promise<void>((resolve, reject) =>
@@ -162,6 +266,10 @@ if (isEntryPoint) {
   } else {
     console.log('  extent:     no chunks with block data found');
   }
+  console.log(
+    `  players:    POST /api/players ${config.apiKey ? 'requires the API key from your .env' : 'DISABLED - set API_KEY in .env'}` +
+      `, stale after ${config.playerDataTimeout} ms, browser polls every ${config.playerUpdateInterval} ms`,
+  );
 
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     process.on(signal, () => {

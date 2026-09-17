@@ -46,3 +46,17 @@ body {
 #world {
   color: #9aa7b4;
 }
+
+#players {
+  color: #f0883e;
+}
+
+.player-popup-name {
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.leaflet-popup-content {
+  margin: 8px 12px;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}

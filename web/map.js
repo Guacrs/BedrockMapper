@@ -1,5 +1,5 @@
 /**
- * Minimal Leaflet map over Bedrock terrain tiles.
+ * Minimal Leaflet map over Bedrock terrain tiles, with live player markers.
  *
  * Coordinates: Minecraft blocks are the authoritative system. Leaflet is put
  * into a simple pixel CRS where one unit at zoom 0 is one block, and the axes
@@ -16,19 +16,17 @@
  * everywhere, on the server and here.
  */
 
+import { blockToLatLng, latLngToBlock } from './coords.js';
+import { PlayerLayer, playerStatus } from './players.js';
+
 const MinecraftCRS = L.extend({}, L.CRS.Simple, {
   transformation: new L.Transformation(1, 0, 1, 0),
 });
 
-/** Minecraft block X/Z -> Leaflet LatLng. */
-const blockToLatLng = (x, z) => L.latLng(z, x);
-
-/** Leaflet LatLng -> Minecraft block X/Z. */
-const latLngToBlock = (latlng) => ({ x: Math.floor(latlng.lng), z: Math.floor(latlng.lat) });
-
 const worldLabel = document.getElementById('world');
 const cursorLabel = document.getElementById('cursor');
 const viewLabel = document.getElementById('view');
+const playersLabel = document.getElementById('players');
 
 async function main() {
   const info = await fetch('/api/map/info').then((response) => response.json());
@@ -41,9 +39,6 @@ async function main() {
     attributionControl: false,
     preferCanvas: true,
   });
-
-  // Exposed for debugging and for the browser coordinate tests.
-  window.__map = map;
 
   const bounds = info.blockBounds;
   const layerBounds = bounds
@@ -91,6 +86,31 @@ async function main() {
   };
   map.on('move zoom', updateView);
   updateView();
+
+  // Players: poll the latest positions and reconcile the markers. Polling is
+  // enough for a marker every few seconds, so there is no WebSocket.
+  const playerLayer = new PlayerLayer(map, info.dimension);
+  const pollInterval = info.playerPollInterval ?? 3000;
+
+  async function pollPlayers() {
+    try {
+      const snapshot = await fetch('/api/players').then((response) => response.json());
+      playerLayer.update(snapshot);
+      playersLabel.textContent = playerStatus(snapshot, info.dimension);
+    } catch (error) {
+      playerLayer.update(null);
+      playersLabel.textContent = 'player data unavailable';
+      console.error('player poll failed:', error);
+    }
+  }
+
+  // Exposed for debugging and for the browser coordinate tests.
+  window.__map = map;
+  window.__players = playerLayer;
+  window.__pollPlayers = pollPlayers;
+
+  await pollPlayers();
+  setInterval(pollPlayers, pollInterval);
 }
 
 main().catch((error) => {
