@@ -3,19 +3,47 @@
  *
  * Chunk surfaces are decoded once and kept in memory, and finished tiles are
  * cached on disk, so a browser panning around does not re-decode LevelDB.
+ *
+ * `refresh()` keeps that state in step with a running server: it takes a fresh
+ * read-only snapshot when the live world has changed, works out which chunks
+ * gained, lost or changed block data, and throws away only the cached surfaces
+ * and tiles that those chunks feed into. The previous snapshot keeps serving
+ * until the new one is open and scanned, so a snapshot taken mid-write can never
+ * replace a working map.
  */
 
 import { encodePng } from './renderer/chunk-image.ts';
-import { NATIVE_ZOOM, TILE_SIZE, boundsCenter, boundsOfChunks, chunkBoundsToBlockBounds, tileRangeForBlockBounds, type Bounds } from './tiles/coords.ts';
+import {
+  NATIVE_ZOOM,
+  TILE_SIZE,
+  boundsCenter,
+  boundsOfChunks,
+  chunkBoundsToBlockBounds,
+  tileRangeForBlockBounds,
+  tilesAffectedByChunk,
+  type Bounds,
+  type TilePos,
+} from './tiles/coords.ts';
 import { CHUNKS_PER_TILE } from './tiles/coords.ts';
 import { TileCache } from './tiles/tile-cache.ts';
 import { renderTile } from './tiles/tile-renderer.ts';
+import { chunkId, diffChunkDigests, type ChunkDigests } from './world/chunk-diff.ts';
 import { OVERWORLD, SUPPORTED_DIMENSIONS, type Dimension, type DimensionId } from './world/dimensions.ts';
+import {
+  discardSnapshot,
+  pruneSnapshots,
+  readSourceState,
+  snapshotWorld,
+  type SourceState,
+} from './world/snapshot.ts';
 import { readChunkSurface, type ChunkSurface } from './world/surface.ts';
-import { BedrockWorld } from './world/world.ts';
+import { BedrockWorld, type WorldScan } from './world/world.ts';
 
 /** Upper bound on cached chunk surfaces (~1 KB each). */
 const SURFACE_CACHE_LIMIT = 8192;
+
+/** How many invalidated tiles are redrawn at once during a refresh. */
+const REFRESH_RENDER_CONCURRENCY = 4;
 
 export interface MapInfo {
   world: { name: string; version: string | null };
@@ -34,6 +62,41 @@ export interface MapInfo {
   center: { x: number; z: number } | null;
 }
 
+/** What the browser polls for: has the terrain changed, and how does it look now. */
+export interface MapState {
+  /** Incremented whenever terrain changed; part of the tile URL. */
+  version: number;
+  /** When the terrain last changed, or null if it has not since startup. */
+  terrainUpdatedAt: string | null;
+  chunkCount: number;
+  chunkBounds: Bounds | null;
+  blockBounds: Bounds | null;
+  tileBounds: Bounds | null;
+  center: { x: number; z: number } | null;
+}
+
+export interface RefreshStats {
+  at: string;
+  /** False when the live world's files were untouched since the last check. */
+  sourceChanged: boolean;
+  /** False when an existing snapshot of the same world state was reused. */
+  snapshotCopied: boolean;
+  snapshotMs: number;
+  scanMs: number;
+  chunksScanned: number;
+  addedChunks: number;
+  changedChunks: number;
+  removedChunks: number;
+  /** Chunk surfaces decoded as part of the refresh. */
+  chunksDecoded: number;
+  tilesInvalidated: number;
+  tilesRegenerated: number;
+  totalMs: number;
+  version: number;
+  /** Set when the refresh failed; the previous snapshot is still being served. */
+  error: string | null;
+}
+
 export interface TileResult {
   bytes: Uint8Array;
   /** True when the tile came from the disk cache. */
@@ -49,43 +112,21 @@ export interface MapServiceOptions {
   maxZoom?: number;
 }
 
-export class MapService {
-  readonly world: BedrockWorld;
-  readonly tileCache: TileCache;
-  readonly info: MapInfo;
+interface WorldState {
+  chunksWithData: Set<string>;
+  digests: ChunkDigests;
+  info: MapInfo;
+}
 
-  #dimension: Dimension = OVERWORLD;
-  #chunksWithData = new Set<string>();
-  #surfaces = new Map<string, ChunkSurface | null>();
-  #inFlight = new Map<string, Promise<TileResult>>();
-  #emptyTile: Uint8Array;
-  #decodedChunks = 0;
+function stateFromScan(world: BedrockWorld, scan: WorldScan, options: MapServiceOptions): WorldState {
+  const withData = scan.chunks.filter((chunk) => chunk.subChunkIndices.length > 0);
+  const chunkBounds = boundsOfChunks(withData);
+  const blockBounds = chunkBounds ? chunkBoundsToBlockBounds(chunkBounds) : null;
 
-  private constructor(world: BedrockWorld, tileCache: TileCache, info: MapInfo, chunksWithData: Set<string>) {
-    this.world = world;
-    this.tileCache = tileCache;
-    this.info = info;
-    this.#chunksWithData = chunksWithData;
-    this.#emptyTile = encodePng({
-      width: TILE_SIZE,
-      height: TILE_SIZE,
-      data: new Uint8Array(TILE_SIZE * TILE_SIZE * 4),
-    });
-  }
-
-  static async create(options: MapServiceOptions): Promise<MapService> {
-    const world = await BedrockWorld.open({
-      worldPath: options.worldPath,
-      cacheDir: options.cacheDir,
-    });
-    const tileCache = await TileCache.create(options.cacheDir, world.snapshot.sourceId);
-
-    const chunks = await world.listChunks(OVERWORLD);
-    const withData = chunks.filter((chunk) => chunk.subChunkIndices.length > 0);
-    const chunkBounds = boundsOfChunks(withData);
-    const blockBounds = chunkBounds ? chunkBoundsToBlockBounds(chunkBounds) : null;
-
-    const info: MapInfo = {
+  return {
+    chunksWithData: new Set(withData.map((chunk) => chunkId(chunk.x, chunk.z))),
+    digests: scan.digests,
+    info: {
       world: { name: world.levelInfo.name, version: world.levelInfo.lastOpenedWithVersion },
       dimension: OVERWORLD.id,
       dimensions: SUPPORTED_DIMENSIONS.map((dimension) => dimension.id),
@@ -99,14 +140,91 @@ export class MapService {
       blockBounds,
       tileBounds: blockBounds ? tileRangeForBlockBounds(blockBounds) : null,
       center: blockBounds ? boundsCenter(blockBounds) : null,
-    };
+    },
+  };
+}
 
-    return new MapService(
-      world,
-      tileCache,
-      info,
-      new Set(withData.map((chunk) => `${chunk.x},${chunk.z}`)),
-    );
+export class MapService {
+  readonly tileCache: TileCache;
+
+  #options: MapServiceOptions;
+  #world: BedrockWorld;
+  #state: WorldState;
+  #dimension: Dimension = OVERWORLD;
+  #surfaces = new Map<string, ChunkSurface | null>();
+  #inFlight = new Map<string, Promise<TileResult>>();
+  #emptyTile: Uint8Array;
+  #decodedChunks = 0;
+  #version = 1;
+  #terrainUpdatedAt: string | null = null;
+  #refreshing: Promise<RefreshStats> | null = null;
+  #lastRefresh: RefreshStats | null = null;
+  #refreshCount = 0;
+  #failedRefreshCount = 0;
+
+  private constructor(
+    options: MapServiceOptions,
+    world: BedrockWorld,
+    tileCache: TileCache,
+    state: WorldState,
+  ) {
+    this.#options = options;
+    this.#world = world;
+    this.tileCache = tileCache;
+    this.#state = state;
+    this.#emptyTile = encodePng({
+      width: TILE_SIZE,
+      height: TILE_SIZE,
+      data: new Uint8Array(TILE_SIZE * TILE_SIZE * 4),
+    });
+  }
+
+  static async create(options: MapServiceOptions): Promise<MapService> {
+    const world = await BedrockWorld.open({
+      worldPath: options.worldPath,
+      cacheDir: options.cacheDir,
+    });
+    const tileCache = await TileCache.create(options.cacheDir, world.snapshot.sourceId);
+    const scan = await world.scan(OVERWORLD);
+    await pruneSnapshots(options.worldPath, options.cacheDir, [world.snapshot.sourceId]);
+    return new MapService(options, world, tileCache, stateFromScan(world, scan, options));
+  }
+
+  get world(): BedrockWorld {
+    return this.#world;
+  }
+
+  get info(): MapInfo {
+    return this.#state.info;
+  }
+
+  get version(): number {
+    return this.#version;
+  }
+
+  get state(): MapState {
+    const info = this.#state.info;
+    return {
+      version: this.#version,
+      terrainUpdatedAt: this.#terrainUpdatedAt,
+      chunkCount: info.chunkCount,
+      chunkBounds: info.chunkBounds,
+      blockBounds: info.blockBounds,
+      tileBounds: info.tileBounds,
+      center: info.center,
+    };
+  }
+
+  get lastRefresh(): RefreshStats | null {
+    return this.#lastRefresh;
+  }
+
+  get refreshCount(): number {
+    return this.#refreshCount;
+  }
+
+  get failedRefreshCount(): number {
+    return this.#failedRefreshCount;
   }
 
   get decodedChunks(): number {
@@ -114,7 +232,7 @@ export class MapService {
   }
 
   hasChunkData(chunkX: number, chunkZ: number): boolean {
-    return this.#chunksWithData.has(`${chunkX},${chunkZ}`);
+    return this.#state.chunksWithData.has(chunkId(chunkX, chunkZ));
   }
 
   /**
@@ -122,14 +240,14 @@ export class MapService {
    * never looked up in the database.
    */
   async surface(chunkX: number, chunkZ: number): Promise<ChunkSurface | null> {
-    const key = `${chunkX},${chunkZ}`;
+    const key = chunkId(chunkX, chunkZ);
     if (this.#surfaces.has(key)) return this.#surfaces.get(key)!;
     if (!this.hasChunkData(chunkX, chunkZ)) {
       this.#surfaces.set(key, null);
       return null;
     }
 
-    const surface = await readChunkSurface(this.world, this.#dimension, chunkX, chunkZ);
+    const surface = await readChunkSurface(this.#world, this.#dimension, chunkX, chunkZ);
     this.#decodedChunks++;
     if (this.#surfaces.size >= SURFACE_CACHE_LIMIT) {
       // Plain FIFO eviction; panning tends to move on rather than come back.
@@ -165,7 +283,173 @@ export class MapService {
     return work;
   }
 
-  async close(): Promise<void> {
-    await this.world.close();
+  /**
+   * Brings the map up to date with the live world.
+   *
+   * Cheap when nothing changed: one readdir plus a stat per database file. When
+   * the world did change, a new snapshot is taken and compared against the
+   * previous one chunk by chunk, and only the tiles that the changed chunks are
+   * drawn into are dropped.
+   *
+   * Never throws: a failure leaves the previous snapshot in place and is
+   * reported in the returned stats.
+   */
+  async refresh(): Promise<RefreshStats> {
+    // Concurrent callers (the timer and a manual refresh) share one run.
+    if (this.#refreshing) return this.#refreshing;
+    this.#refreshing = this.#runRefresh().finally(() => {
+      this.#refreshing = null;
+    });
+    return this.#refreshing;
   }
+
+  async #runRefresh(): Promise<RefreshStats> {
+    const startedAt = performance.now();
+    const stats: RefreshStats = {
+      at: new Date().toISOString(),
+      sourceChanged: false,
+      snapshotCopied: false,
+      snapshotMs: 0,
+      scanMs: 0,
+      chunksScanned: 0,
+      addedChunks: 0,
+      changedChunks: 0,
+      removedChunks: 0,
+      chunksDecoded: 0,
+      tilesInvalidated: 0,
+      tilesRegenerated: 0,
+      totalMs: 0,
+      version: this.#version,
+      error: null,
+    };
+    this.#refreshCount++;
+
+    const finish = (): RefreshStats => {
+      stats.totalMs = performance.now() - startedAt;
+      stats.version = this.#version;
+      this.#lastRefresh = stats;
+      return stats;
+    };
+
+    let source: SourceState;
+    try {
+      source = await readSourceState(this.#options.worldPath);
+    } catch (error) {
+      this.#failedRefreshCount++;
+      stats.error = `could not read the world directory: ${message(error)}`;
+      return finish();
+    }
+
+    if (source.sourceId === this.#world.snapshot.sourceId) return finish();
+    stats.sourceChanged = true;
+
+    // Everything below runs against a *new* snapshot while the previous one
+    // keeps serving, so a copy that turns out to be unusable changes nothing.
+    let next: BedrockWorld | null = null;
+    let scan: WorldScan;
+    let snapshotRoot: string | null = null;
+    try {
+      const snapshot = await snapshotWorld(this.#options.worldPath, this.#options.cacheDir, {
+        state: source,
+        force: true,
+      });
+      snapshotRoot = snapshot.root;
+      stats.snapshotCopied = snapshot.copied;
+      stats.snapshotMs = snapshot.copyMs;
+      next = await BedrockWorld.open({
+        worldPath: this.#options.worldPath,
+        cacheDir: this.#options.cacheDir,
+        snapshot,
+      });
+      scan = await next.scan(this.#dimension);
+    } catch (error) {
+      this.#failedRefreshCount++;
+      stats.error = `snapshot failed, keeping the previous one: ${message(error)}`;
+      if (next) await next.close().catch(() => {});
+      // A copy that could not be opened or scanned must not be reused.
+      if (snapshotRoot) await discardSnapshot({ root: snapshotRoot }).catch(() => {});
+      return finish();
+    }
+
+    stats.scanMs = scan.scanMs;
+    stats.chunksScanned = scan.chunks.length;
+
+    const diff = diffChunkDigests(this.#state.digests, scan.digests);
+    stats.addedChunks = diff.added.length;
+    stats.changedChunks = diff.changed.length;
+    stats.removedChunks = diff.removed.length;
+
+    // Let tiles that are already being drawn from the old snapshot finish before
+    // it is closed.
+    await Promise.allSettled([...this.#inFlight.values()]);
+
+    const previous = this.#world;
+    this.#world = next;
+    this.#state = stateFromScan(next, scan, this.#options);
+
+    if (diff.all.length) {
+      for (const chunk of diff.all) this.#surfaces.delete(chunkId(chunk.x, chunk.z));
+      this.#version++;
+      this.#terrainUpdatedAt = stats.at;
+    }
+
+    await this.tileCache.setSourceId(next.snapshot.sourceId);
+    await previous.close().catch(() => {});
+    await pruneSnapshots(this.#options.worldPath, this.#options.cacheDir, [next.snapshot.sourceId]);
+
+    if (diff.all.length) {
+      const decodedBefore = this.#decodedChunks;
+      const stale = await this.#invalidateTilesFor(diff.all);
+      stats.tilesInvalidated = stale.length;
+      stats.tilesRegenerated = await this.#renderTiles(stale);
+      stats.chunksDecoded = this.#decodedChunks - decodedBefore;
+    }
+
+    return finish();
+  }
+
+  /**
+   * Drops the cached tiles the given chunks are drawn into, and reports which of
+   * them were actually cached - those are the ones worth drawing again now.
+   */
+  async #invalidateTilesFor(chunks: readonly { x: number; z: number }[]): Promise<TilePos[]> {
+    const tiles = new Map<string, TilePos>();
+    for (const chunk of chunks) {
+      for (const tile of tilesAffectedByChunk(chunk.x, chunk.z)) {
+        tiles.set(`${tile.x},${tile.y}`, tile);
+      }
+    }
+
+    const wereCached: TilePos[] = [];
+    for (const tile of tiles.values()) {
+      if (await this.tileCache.invalidate(this.#dimension.id, NATIVE_ZOOM, tile.x, tile.y)) {
+        wereCached.push(tile);
+      }
+    }
+    return wereCached;
+  }
+
+  /** Redraws tiles, a few at a time so a refresh does not monopolise the CPU. */
+  async #renderTiles(tiles: readonly TilePos[]): Promise<number> {
+    let rendered = 0;
+    const queue = [...tiles];
+    const workers = Array.from({ length: Math.min(REFRESH_RENDER_CONCURRENCY, queue.length) }, async () => {
+      for (let tile = queue.pop(); tile; tile = queue.pop()) {
+        const result = await this.tile(this.#dimension.id, NATIVE_ZOOM, tile.x, tile.y).catch(
+          () => null,
+        );
+        if (result && !result.empty) rendered++;
+      }
+    });
+    await Promise.all(workers);
+    return rendered;
+  }
+
+  async close(): Promise<void> {
+    await this.#world.close();
+  }
+}
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }

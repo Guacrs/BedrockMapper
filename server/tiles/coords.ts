@@ -52,6 +52,29 @@ export function chunkToTile(chunkX: number, chunkZ: number): TilePos {
   return { x: floorDiv(chunkX, CHUNKS_PER_TILE), y: floorDiv(chunkZ, CHUNKS_PER_TILE) };
 }
 
+/**
+ * Every tile whose pixels are drawn from a chunk.
+ *
+ * Usually just the tile the chunk sits in. Elevation shading reads the height of
+ * the column one block north and one block west, so a chunk on the northern or
+ * western edge of a tile is also read by the tile it borders: chunk `15,z` is
+ * the last chunk of tile 0 *and* the shading border of tile 1. The diagonal
+ * neighbour is not included - shading never looks diagonally.
+ */
+export function tilesAffectedByChunk(chunkX: number, chunkZ: number): TilePos[] {
+  const dependents = [
+    { x: chunkX, z: chunkZ },
+    { x: chunkX + 1, z: chunkZ },
+    { x: chunkX, z: chunkZ + 1 },
+  ];
+  const tiles: TilePos[] = [];
+  for (const chunk of dependents) {
+    const tile = chunkToTile(chunk.x, chunk.z);
+    if (!tiles.some((seen) => seen.x === tile.x && seen.y === tile.y)) tiles.push(tile);
+  }
+  return tiles;
+}
+
 /** North-west block corner of a tile. */
 export function tileToBlock(tileX: number, tileY: number): { x: number; z: number } {
   return { x: tileX * TILE_SIZE, z: tileY * TILE_SIZE };

@@ -18,6 +18,7 @@
 
 import { blockToLatLng, latLngToBlock } from './coords.js';
 import { PlayerLayer, playerStatus } from './players.js';
+import { TerrainLayer, worldSummary } from './terrain.js';
 
 const MinecraftCRS = L.extend({}, L.CRS.Simple, {
   transformation: new L.Transformation(1, 0, 1, 0),
@@ -40,31 +41,15 @@ async function main() {
     preferCanvas: true,
   });
 
-  const bounds = info.blockBounds;
-  const layerBounds = bounds
-    ? L.latLngBounds(blockToLatLng(bounds.minX, bounds.minZ), blockToLatLng(bounds.maxX + 1, bounds.maxZ + 1))
-    : null;
+  const terrain = new TerrainLayer(map, info);
 
-  L.tileLayer(`/tiles/${info.dimension}/{z}/{x}/{y}.png`, {
-    tileSize: info.tileSize,
-    // The server renders one zoom level; Leaflet scales it for the others.
-    minNativeZoom: info.nativeZoom,
-    maxNativeZoom: info.nativeZoom,
-    noWrap: true,
-    keepBuffer: 2,
-    ...(layerBounds ? { bounds: layerBounds } : {}),
-  }).addTo(map);
-
-  if (layerBounds) {
-    map.fitBounds(layerBounds);
+  if (terrain.latLngBounds) {
+    map.fitBounds(terrain.latLngBounds);
   } else {
     map.setView(blockToLatLng(0, 0), 0);
   }
 
-  worldLabel.textContent =
-    `${info.world.name || 'world'} ${info.world.version ? `(${info.world.version})` : ''} ` +
-    `- ${info.chunkCount} chunks` +
-    (bounds ? ` - X ${bounds.minX}..${bounds.maxX}, Z ${bounds.minZ}..${bounds.maxZ}` : '');
+  worldLabel.textContent = worldSummary(info.world, info);
 
   map.on('mousemove', (event) => {
     const { x, z } = latLngToBlock(event.latlng);
@@ -87,6 +72,22 @@ async function main() {
   map.on('move zoom', updateView);
   updateView();
 
+  // Terrain: ask whether the world changed and, when it has, reload the tiles
+  // that changed by bumping the version in their URLs. The map keeps its view.
+  async function pollTerrain() {
+    try {
+      const state = await fetch('/api/map/state').then((response) => response.json());
+      if (terrain.update(state)) worldLabel.textContent = worldSummary(info.world, state);
+      return state;
+    } catch (error) {
+      console.error('terrain poll failed:', error);
+      return null;
+    }
+  }
+
+  const terrainInterval = info.terrainPollInterval ?? 0;
+  if (terrainInterval > 0) setInterval(pollTerrain, terrainInterval);
+
   // Players: poll the latest positions and reconcile the markers. Polling is
   // enough for a marker every few seconds, so there is no WebSocket.
   const playerLayer = new PlayerLayer(map, info.dimension);
@@ -108,6 +109,8 @@ async function main() {
   window.__map = map;
   window.__players = playerLayer;
   window.__pollPlayers = pollPlayers;
+  window.__terrain = terrain;
+  window.__pollTerrain = pollTerrain;
 
   await pollPlayers();
   setInterval(pollPlayers, pollInterval);

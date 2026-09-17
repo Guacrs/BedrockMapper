@@ -11,7 +11,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { loadConfig, type Config } from './config.ts';
-import { MapService } from './map-service.ts';
+import { MapService, type RefreshStats } from './map-service.ts';
 import { PlayerStore, PlayerValidationError, parsePlayerUpdate } from './players/store.ts';
 import { dimensionById } from './world/dimensions.ts';
 
@@ -104,6 +104,32 @@ function apiKeyFrom(request: http.IncomingMessage): string | null {
   return value?.trim() ? value.trim() : null;
 }
 
+/**
+ * How often the browser asks whether the terrain changed. Half the server's own
+ * refresh interval, so a change is picked up within about one interval, and
+ * never more often than every two seconds. Zero when refreshing is switched off,
+ * which tells the browser not to poll at all.
+ */
+export function terrainPollInterval(worldRefreshInterval: number): number {
+  if (worldRefreshInterval <= 0) return 0;
+  return Math.max(2000, Math.min(30000, Math.round(worldRefreshInterval / 2)));
+}
+
+/** One line summarising what a terrain refresh did, for the server log. */
+export function describeRefresh(stats: RefreshStats): string | null {
+  if (stats.error) return `terrain refresh failed: ${stats.error}`;
+  if (!stats.sourceChanged) return null;
+  const changed = stats.addedChunks + stats.changedChunks + stats.removedChunks;
+  if (!changed) {
+    return `world files changed but no chunk did (${Math.round(stats.totalMs)} ms)`;
+  }
+  return (
+    `terrain updated: ${changed} chunks (${stats.addedChunks} new, ${stats.changedChunks} changed, ` +
+    `${stats.removedChunks} gone), ${stats.tilesInvalidated} tiles invalidated, ` +
+    `${stats.tilesRegenerated} redrawn, map version ${stats.version}, ${Math.round(stats.totalMs)} ms`
+  );
+}
+
 export interface StartedServer {
   server: http.Server;
   map: MapService;
@@ -141,8 +167,22 @@ export async function startServer(config: Config): Promise<StartedServer> {
     if (pathname === '/api/map/info') {
       sendJson(response, 200, {
         ...map.info,
+        version: map.version,
+        worldRefreshInterval: config.worldRefreshInterval,
+        terrainPollInterval: terrainPollInterval(config.worldRefreshInterval),
         playerPollInterval: config.playerUpdateInterval,
         playerDataTimeout: config.playerDataTimeout,
+      });
+      return;
+    }
+
+    // What the browser polls to notice terrain changes: small, cheap, and
+    // enough to rebuild the tile URLs and the extent readout.
+    if (pathname === '/api/map/state') {
+      sendJson(response, 200, {
+        ...map.state,
+        worldRefreshInterval: config.worldRefreshInterval,
+        lastRefresh: map.lastRefresh,
       });
       return;
     }
@@ -245,12 +285,25 @@ export async function startServer(config: Config): Promise<StartedServer> {
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : config.port;
 
+  // Terrain refresh: check the live world on an interval and re-render only what
+  // changed. `unref` so the timer never keeps the process (or a test) alive.
+  const refreshTimer =
+    config.worldRefreshInterval > 0
+      ? setInterval(() => {
+          void map.refresh().then((stats) => {
+            const line = describeRefresh(stats);
+            if (line) console.log(line);
+          });
+        }, config.worldRefreshInterval).unref()
+      : null;
+
   return {
     server,
     map,
     players,
     port,
     close: async () => {
+      if (refreshTimer) clearInterval(refreshTimer);
       await new Promise<void>((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve())),
       );
@@ -280,6 +333,13 @@ if (isEntryPoint) {
   console.log(
     `  players:    POST /api/players ${config.apiKey ? 'requires the API key from your .env' : 'DISABLED - set API_KEY in .env'}` +
       `, stale after ${config.playerDataTimeout} ms, browser polls every ${config.playerUpdateInterval} ms`,
+  );
+  console.log(
+    `  terrain:    ${
+      config.worldRefreshInterval > 0
+        ? `checked every ${config.worldRefreshInterval} ms, browser polls every ${terrainPollInterval(config.worldRefreshInterval)} ms`
+        : 'automatic refresh DISABLED (WORLD_REFRESH_INTERVAL=0)'
+    }`,
   );
 
   for (const signal of ['SIGINT', 'SIGTERM'] as const) {

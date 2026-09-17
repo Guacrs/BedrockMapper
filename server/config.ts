@@ -10,6 +10,8 @@ export interface Config {
   worldPath: string;
   port: number;
   cacheDir: string;
+  /** How often the live world is checked for changes, milliseconds. 0 disables. */
+  worldRefreshInterval: number;
   /** How often the browser polls for player positions, milliseconds. */
   playerUpdateInterval: number;
   /** After this long without a player update the list is treated as unavailable. */
@@ -31,6 +33,12 @@ function number(value: string | undefined, fallback: number): number {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+/** Like `number`, but 0 is a real value: it switches a feature off. */
+function numberOrOff(value: string | undefined, fallback: number): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
 export function loadConfig(overrides: Partial<Config> = {}): Config {
   loadEnv();
   const worldPath = overrides.worldPath ?? process.env.WORLD_PATH ?? '';
@@ -41,6 +49,8 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     worldPath: path.resolve(worldPath),
     port: overrides.port ?? number(process.env.PORT, 3000),
     cacheDir: path.resolve(overrides.cacheDir ?? process.env.MAP_CACHE ?? './cache'),
+    worldRefreshInterval:
+      overrides.worldRefreshInterval ?? numberOrOff(process.env.WORLD_REFRESH_INTERVAL, 30000),
     playerUpdateInterval:
       overrides.playerUpdateInterval ?? number(process.env.PLAYER_UPDATE_INTERVAL, 3000),
     playerDataTimeout: overrides.playerDataTimeout ?? number(process.env.PLAYER_DATA_TIMEOUT, 10000),

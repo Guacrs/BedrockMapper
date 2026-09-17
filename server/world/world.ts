@@ -6,6 +6,7 @@
  * snapshot path at a time - the LevelDB binding refuses a second open.
  */
 
+import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { LevelDB } from '@8crafter/leveldb-zlib';
@@ -17,7 +18,7 @@ import {
   type DimensionId,
 } from './dimensions.ts';
 import { ChunkTag, chunkKey, parseChunkKey, subChunkKey, type ChunkPos } from './keys.ts';
-import { snapshotWorld, type SnapshotResult } from './snapshot.ts';
+import { snapshotWorld, type SnapshotResult, type SourceState } from './snapshot.ts';
 import { decodeSubChunk, LegacySubChunkError, type SubChunk } from './subchunk.ts';
 
 export interface LevelInfo {
@@ -38,6 +39,20 @@ export interface ChunkSummary extends ChunkPos {
 export interface OpenWorldOptions {
   worldPath: string;
   cacheDir: string;
+  /** A snapshot the caller already created, instead of taking a fresh one. */
+  snapshot?: SnapshotResult;
+  /** Source state the caller already read, to avoid stat-ing the world twice. */
+  state?: SourceState;
+}
+
+/** One pass over the key space: which chunks exist and what their blocks are. */
+export interface WorldScan {
+  chunks: ChunkSummary[];
+  /** Per chunk digest of the block data, `null` for chunks without any. */
+  digests: Map<string, string>;
+  subChunkRecords: number;
+  subChunkBytes: number;
+  scanMs: number;
 }
 
 function readVersionList(value: unknown): string | null {
@@ -77,6 +92,35 @@ async function readLevelInfo(worldPath: string): Promise<LevelInfo> {
   };
 }
 
+/** Bytes of a chunk digest; a truncated SHA-1 is ample for change detection. */
+const DIGEST_BYTES = 16;
+
+/**
+ * Folds one subchunk record into its chunk's digest.
+ *
+ * The subchunk index is hashed together with the payload, and the per-record
+ * hashes are combined with XOR, so the result does not depend on the order the
+ * iterator happened to visit the records in, but does change when a subchunk
+ * moves, changes, appears or disappears.
+ */
+function mixRecord(
+  accumulators: Map<string, Buffer>,
+  chunkId: string,
+  subChunkIndex: number,
+  value: Buffer,
+): void {
+  const record = createHash('sha1')
+    .update(Buffer.from([subChunkIndex & 0xff]))
+    .update(value)
+    .digest();
+  let accumulator = accumulators.get(chunkId);
+  if (!accumulator) {
+    accumulator = Buffer.alloc(DIGEST_BYTES);
+    accumulators.set(chunkId, accumulator);
+  }
+  for (let i = 0; i < DIGEST_BYTES; i++) accumulator[i]! ^= record[i]!;
+}
+
 export class BedrockWorld {
   #db: LevelDB;
   #chunkCache = new Map<DimensionId, ChunkSummary[]>();
@@ -96,9 +140,11 @@ export class BedrockWorld {
     this.snapshot = snapshot;
   }
 
-  static async open({ worldPath, cacheDir }: OpenWorldOptions): Promise<BedrockWorld> {
+  static async open(options: OpenWorldOptions): Promise<BedrockWorld> {
+    const { worldPath, cacheDir } = options;
     const levelInfo = await readLevelInfo(worldPath);
-    const snapshot = await snapshotWorld(worldPath, cacheDir);
+    const snapshot =
+      options.snapshot ?? (await snapshotWorld(worldPath, cacheDir, { state: options.state }));
     const db = new LevelDB(snapshot.dbPath, { createIfMissing: false });
     await db.open();
     return new BedrockWorld(db, worldPath, levelInfo, snapshot);
@@ -109,17 +155,23 @@ export class BedrockWorld {
   }
 
   /**
-   * Lists every stored chunk of a dimension by scanning the key space once.
+   * Walks the key space once, collecting every stored chunk of a dimension and
+   * a digest of its block data.
    *
    * A chunk is "stored" when it has a ChunkVersion record; the subchunk indices
-   * found alongside it tell the renderer which vertical slices exist.
+   * found alongside it tell the renderer which vertical slices exist. The digest
+   * covers the raw `SubChunkPrefix` payloads - the bytes the renderer decodes -
+   * so comparing two scans of two snapshots says exactly which chunks gained,
+   * lost or changed block data, without decoding anything.
    */
-  async listChunks(dimension: Dimension): Promise<ChunkSummary[]> {
-    const cached = this.#chunkCache.get(dimension.id);
-    if (cached) return cached;
-
+  async scan(dimension: Dimension): Promise<WorldScan> {
+    const startedAt = performance.now();
     const chunks = new Map<string, ChunkSummary>();
-    const iterator = this.#db.getIterator({ keys: true, values: false });
+    const accumulators = new Map<string, Buffer>();
+    let subChunkRecords = 0;
+    let subChunkBytes = 0;
+
+    const iterator = this.#db.getIterator({ keys: true, values: true });
     try {
       let entry: unknown[] | null;
       while ((entry = await iterator.next())) {
@@ -135,14 +187,23 @@ export class BedrockWorld {
           continue;
         }
 
+        const value = entry[0] as Buffer | undefined;
         const id = `${parsed.x},${parsed.z}`;
         let summary = chunks.get(id);
         if (!summary) {
           summary = { x: parsed.x, z: parsed.z, version: null, subChunkIndices: [] };
           chunks.set(id, summary);
         }
+
         if (parsed.tag === ChunkTag.SubChunkPrefix && parsed.subChunkIndex !== undefined) {
           summary.subChunkIndices.push(parsed.subChunkIndex);
+          if (Buffer.isBuffer(value)) {
+            subChunkRecords++;
+            subChunkBytes += value.length;
+            mixRecord(accumulators, id, parsed.subChunkIndex, value);
+          }
+        } else if (Buffer.isBuffer(value) && value.length && summary.version === null) {
+          summary.version = value.readUInt8(0);
         }
       }
     } finally {
@@ -151,15 +212,29 @@ export class BedrockWorld {
 
     const list = [...chunks.values()];
     for (const summary of list) summary.subChunkIndices.sort((a, b) => a - b);
-    await Promise.all(
-      list.map(async (summary) => {
-        summary.version = await this.readChunkVersion(dimension, summary.x, summary.z);
-      }),
-    );
-
     list.sort((a, b) => a.z - b.z || a.x - b.x);
-    this.#chunkCache.set(dimension.id, list);
-    return list;
+
+    const digests = new Map<string, string>();
+    for (const [id, accumulator] of accumulators) digests.set(id, accumulator.toString('hex'));
+
+    return {
+      chunks: list,
+      digests,
+      subChunkRecords,
+      subChunkBytes,
+      scanMs: performance.now() - startedAt,
+    };
+  }
+
+  /**
+   * Lists every stored chunk of a dimension, memoised per world instance.
+   */
+  async listChunks(dimension: Dimension): Promise<ChunkSummary[]> {
+    const cached = this.#chunkCache.get(dimension.id);
+    if (cached) return cached;
+    const { chunks } = await this.scan(dimension);
+    this.#chunkCache.set(dimension.id, chunks);
+    return chunks;
   }
 
   async readChunkVersion(dimension: Dimension, x: number, z: number): Promise<number | null> {

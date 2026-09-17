@@ -14,18 +14,24 @@ export interface TileCacheStats {
   hits: number;
   misses: number;
   writes: number;
+  invalidated: number;
 }
 
 export class TileCache {
   readonly root: string;
-  readonly sourceId: string;
   readonly clearedStaleTiles: boolean;
-  readonly stats: TileCacheStats = { hits: 0, misses: 0, writes: 0 };
+  readonly stats: TileCacheStats = { hits: 0, misses: 0, writes: 0, invalidated: 0 };
+
+  #sourceId: string;
 
   private constructor(root: string, sourceId: string, clearedStaleTiles: boolean) {
     this.root = root;
-    this.sourceId = sourceId;
+    this.#sourceId = sourceId;
     this.clearedStaleTiles = clearedStaleTiles;
+  }
+
+  get sourceId(): string {
+    return this.#sourceId;
   }
 
   static async create(cacheDir: string, sourceId: string): Promise<TileCache> {
@@ -72,10 +78,35 @@ export class TileCache {
     this.stats.writes++;
   }
 
+  /**
+   * Drops one cached tile. Returns true when a tile was actually cached, which
+   * is what tells a refresh whether the tile is worth drawing again right away.
+   */
+  async invalidate(dimension: DimensionId, zoom: number, x: number, y: number): Promise<boolean> {
+    const removed = await fs
+      .rm(this.tilePath(dimension, zoom, x, y))
+      .then(() => true)
+      .catch(() => false);
+    if (removed) this.stats.invalidated++;
+    return removed;
+  }
+
+  /**
+   * Records that the tiles now correspond to a newer world snapshot. Used after
+   * an incremental refresh, where only the affected tiles were invalidated and
+   * the rest are still correct.
+   */
+  async setSourceId(sourceId: string): Promise<void> {
+    if (sourceId === this.#sourceId) return;
+    this.#sourceId = sourceId;
+    await fs.mkdir(this.root, { recursive: true });
+    await fs.writeFile(path.join(this.root, 'source.json'), JSON.stringify({ sourceId }));
+  }
+
   /** Drops every cached tile, e.g. for a manual map refresh. */
   async clear(): Promise<void> {
     await fs.rm(this.root, { recursive: true, force: true });
     await fs.mkdir(this.root, { recursive: true });
-    await fs.writeFile(path.join(this.root, 'source.json'), JSON.stringify({ sourceId: this.sourceId }));
+    await fs.writeFile(path.join(this.root, 'source.json'), JSON.stringify({ sourceId: this.#sourceId }));
   }
 }
