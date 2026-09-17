@@ -276,6 +276,25 @@ describe(
       assert.notDeepEqual(chunkPixels(await readTile(ownTile), chunk), chunkPixels(beforeOwn, chunk));
     });
 
+    it('leaves the browser alone when a change is invisible from above', async () => {
+      const chunk = chunkWithData(3, (candidate) => candidate.x % 16 !== 15 && candidate.z % 16 !== 15);
+      const tile = chunkToTile(chunk.x, chunk.z);
+      const before = await readTile(tile);
+      const version = map.version;
+
+      // Deep underground: a running server rewrites chunks like this constantly.
+      const removed = await writer((handle) => handle.removeBottomSubChunk(chunk));
+      assert.notEqual(removed, null);
+
+      const stats = await map.refresh();
+      assert.equal(stats.error, null);
+      assert.equal(stats.changedChunks, 1, 'the chunk\'s block data did change');
+      assert.ok(stats.tilesRegenerated >= 1, 'so its tile is drawn again from the new snapshot');
+      assert.equal(stats.tilesChanged, 0, 'but the tile came out identical');
+      assert.equal(map.version, version, 'so no browser is asked to re-fetch it');
+      assert.deepEqual(await readTile(tile), before);
+    });
+
     it('notices block data disappearing', async () => {
       const chunk = chunkWithData(3, (candidate) => candidate.x % 16 !== 15 && candidate.z % 16 !== 15);
       const tile = chunkToTile(chunk.x, chunk.z);

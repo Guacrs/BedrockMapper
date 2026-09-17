@@ -91,6 +91,8 @@ export interface RefreshStats {
   chunksDecoded: number;
   tilesInvalidated: number;
   tilesRegenerated: number;
+  /** Redrawn tiles that really came out different, i.e. what the browser needs. */
+  tilesChanged: number;
   totalMs: number;
   version: number;
   /** Set when the refresh failed; the previous snapshot is still being served. */
@@ -328,6 +330,7 @@ export class MapService {
       chunksDecoded: 0,
       tilesInvalidated: 0,
       tilesRegenerated: 0,
+      tilesChanged: 0,
       totalMs: 0,
       version: this.#version,
       error: null,
@@ -393,14 +396,11 @@ export class MapService {
     await Promise.allSettled([...this.#inFlight.values(), ...this.#surfacesInFlight.values()]);
 
     const previous = this.#world;
+    const previousBounds = this.#state.info.chunkBounds;
     this.#world = next;
     this.#state = stateFromScan(next, scan, this.#options);
 
-    if (diff.all.length) {
-      for (const chunk of diff.all) this.#surfaces.delete(chunkId(chunk.x, chunk.z));
-      this.#version++;
-      this.#terrainUpdatedAt = stats.at;
-    }
+    for (const chunk of diff.all) this.#surfaces.delete(chunkId(chunk.x, chunk.z));
 
     await this.tileCache.setSourceId(next.snapshot.sourceId);
     await previous.close().catch(() => {});
@@ -410,18 +410,38 @@ export class MapService {
       const decodedBefore = this.#decodedChunks;
       const stale = await this.#invalidateTilesFor(diff.all);
       stats.tilesInvalidated = stale.length;
-      stats.tilesRegenerated = await this.#renderTiles(stale);
+      const redrawn = await this.#renderTiles(stale);
+      stats.tilesRegenerated = redrawn.rendered;
+      stats.tilesChanged = redrawn.changed;
       stats.chunksDecoded = this.#decodedChunks - decodedBefore;
+    }
+
+    // A running server rewrites chunks constantly - block ticks, growth, leaves -
+    // and most of that is invisible from above. Moving the version only when a
+    // tile really came out different keeps browsers from re-fetching tiles that
+    // look the same. Chunks appearing or disappearing always count: they change
+    // which tiles exist and how far the map reaches.
+    const worthTelling =
+      diff.added.length > 0 ||
+      diff.removed.length > 0 ||
+      stats.tilesChanged > 0 ||
+      !sameBounds(previousBounds, this.#state.info.chunkBounds);
+    if (worthTelling) {
+      this.#version++;
+      this.#terrainUpdatedAt = stats.at;
     }
 
     return finish();
   }
 
   /**
-   * Drops the cached tiles the given chunks are drawn into, and reports which of
-   * them were actually cached - those are the ones worth drawing again now.
+   * Drops the cached tiles the given chunks are drawn into, keeping what each of
+   * them looked like, and reports the ones that were actually cached - those are
+   * the tiles worth drawing again now.
    */
-  async #invalidateTilesFor(chunks: readonly { x: number; z: number }[]): Promise<TilePos[]> {
+  async #invalidateTilesFor(
+    chunks: readonly { x: number; z: number }[],
+  ): Promise<{ tile: TilePos; before: Uint8Array }[]> {
     const tiles = new Map<string, TilePos>();
     for (const chunk of chunks) {
       for (const tile of tilesAffectedByChunk(chunk.x, chunk.z)) {
@@ -429,29 +449,38 @@ export class MapService {
       }
     }
 
-    const wereCached: TilePos[] = [];
+    const wereCached: { tile: TilePos; before: Uint8Array }[] = [];
     for (const tile of tiles.values()) {
+      const before = await this.tileCache.read(this.#dimension.id, NATIVE_ZOOM, tile.x, tile.y);
+      if (!before) continue;
       if (await this.tileCache.invalidate(this.#dimension.id, NATIVE_ZOOM, tile.x, tile.y)) {
-        wereCached.push(tile);
+        wereCached.push({ tile, before });
       }
     }
     return wereCached;
   }
 
   /** Redraws tiles, a few at a time so a refresh does not monopolise the CPU. */
-  async #renderTiles(tiles: readonly TilePos[]): Promise<number> {
+  async #renderTiles(
+    stale: readonly { tile: TilePos; before: Uint8Array }[],
+  ): Promise<{ rendered: number; changed: number }> {
     let rendered = 0;
-    const queue = [...tiles];
+    let changed = 0;
+    const queue = [...stale];
     const workers = Array.from({ length: Math.min(REFRESH_RENDER_CONCURRENCY, queue.length) }, async () => {
-      for (let tile = queue.pop(); tile; tile = queue.pop()) {
-        const result = await this.tile(this.#dimension.id, NATIVE_ZOOM, tile.x, tile.y).catch(
+      for (let entry = queue.pop(); entry; entry = queue.pop()) {
+        const result = await this.tile(this.#dimension.id, NATIVE_ZOOM, entry.tile.x, entry.tile.y).catch(
           () => null,
         );
-        if (result && !result.empty) rendered++;
+        if (!result) continue;
+        if (!result.empty) rendered++;
+        // An emptied tile stops being served as an image at all, which the
+        // browser has to be told about just like a redrawn one.
+        if (result.empty || !sameBytes(result.bytes, entry.before)) changed++;
       }
     });
     await Promise.all(workers);
-    return rendered;
+    return { rendered, changed };
   }
 
   async close(): Promise<void> {
@@ -461,4 +490,13 @@ export class MapService {
 
 function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function sameBytes(a: Uint8Array, b: Uint8Array): boolean {
+  return a.length === b.length && Buffer.from(a).equals(Buffer.from(b));
+}
+
+function sameBounds(a: Bounds | null, b: Bounds | null): boolean {
+  if (a === null || b === null) return a === b;
+  return a.minX === b.minX && a.maxX === b.maxX && a.minZ === b.minZ && a.maxZ === b.maxZ;
 }

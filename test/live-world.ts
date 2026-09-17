@@ -80,6 +80,17 @@ export class WorldWriter {
     return top;
   }
 
+  /**
+   * Removes a chunk's lowest subchunk: block data really changes, but it is far
+   * below the surface, so a top-down map cannot tell.
+   */
+  async removeBottomSubChunk(chunk: ChunkPos): Promise<number | null> {
+    const [bottom] = await this.subChunkIndices(chunk);
+    if (bottom === undefined) return null;
+    await this.#db.delete(subChunkKey(this.#dimension, chunk.x, chunk.z, bottom));
+    return bottom;
+  }
+
   /** Removes every subchunk of a chunk, as if its block data disappeared. */
   async removeAllSubChunks(chunk: ChunkPos): Promise<number> {
     const indices = await this.subChunkIndices(chunk);

@@ -126,7 +126,8 @@ export function describeRefresh(stats: RefreshStats): string | null {
   return (
     `terrain updated: ${changed} chunks (${stats.addedChunks} new, ${stats.changedChunks} changed, ` +
     `${stats.removedChunks} gone), ${stats.tilesInvalidated} tiles invalidated, ` +
-    `${stats.tilesRegenerated} redrawn, map version ${stats.version}, ${Math.round(stats.totalMs)} ms`
+    `${stats.tilesRegenerated} redrawn, ${stats.tilesChanged} of them different, ` +
+    `map version ${stats.version}, ${Math.round(stats.totalMs)} ms`
   );
 }
 

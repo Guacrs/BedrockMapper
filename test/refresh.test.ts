@@ -24,6 +24,7 @@ function stats(overrides: Partial<RefreshStats> = {}): RefreshStats {
     chunksDecoded: 0,
     tilesInvalidated: 0,
     tilesRegenerated: 0,
+    tilesChanged: 0,
     totalMs: 60,
     version: 1,
     error: null,
@@ -137,10 +138,17 @@ describe('refresh log line', () => {
 
   it('summarises chunk and tile counts', () => {
     const line = describeRefresh(
-      stats({ addedChunks: 4, changedChunks: 2, tilesInvalidated: 3, tilesRegenerated: 3, version: 7 }),
+      stats({
+        addedChunks: 4,
+        changedChunks: 2,
+        tilesInvalidated: 3,
+        tilesRegenerated: 3,
+        tilesChanged: 2,
+        version: 7,
+      }),
     )!;
     assert.match(line, /6 chunks \(4 new, 2 changed, 0 gone\)/);
-    assert.match(line, /3 tiles invalidated, 3 redrawn/);
+    assert.match(line, /3 tiles invalidated, 3 redrawn, 2 of them different/);
     assert.match(line, /map version 7/);
   });
 
