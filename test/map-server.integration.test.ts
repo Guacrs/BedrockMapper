@@ -436,11 +436,37 @@ describe(
       });
       assert.equal(wrongScheme.status, 401);
 
+      const wrongDirectKey = await fetch(`${base}/api/players`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': 'nope' },
+        body: JSON.stringify({ players: [] }),
+      });
+      assert.equal(wrongDirectKey.status, 401);
+
       const snapshot = await getPlayers();
       assert.deepEqual(
         snapshot.players.map((player) => player.name),
         ['Ghost'],
         'a rejected update must not change the stored list',
+      );
+    });
+
+    it('accepts the key in X-Api-Key, which is what the BDS addon can send', async () => {
+      // The Script API hands out the server secret as a SecretString that can
+      // only be passed as a whole header value, never concatenated after
+      // "Bearer ", so this header has to work too.
+      const response = await fetch(`${base}/api/players`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': API_KEY },
+        body: JSON.stringify({
+          players: [{ name: 'Secret', x: 1, y: 2, z: 3, dimension: 'minecraft:overworld' }],
+        }),
+      });
+      assert.equal(response.status, 200);
+      const snapshot = await getPlayers();
+      assert.deepEqual(
+        snapshot.players.map((player) => player.name),
+        ['Secret'],
       );
     });
 

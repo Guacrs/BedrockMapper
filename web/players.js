@@ -100,7 +100,11 @@ export function playerStatus(snapshot, dimension) {
 }
 
 /**
- * Builds popup content as DOM, so a player name can never inject markup.
+ * Popup content as DOM, so a player name can never inject markup.
+ *
+ * The element is reused for the life of the marker and its text is updated in
+ * place: replacing an open popup's content makes Leaflet re-lay-out and pan the
+ * map, which would drag the view around every time positions are polled.
  *
  * @param {PlayerReport} player
  */
@@ -114,6 +118,19 @@ function detailsElement(player) {
     element.append(row);
   }
   return element;
+}
+
+/**
+ * @param {HTMLElement} element
+ * @param {PlayerReport} player
+ */
+function updateDetailsElement(element, player) {
+  const lines = playerDetails(player);
+  const rows = element.children;
+  for (const [index, line] of lines.entries()) {
+    const row = rows[index];
+    if (row) row.textContent = line;
+  }
 }
 
 export class PlayerLayer {
@@ -135,6 +152,15 @@ export class PlayerLayer {
   /** Marker keys currently on the map, for debugging and tests. */
   keys() {
     return [...this.#markers.keys()];
+  }
+
+  /**
+   * The marker for a key, for debugging and tests.
+   *
+   * @param {string} key
+   */
+  markerFor(key) {
+    return this.#markers.get(key);
   }
 
   /**
@@ -164,14 +190,16 @@ export class PlayerLayer {
           fillOpacity: 1,
         });
         marker.bindTooltip(player.name, { direction: 'top', offset: L.point(0, -6) });
-        marker.bindPopup(detailsElement(player));
+        // Offset upwards so an open popup does not sit on top of the dot it
+        // describes, which would hide the player while you read the numbers.
+        marker.bindPopup(detailsElement(player), { offset: L.point(0, -8) });
         marker.addTo(this.#layer);
         this.#markers.set(key, marker);
       } else {
         marker.setLatLng(position);
         marker.setTooltipContent(player.name);
-        // Rebuilding the content keeps an open popup live as the player moves.
-        marker.setPopupContent(detailsElement(player));
+        // An open popup keeps up with the player without being replaced.
+        updateDetailsElement(marker.getPopup().getContent(), player);
       }
     }
 

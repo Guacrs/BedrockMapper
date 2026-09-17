@@ -87,12 +87,21 @@ function secretsMatch(expected: string, provided: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-/** Reads the shared secret from `Authorization: Bearer <key>`. */
-function bearerToken(request: http.IncomingMessage): string | null {
+/**
+ * Reads the shared secret from `Authorization: Bearer <key>`, or from
+ * `X-Api-Key`. The second form exists because the BDS Script API hands out the
+ * server's secret as an opaque `SecretString` that cannot be concatenated into
+ * a "Bearer <key>" value, only passed as a whole header value.
+ */
+function apiKeyFrom(request: http.IncomingMessage): string | null {
   const header = request.headers.authorization;
-  if (!header) return null;
-  const match = /^Bearer\s+(.+)$/i.exec(header.trim());
-  return match ? match[1]!.trim() : null;
+  if (header) {
+    const match = /^Bearer\s+(.+)$/i.exec(header.trim());
+    if (match) return match[1]!.trim();
+  }
+  const direct = request.headers['x-api-key'];
+  const value = Array.isArray(direct) ? direct[0] : direct;
+  return value?.trim() ? value.trim() : null;
 }
 
 export interface StartedServer {
@@ -192,10 +201,12 @@ export async function startServer(config: Config): Promise<StartedServer> {
       return;
     }
 
-    const token = bearerToken(request);
+    const token = apiKeyFrom(request);
     if (!token) {
       response.setHeader('www-authenticate', 'Bearer');
-      sendJson(response, 401, { error: 'missing Authorization: Bearer <API_KEY> header' });
+      sendJson(response, 401, {
+        error: 'missing "Authorization: Bearer <API_KEY>" or "X-Api-Key: <API_KEY>" header',
+      });
       return;
     }
     if (!secretsMatch(config.apiKey, token)) {
