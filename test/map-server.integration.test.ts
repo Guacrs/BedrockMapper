@@ -164,6 +164,38 @@ describe(
       }
     });
 
+    it('joins real tiles at a tile border with no gap', async () => {
+      // Chunk -1,z is the last chunk of tile -1,0 and chunk 0,z the first of
+      // tile 0,0, so block X -1 and 0 are drawn by different tiles.
+      const bounds = map.info.chunkBounds!;
+      let found = -1;
+      for (let z = bounds.minZ; z <= bounds.maxZ; z++) {
+        if (map.hasChunkData(-1, z) && map.hasChunkData(0, z)) {
+          found = z;
+          break;
+        }
+      }
+      assert.notEqual(found, -1, 'expected chunks either side of block X 0 to have data');
+      const chunkZ: number = found;
+      const tileY = blockToTile(0, chunkZ * 16).y;
+
+      const west = decodeTile((await map.tile('overworld', 0, -1, tileY)).bytes);
+      const east = decodeTile((await map.tile('overworld', 0, 0, tileY)).bytes);
+      const westSurface = (await map.surface(-1, chunkZ))!;
+      const eastSurface = (await map.surface(0, chunkZ))!;
+      const tileOriginZ = tileToBlock(0, tileY).z;
+
+      for (let localZ = 0; localZ < 16; localZ++) {
+        const pixelY = chunkZ * 16 + localZ - tileOriginZ;
+        // Block X -1 is the rightmost pixel of the western tile, block X 0 the
+        // leftmost of the eastern one.
+        assert.equal(pixelAt(west, 255, pixelY)[3], 255);
+        assert.equal(pixelAt(east, 0, pixelY)[3], 255);
+        assert.ok(westSurface.blocks[(15 << 4) | localZ], 'block -1 should be a real surface block');
+        assert.ok(eastSurface.blocks[(0 << 4) | localZ], 'block 0 should be a real surface block');
+      }
+    });
+
     it('caches tiles on disk and does not decode chunks twice', async () => {
       const tile = blockToTile(map.info.center!.x, map.info.center!.z);
       // Start from a cold disk cache: earlier tests may already have rendered

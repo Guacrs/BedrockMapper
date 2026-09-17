@@ -39,7 +39,8 @@ body {
 }
 
 #cursor {
-  min-width: 15ch;
+  min-width: 22ch;
+  color: #7ee787;
 }
 
 #world {

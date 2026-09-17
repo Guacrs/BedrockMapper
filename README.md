@@ -175,6 +175,33 @@ and tile borders.
 The `/api/map/info` bounds come from the chunks that actually have block data, and the page opens
 fitted to those bounds, so nothing about the centre or extent is hardcoded.
 
+### Rendering a range of chunks up front
+
+Tiles are rendered on demand, but a range can be rendered ahead of time so the
+first visitor never waits on a cold tile:
+
+```bash
+npm run render-map                                        # every chunk that has data
+npm run render-map -- --chunk-x=-10..20 --chunk-z=-10..20  # a chunk range
+npm run render-map -- --force                             # ignore the cache and redraw
+```
+
+The range is in **chunk** coordinates and is rounded out to whole tiles. A range starting with a minus
+needs the `=` form, otherwise Node's argument parser treats it as another option.
+
+```
+Rendering overworld tiles
+  chunk range:        X -10..20, Z -10..20
+  tile range:         X -1..1, Y -1..1 (16x16 chunks each)
+
+  tile   -1,  -1 rendered   4/256 chunks     507 B    39 ms
+  tile    0,   0 rendered 232/256 chunks   19801 B   379 ms
+  tile    1,   0 rendered 248/256 chunks   42520 B   413 ms
+
+9 tiles in 1.1 s: 9 rendered, 0 already cached, 0 empty (not written)
+decoded 637 chunks
+```
+
 ### Caching
 
 Two layers, because decoding a chunk is the expensive part:

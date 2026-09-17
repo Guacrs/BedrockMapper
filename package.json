@@ -13,7 +13,8 @@
     "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "node --experimental-strip-types --disable-warning=ExperimentalWarning --watch server/index.ts",
-    "start": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/index.ts"
+    "start": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/index.ts",
+    "render-map": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/render-map.ts"
   },
   "dependencies": {
     "@8crafter/leveldb-zlib": "^1.6.0",

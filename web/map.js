@@ -42,6 +42,9 @@ async function main() {
     preferCanvas: true,
   });
 
+  // Exposed for debugging and for the browser coordinate tests.
+  window.__map = map;
+
   const bounds = info.blockBounds;
   const layerBounds = bounds
     ? L.latLngBounds(blockToLatLng(bounds.minX, bounds.minZ), blockToLatLng(bounds.maxX + 1, bounds.maxZ + 1))
@@ -70,10 +73,10 @@ async function main() {
 
   map.on('mousemove', (event) => {
     const { x, z } = latLngToBlock(event.latlng);
-    cursorLabel.textContent = `X ${x}, Z ${z}`;
+    cursorLabel.textContent = `cursor X ${x}, Z ${z}`;
   });
   map.on('mouseout', () => {
-    cursorLabel.textContent = 'X -, Z -';
+    cursorLabel.textContent = 'cursor X -, Z -';
   });
 
   const updateView = () => {

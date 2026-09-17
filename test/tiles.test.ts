@@ -215,6 +215,36 @@ describe('tile composition', () => {
     assert.deepEqual(acrossBorder, tilePixel(tile, 9, 16), 'shading should be uniform along the step');
   });
 
+  it('shades continuously across a tile boundary', async () => {
+    // A height step exactly on the border between tile 0 and tile 1 must shade
+    // like the same step in the middle of a tile - the first column of tile 1
+    // has to see the height of the last column of tile 0.
+    const stepAt = (border: number) => async (cx: number, cz: number) =>
+      syntheticSurface(cx, cz, () => stone, (worldX) => (worldX >= border ? 70 : 64));
+
+    const acrossTiles = (await renderTile(1, 0, stepAt(TILE_SIZE)))!;
+    const insideTile = (await renderTile(0, 0, stepAt(128)))!;
+
+    assert.deepEqual(
+      tilePixel(acrossTiles, 0, 7),
+      tilePixel(insideTile, 128, 7),
+      'first column of a tile must shade against the previous tile',
+    );
+    assert.notDeepEqual(tilePixel(acrossTiles, 0, 7), tilePixel(acrossTiles, 5, 7));
+  });
+
+  it('joins adjacent tiles without repeating or skipping a block', async () => {
+    const nameFor = (worldX: number, worldZ: number) => `test:x${worldX}_z${worldZ}`;
+    const load = async (cx: number, cz: number) => syntheticSurface(cx, cz, nameFor);
+    const left = (await renderTile(-1, 0, load))!;
+    const right = (await renderTile(0, 0, load))!;
+
+    // Last column of tile -1 is block X -1, first column of tile 0 is block X 0.
+    assert.deepEqual(tilePixel(left, 255, 3).slice(0, 3), [...blockColor(nameFor(-1, 3))]);
+    assert.deepEqual(tilePixel(right, 0, 3).slice(0, 3), [...blockColor(nameFor(0, 3))]);
+    assert.notDeepEqual(tilePixel(left, 255, 3), tilePixel(right, 0, 3));
+  });
+
   it('leaves missing chunks transparent without crashing', async () => {
     const image = (await renderTile(0, 0, async (cx, cz) =>
       // Only a checkerboard of chunks exists.
