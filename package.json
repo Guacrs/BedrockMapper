@@ -9,11 +9,13 @@
   },
   "scripts": {
     "inspect-world": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/inspect-world.ts",
+    "render-chunk": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/render-chunk.ts",
     "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/*.test.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@8crafter/leveldb-zlib": "^1.6.0",
+    "fast-png": "^8.0.0",
     "mcbe-leveldb": "^1.23.0",
     "prismarine-nbt": "^2.8.0"
   },
