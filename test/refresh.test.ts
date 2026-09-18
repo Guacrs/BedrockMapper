@@ -4,7 +4,7 @@ import { describeRefresh, terrainPollInterval } from '../server/index.ts';
 import type { RefreshStats } from '../server/map-service.ts';
 import { chunkToTile, tilesAffectedByChunk } from '../server/tiles/coords.ts';
 import { chunkId, diffChunkDigests, parseChunkId } from '../server/world/chunk-diff.ts';
-import { boundsEqual, tileUrl, worldSummary } from '../web/terrain.js';
+import { boundsEqual, tileLayerOptions, tileUrl, worldSummary } from '../web/terrain.js';
 
 function digests(entries: Record<string, string>): Map<string, string> {
   return new Map(Object.entries(entries));
@@ -171,6 +171,23 @@ describe('browser terrain layer helpers', () => {
     assert.ok(!boundsEqual(bounds, { ...bounds, maxX: 1071 }));
     assert.ok(!boundsEqual(bounds, null));
     assert.ok(!boundsEqual(null, bounds));
+  });
+
+  it('lets Leaflet scale native tiles below zoom 0', () => {
+    // GridLayer defaults minZoom to 0, which unloads every tile as soon as the
+    // map zooms out. The layer has to share the map's zoom range so that
+    // minNativeZoom can clamp the request to zoom 0 instead of going blank.
+    const options = tileLayerOptions({
+      tileSize: 256,
+      nativeZoom: 0,
+      minZoom: -4,
+      maxZoom: 4,
+    });
+    assert.equal(options.minZoom, -4);
+    assert.equal(options.maxZoom, 4);
+    assert.equal(options.minNativeZoom, 0);
+    assert.equal(options.maxNativeZoom, 0);
+    assert.ok(options.minZoom < options.minNativeZoom);
   });
 
   it('summarises the world for the status bar', () => {
