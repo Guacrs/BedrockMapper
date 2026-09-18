@@ -10,9 +10,14 @@ import http from 'node:http';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadConfig, type Config } from './config.ts';
+import { cleanCache, cleanupHappened } from './cache.ts';
+import { ConfigError, configWarnings, describeConfig, loadConfig, type Config } from './config.ts';
+import { createLogger, silentLogger, type Logger } from './log.ts';
 import { MapService, type RefreshStats } from './map-service.ts';
+import { logPlayerEvent, PlayerActivity } from './players/activity.ts';
 import { PlayerStore, PlayerValidationError, parsePlayerUpdate } from './players/store.ts';
+import { checkEnvironment, formatProblems } from './startup.ts';
+import { NATIVE_ZOOM } from './tiles/coords.ts';
 import { dimensionById } from './world/dimensions.ts';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -40,6 +45,16 @@ function sendJson(response: http.ServerResponse, status: number, body: unknown):
 function sendText(response: http.ServerResponse, status: number, text: string): void {
   response.writeHead(status, { 'content-type': 'text/plain; charset=utf-8' });
   response.end(text);
+}
+
+function sendPng(response: http.ServerResponse, bytes: Uint8Array, source: string): void {
+  response.writeHead(200, {
+    'content-type': 'image/png',
+    'content-length': bytes.length,
+    'cache-control': 'no-cache',
+    'x-tile-source': source,
+  });
+  response.end(Buffer.from(bytes));
 }
 
 /** Serves a file from a fixed root, refusing anything that escapes it. */
@@ -115,6 +130,13 @@ export function terrainPollInterval(worldRefreshInterval: number): number {
   return Math.max(2000, Math.min(30000, Math.round(worldRefreshInterval / 2)));
 }
 
+/** The URL printed at startup: loopback when the server is bound to every interface. */
+export function listenUrl(host: string, port: number): string {
+  const display = host === '0.0.0.0' || host === '::' || host === '[::]' ? '127.0.0.1' : host;
+  const wrapped = display.includes(':') && !display.startsWith('[') ? `[${display}]` : display;
+  return `http://${wrapped}:${port}`;
+}
+
 /** One line summarising what a terrain refresh did, for the server log. */
 export function describeRefresh(stats: RefreshStats): string | null {
   if (stats.error) return `terrain refresh failed: ${stats.error}`;
@@ -131,21 +153,141 @@ export function describeRefresh(stats: RefreshStats): string | null {
   );
 }
 
+function logRefresh(log: Logger, stats: RefreshStats): void {
+  if (stats.error) {
+    log.warn('terrain.refresh_failed', {
+      error: stats.error,
+      failures: undefined,
+      ms: Math.round(stats.totalMs),
+    });
+    return;
+  }
+  if (!stats.sourceChanged) {
+    log.debug('terrain.unchanged', { ms: Math.round(stats.totalMs) });
+    return;
+  }
+  const chunks = stats.addedChunks + stats.changedChunks + stats.removedChunks;
+  if (!chunks) {
+    log.info('terrain.files_changed', { ms: Math.round(stats.totalMs) });
+    return;
+  }
+  log.info('terrain.updated', {
+    chunks,
+    added: stats.addedChunks,
+    changed: stats.changedChunks,
+    removed: stats.removedChunks,
+    tilesInvalidated: stats.tilesInvalidated,
+    redrawn: stats.tilesRegenerated,
+    tilesChanged: stats.tilesChanged,
+    version: stats.version,
+    ms: Math.round(stats.totalMs),
+  });
+}
+
+function message(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+export interface HealthInfo {
+  status: 'ok' | 'degraded';
+  world: string;
+  worldVersion: string | null;
+  mapVersion: number;
+  lastWorldRefresh: string | null;
+  playerDataAge: number | null;
+}
+
 export interface StartedServer {
   server: http.Server;
   map: MapService;
   players: PlayerStore;
+  host: string;
   port: number;
   close: () => Promise<void>;
 }
 
-export async function startServer(config: Config): Promise<StartedServer> {
-  const map = await MapService.create({ worldPath: config.worldPath, cacheDir: config.cacheDir });
-  const players = new PlayerStore(config.playerDataTimeout);
+export interface StartServerOptions {
+  log?: Logger;
+}
 
+function listen(server: http.Server, port: number, host: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const onError = (error: NodeJS.ErrnoException) => {
+      if (error.code === 'EADDRINUSE') {
+        reject(new Error(`PORT ${port} is already in use on ${host}. Choose a free PORT.`));
+      } else if (error.code === 'EADDRNOTAVAIL') {
+        reject(new Error(`HOST ${host} is not an address on this machine.`));
+      } else {
+        reject(error);
+      }
+    };
+    server.once('error', onError);
+    server.listen(port, host, () => {
+      server.off('error', onError);
+      resolve();
+    });
+  });
+}
+
+function closeHttp(server: http.Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const force = setTimeout(() => {
+      server.closeAllConnections();
+    }, 2000);
+    force.unref();
+    server.close((error) => {
+      clearTimeout(force);
+      if (error) reject(error);
+      else resolve();
+    });
+    server.closeIdleConnections();
+  });
+}
+
+export async function startServer(config: Config, options: StartServerOptions = {}): Promise<StartedServer> {
+  const log = options.log ?? silentLogger;
+  const map = await MapService.create({
+    worldPath: config.worldPath,
+    cacheDir: config.cacheDir,
+    log,
+  });
+  const players = new PlayerStore(config.playerDataTimeout);
+  const activity = new PlayerActivity(config.playerDataTimeout);
+  const snapshot = map.world.snapshot;
+
+  const swept = await cleanCache(config.cacheDir, {
+    worldPath: config.worldPath,
+    keepSourceIds: [snapshot.sourceId],
+  });
+  if (cleanupHappened(swept)) {
+    log.info('cache.cleaned', {
+      snapshots: swept.snapshotsRemoved.length,
+      tempFiles: swept.tempFilesRemoved,
+      bytes: swept.bytesFreed,
+    });
+  }
+
+  log.info('world.detected', {
+    name: map.info.world.name || '(unnamed)',
+    version: map.info.world.version,
+    chunks: map.info.chunkCount,
+    sourceId: snapshot.sourceId,
+  });
+  log.info('snapshot.ready', {
+    copied: snapshot.copied,
+    files: snapshot.fileCount,
+    bytes: snapshot.byteCount,
+    ms: Math.round(snapshot.copyMs),
+  });
+
+  let closing = false;
   const server = http.createServer((request, response) => {
+    if (closing) {
+      sendText(response, 503, 'shutting down');
+      return;
+    }
     void handle(request, response).catch((error: unknown) => {
-      console.error('request failed:', error);
+      log.error('request.failed', { path: request.url, error: message(error) });
       if (!response.headersSent) sendText(response, 500, 'internal error');
       else response.end();
     });
@@ -162,6 +304,20 @@ export async function startServer(config: Config): Promise<StartedServer> {
 
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       sendText(response, 405, 'method not allowed');
+      return;
+    }
+
+    if (pathname === '/api/health') {
+      const playerState = players.snapshot();
+      const degraded = map.consecutiveRefreshFailures > 0;
+      sendJson(response, 200, {
+        status: degraded ? 'degraded' : 'ok',
+        world: map.info.world.name || 'world',
+        worldVersion: map.info.world.version,
+        mapVersion: map.version,
+        lastWorldRefresh: map.lastRefresh?.at ?? null,
+        playerDataAge: playerState.ageMs,
+      } satisfies HealthInfo);
       return;
     }
 
@@ -184,6 +340,9 @@ export async function startServer(config: Config): Promise<StartedServer> {
         ...map.state,
         worldRefreshInterval: config.worldRefreshInterval,
         lastRefresh: map.lastRefresh,
+        consecutiveRefreshFailures: map.consecutiveRefreshFailures,
+        refreshError: map.lastRefresh?.error ?? null,
+        lastWorldRefresh: map.lastRefresh?.at ?? null,
       });
       return;
     }
@@ -202,17 +361,21 @@ export async function startServer(config: Config): Promise<StartedServer> {
         sendText(response, 404, 'unknown dimension');
         return;
       }
+      if (Number(zoom) !== NATIVE_ZOOM) {
+        sendText(response, 404, `only zoom ${NATIVE_ZOOM} is rendered`);
+        return;
+      }
       try {
         const result = await map.tile(dimensionId as never, Number(zoom), Number(x), Number(y));
-        response.writeHead(200, {
-          'content-type': 'image/png',
-          'content-length': result.bytes.length,
-          'cache-control': 'no-cache',
-          'x-tile-source': result.empty ? 'empty' : result.cached ? 'cache' : 'rendered',
-        });
-        response.end(Buffer.from(result.bytes));
+        sendPng(response, result.bytes, result.empty ? 'empty' : result.cached ? 'cache' : 'rendered');
       } catch (error) {
-        sendText(response, 404, error instanceof Error ? error.message : 'tile not available');
+        // A failed render must not punch a hole in the map: serve a transparent
+        // tile so the last good neighbouring terrain stays on screen.
+        log.warn('tile.failed', {
+          tile: `${dimensionId}/${zoom}/${x}/${y}`,
+          error: message(error),
+        });
+        sendPng(response, map.emptyTile, 'error');
       }
       return;
     }
@@ -275,6 +438,7 @@ export async function startServer(config: Config): Promise<StartedServer> {
     try {
       const update = parsePlayerUpdate(parsed);
       players.replace(update);
+      for (const event of activity.record(update)) logPlayerEvent(log, event);
       sendJson(response, 200, { ok: true, players: update.length });
     } catch (error) {
       if (error instanceof PlayerValidationError) sendJson(response, 400, { error: error.message });
@@ -282,70 +446,175 @@ export async function startServer(config: Config): Promise<StartedServer> {
     }
   }
 
-  await new Promise<void>((resolve) => server.listen(config.port, resolve));
+  await listen(server, config.port, config.host);
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : config.port;
 
-  // Terrain refresh: check the live world on an interval and re-render only what
-  // changed. `unref` so the timer never keeps the process (or a test) alive.
   const refreshTimer =
     config.worldRefreshInterval > 0
       ? setInterval(() => {
           void map.refresh().then((stats) => {
-            const line = describeRefresh(stats);
-            if (line) console.log(line);
+            logRefresh(log, stats);
+            if (stats.error) return;
+            void cleanCache(config.cacheDir, {
+              worldPath: config.worldPath,
+              keepSourceIds: [map.world.snapshot.sourceId],
+            }).then((result) => {
+              if (cleanupHappened(result)) {
+                log.info('cache.cleaned', {
+                  snapshots: result.snapshotsRemoved.length,
+                  tempFiles: result.tempFilesRemoved,
+                  bytes: result.bytesFreed,
+                });
+              }
+            });
           });
         }, config.worldRefreshInterval).unref()
       : null;
 
-  return {
-    server,
-    map,
-    players,
-    port,
-    close: async () => {
+  const staleTimer = setInterval(() => {
+    for (const event of activity.poll()) logPlayerEvent(log, event);
+  }, Math.max(1000, Math.round(config.playerDataTimeout / 2))).unref();
+
+  let closed: Promise<void> | null = null;
+  const close = async (): Promise<void> => {
+    if (closed) return closed;
+    closed = (async () => {
+      closing = true;
+      log.info('shutdown.begin', { host: config.host, port });
       if (refreshTimer) clearInterval(refreshTimer);
-      await new Promise<void>((resolve, reject) =>
-        server.close((error) => (error ? reject(error) : resolve())),
-      );
+      clearInterval(staleTimer);
+      await closeHttp(server);
+      const keepSourceIds = [map.world.snapshot.sourceId];
       await map.close();
-    },
+      const result = await cleanCache(config.cacheDir, {
+        worldPath: config.worldPath,
+        keepSourceIds,
+        tempGraceMs: 0,
+      });
+      if (cleanupHappened(result)) {
+        log.info('cache.cleaned', {
+          snapshots: result.snapshotsRemoved.length,
+          tempFiles: result.tempFilesRemoved,
+          bytes: result.bytesFreed,
+        });
+      }
+      log.info('shutdown.complete');
+    })();
+    return closed;
   };
+
+  return { server, map, players, host: config.host, port, close };
 }
 
-const isEntryPoint = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
-if (isEntryPoint) {
-  const config = loadConfig();
-  const started = await startServer(config);
+function logStartup(log: Logger, config: Config, started: StartedServer): void {
   const info = started.map.info;
-  console.log(`Bedrock map server on http://localhost:${started.port}`);
-  console.log(`  world:      ${config.worldPath} (${info.world.version ?? 'unknown version'})`);
-  console.log(`  snapshot:   ${started.map.world.snapshot.dbPath}`);
-  console.log(`  tile cache: ${started.map.tileCache.root}${started.map.tileCache.clearedStaleTiles ? ' (cleared, world changed)' : ''}`);
-  console.log(`  chunks:     ${info.chunkCount} with block data`);
+  const url = listenUrl(config.host, started.port);
+  log.info('startup.listening', {
+    url,
+    host: config.host,
+    port: started.port,
+  });
+  log.plain(`Bedrock map server on ${url}`);
+  log.plain(`  world:      ${config.worldPath} (${info.world.version ?? 'unknown version'})`);
+  log.plain(`  snapshot:   ${started.map.world.snapshot.dbPath}`);
+  log.plain(
+    `  tile cache: ${started.map.tileCache.root}${started.map.tileCache.clearedStaleTiles ? ' (cleared, world changed)' : ''}`,
+  );
+  log.plain(`  chunks:     ${info.chunkCount} with block data`);
   if (info.blockBounds && info.center) {
-    console.log(
+    log.plain(
       `  extent:     block X ${info.blockBounds.minX}..${info.blockBounds.maxX}, ` +
         `Z ${info.blockBounds.minZ}..${info.blockBounds.maxZ}, centre ${info.center.x},${info.center.z}`,
     );
   } else {
-    console.log('  extent:     no chunks with block data found');
+    log.plain('  extent:     no chunks with block data found');
   }
-  console.log(
+  log.plain(
     `  players:    POST /api/players ${config.apiKey ? 'requires the API key from your .env' : 'DISABLED - set API_KEY in .env'}` +
       `, stale after ${config.playerDataTimeout} ms, browser polls every ${config.playerUpdateInterval} ms`,
   );
-  console.log(
+  log.plain(
     `  terrain:    ${
       config.worldRefreshInterval > 0
         ? `checked every ${config.worldRefreshInterval} ms, browser polls every ${terrainPollInterval(config.worldRefreshInterval)} ms`
         : 'automatic refresh DISABLED (WORLD_REFRESH_INTERVAL=0)'
     }`,
   );
+  if (config.host === '0.0.0.0' || config.host === '::') {
+    log.plain(`  bind:       ${config.host} (reachable from other machines; there is no login)`);
+  }
+}
 
-  for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-    process.on(signal, () => {
-      void started.close().then(() => process.exit(0));
+export interface MainOptions {
+  env?: NodeJS.ProcessEnv;
+  log?: Logger;
+}
+
+/**
+ * Production startup: validate the configuration, check the world is readable,
+ * then serve the map. Throws after printing a human-readable error; the CLI
+ * entry point turns that into an exit code.
+ */
+export async function main(options: MainOptions = {}): Promise<StartedServer> {
+  const env = options.env ?? process.env;
+  let config: Config;
+  try {
+    config = loadConfig({}, env);
+  } catch (error) {
+    if (error instanceof ConfigError) {
+      console.error(formatProblems(error.problems));
+    } else {
+      console.error(`BedrockMapper cannot start: ${message(error)}`);
+    }
+    throw error;
+  }
+
+  const report = await checkEnvironment(config, { webRoot: WEB_ROOT, leafletRoot: LEAFLET_ROOT });
+  if (report.problems.length) {
+    console.error(formatProblems(report.problems));
+    throw new ConfigError(report.problems);
+  }
+
+  const log = options.log ?? createLogger({ level: config.logLevel });
+  log.info('startup.begin', describeConfig(config));
+  for (const warning of [...configWarnings(config), ...report.warnings]) {
+    log.warn('config.warning', { msg: warning });
+  }
+
+  try {
+    const started = await startServer(config, { log });
+    logStartup(log, config, started);
+    return started;
+  } catch (error) {
+    log.error('startup.failed', { error: message(error) });
+    console.error(`BedrockMapper cannot start: ${message(error)}`);
+    throw error;
+  }
+}
+
+const isEntryPoint = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+if (isEntryPoint) {
+  try {
+    const started = await main();
+    let stopping = false;
+    const onSignal = (signal: NodeJS.Signals) => {
+      if (stopping) return;
+      stopping = true;
+      void started.close().then(
+        () => process.exit(0),
+        (error: unknown) => {
+          console.error(`shutdown failed: ${message(error)}`);
+          process.exit(1);
+        },
+      );
+    };
+    process.on('SIGINT', onSignal);
+    process.on('SIGTERM', onSignal);
+    process.on('unhandledRejection', (reason) => {
+      console.error(`unhandled rejection (server keeps running): ${message(reason)}`);
     });
+  } catch {
+    process.exit(1);
   }
 }

@@ -18,6 +18,7 @@
 
 import { blockToLatLng, latLngToBlock } from './coords.js';
 import { PlayerLayer, playerStatus } from './players.js';
+import { terrainStatus, trackingStatus } from './status.js';
 import { TerrainLayer, worldSummary } from './terrain.js';
 
 const MinecraftCRS = L.extend({}, L.CRS.Simple, {
@@ -28,6 +29,8 @@ const worldLabel = document.getElementById('world');
 const cursorLabel = document.getElementById('cursor');
 const viewLabel = document.getElementById('view');
 const playersLabel = document.getElementById('players');
+const terrainStatusLabel = document.getElementById('terrain-status');
+const playerStatusLabel = document.getElementById('player-status');
 
 async function main() {
   const info = await fetch('/api/map/info').then((response) => response.json());
@@ -50,6 +53,40 @@ async function main() {
   }
 
   worldLabel.textContent = worldSummary(info.world, info);
+
+  function paintStatus(line, element) {
+    if (!element) return;
+    element.textContent = line.text;
+    element.className = line.kind;
+  }
+
+  let lastTerrainState = {
+    terrainUpdatedAt: info.terrainUpdatedAt ?? null,
+    lastWorldRefresh: null,
+    lastRefresh: null,
+    refreshError: null,
+    consecutiveRefreshFailures: 0,
+  };
+  let lastPlayerSnapshot = null;
+  let terrainUnreachable = false;
+  let tileErrors = 0;
+
+  function refreshStatus() {
+    paintStatus(terrainStatus(lastTerrainState, { unreachable: terrainUnreachable, tileErrors }), terrainStatusLabel);
+    paintStatus(trackingStatus(lastPlayerSnapshot), playerStatusLabel);
+  }
+
+  refreshStatus();
+
+  terrain.layer.on('tileerror', () => {
+    tileErrors++;
+    refreshStatus();
+  });
+  terrain.layer.on('tileload', () => {
+    if (!tileErrors) return;
+    tileErrors = 0;
+    refreshStatus();
+  });
 
   map.on('mousemove', (event) => {
     const { x, z } = latLngToBlock(event.latlng);
@@ -76,10 +113,19 @@ async function main() {
   // that changed by bumping the version in their URLs. The map keeps its view.
   async function pollTerrain() {
     try {
-      const state = await fetch('/api/map/state').then((response) => response.json());
+      const state = await fetch('/api/map/state').then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      });
+      terrainUnreachable = false;
+      if (tileErrors) tileErrors = 0;
+      lastTerrainState = state;
       if (terrain.update(state)) worldLabel.textContent = worldSummary(info.world, state);
+      refreshStatus();
       return state;
     } catch (error) {
+      terrainUnreachable = true;
+      refreshStatus();
       console.error('terrain poll failed:', error);
       return null;
     }
@@ -95,12 +141,19 @@ async function main() {
 
   async function pollPlayers() {
     try {
-      const snapshot = await fetch('/api/players').then((response) => response.json());
+      const snapshot = await fetch('/api/players').then((response) => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      });
+      lastPlayerSnapshot = snapshot;
       playerLayer.update(snapshot);
       playersLabel.textContent = playerStatus(snapshot, info.dimension);
+      refreshStatus();
     } catch (error) {
+      lastPlayerSnapshot = null;
       playerLayer.update(null);
       playersLabel.textContent = 'player data unavailable';
+      refreshStatus();
       console.error('player poll failed:', error);
     }
   }
@@ -111,6 +164,10 @@ async function main() {
   window.__pollPlayers = pollPlayers;
   window.__terrain = terrain;
   window.__pollTerrain = pollTerrain;
+  window.__status = () => ({
+    terrain: terrainStatusLabel?.textContent ?? '',
+    players: playerStatusLabel?.textContent ?? '',
+  });
 
   await pollPlayers();
   setInterval(pollPlayers, pollInterval);
@@ -118,5 +175,9 @@ async function main() {
 
 main().catch((error) => {
   worldLabel.textContent = `failed to load map: ${error.message}`;
+  if (terrainStatusLabel) {
+    terrainStatusLabel.textContent = 'Terrain: map server unreachable';
+    terrainStatusLabel.className = 'error';
+  }
   console.error(error);
 });

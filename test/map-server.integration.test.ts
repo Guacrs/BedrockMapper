@@ -270,11 +270,13 @@ describe(
       started = await startServer({
         worldPath: worldPath!,
         cacheDir,
+        host: '127.0.0.1',
         port: 0,
         worldRefreshInterval: 0,
         playerUpdateInterval: 3000,
         playerDataTimeout: 10000,
         apiKey: API_KEY,
+        logLevel: 'error',
       });
       base = `http://127.0.0.1:${started.port}`;
     });
@@ -502,11 +504,13 @@ describe(
       const shortLived = await startServer({
         worldPath: worldPath!,
         cacheDir: staleCache,
+        host: '127.0.0.1',
         port: 0,
         worldRefreshInterval: 0,
         playerUpdateInterval: 1000,
         playerDataTimeout: 300,
         apiKey: API_KEY,
+        logLevel: 'error',
       });
       try {
         const url = `http://127.0.0.1:${shortLived.port}/api/players`;
@@ -547,11 +551,13 @@ describe(
       const unconfigured = await startServer({
         worldPath: worldPath!,
         cacheDir: openCache,
+        host: '127.0.0.1',
         port: 0,
         worldRefreshInterval: 0,
         playerUpdateInterval: 3000,
         playerDataTimeout: 10000,
         apiKey: '',
+        logLevel: 'error',
       });
       try {
         const response = await fetch(`http://127.0.0.1:${unconfigured.port}/api/players`, {
@@ -565,6 +571,41 @@ describe(
         await unconfigured.close();
         await fs.rm(openCache, { recursive: true, force: true });
       }
+    });
+
+    it('serves a health endpoint without secrets', async () => {
+      const response = await fetch(`${base}/api/health`);
+      assert.equal(response.status, 200);
+      const body = (await response.json()) as Record<string, unknown>;
+      assert.equal(body.status, 'ok');
+      assert.equal(typeof body.world, 'string');
+      assert.ok(body.world);
+      assert.equal(body.mapVersion, 1);
+      assert.equal(body.lastWorldRefresh, null);
+      assert.equal(body.playerDataAge, null);
+      const dumped = JSON.stringify(body);
+      assert.doesNotMatch(dumped, /apiKey|API_KEY|cacheDir|WORLD_PATH|127\.0\.0\.1/);
+      assert.doesNotMatch(dumped, new RegExp(API_KEY));
+    });
+
+    it('stops accepting requests after a graceful close', async () => {
+      const cache = await fs.mkdtemp(path.join(os.tmpdir(), 'bedrock-map-close-'));
+      const extra = await startServer({
+        worldPath: worldPath!,
+        cacheDir: cache,
+        host: '127.0.0.1',
+        port: 0,
+        worldRefreshInterval: 0,
+        playerUpdateInterval: 3000,
+        playerDataTimeout: 10000,
+        apiKey: API_KEY,
+        logLevel: 'error',
+      });
+      const url = `http://127.0.0.1:${extra.port}/api/health`;
+      assert.equal((await fetch(url)).status, 200);
+      await extra.close();
+      await assert.rejects(() => fetch(url), { name: 'TypeError' });
+      await fs.rm(cache, { recursive: true, force: true });
     });
 
     it('refuses unknown routes, other methods and path traversal', async () => {

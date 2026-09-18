@@ -51,6 +51,34 @@ body {
   color: #f0883e;
 }
 
+#status {
+  position: absolute;
+  z-index: 500;
+  right: 10px;
+  top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  background: rgba(13, 17, 23, 0.85);
+  pointer-events: none;
+  text-align: right;
+}
+
+#status .ok {
+  color: #7ee787;
+}
+
+#status .warn {
+  color: #e3b341;
+}
+
+#status .error {
+  color: #f85149;
+}
+
 .player-popup-name {
   font-weight: bold;
   margin-bottom: 2px;

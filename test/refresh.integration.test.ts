@@ -421,11 +421,13 @@ describe(
       started = await startServer({
         worldPath,
         cacheDir: path.join(temp, 'cache'),
+        host: '127.0.0.1',
         port: 0,
         worldRefreshInterval: 250,
         playerUpdateInterval: 1000,
         playerDataTimeout: 10000,
         apiKey,
+        logLevel: 'error',
       });
       base = `http://127.0.0.1:${started.port}`;
     });

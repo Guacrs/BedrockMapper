@@ -12,6 +12,7 @@
  * replace a working map.
  */
 
+import { silentLogger, type Logger } from './log.ts';
 import { encodePng } from './renderer/chunk-image.ts';
 import {
   NATIVE_ZOOM,
@@ -112,6 +113,7 @@ export interface MapServiceOptions {
   cacheDir: string;
   minZoom?: number;
   maxZoom?: number;
+  log?: Logger;
 }
 
 interface WorldState {
@@ -164,6 +166,10 @@ export class MapService {
   #lastRefresh: RefreshStats | null = null;
   #refreshCount = 0;
   #failedRefreshCount = 0;
+  #consecutiveRefreshFailures = 0;
+  #cacheWriteFailures = 0;
+  #cacheWriteFailureReported = false;
+  #log: Logger;
 
   private constructor(
     options: MapServiceOptions,
@@ -172,6 +178,7 @@ export class MapService {
     state: WorldState,
   ) {
     this.#options = options;
+    this.#log = options.log ?? silentLogger;
     this.#world = world;
     this.tileCache = tileCache;
     this.#state = state;
@@ -228,6 +235,16 @@ export class MapService {
 
   get failedRefreshCount(): number {
     return this.#failedRefreshCount;
+  }
+
+  /** Failures since the last successful refresh; 0 means the map is current. */
+  get consecutiveRefreshFailures(): number {
+    return this.#consecutiveRefreshFailures;
+  }
+
+  /** Tiles that were rendered and served but could not be cached. */
+  get cacheWriteFailures(): number {
+    return this.#cacheWriteFailures;
   }
 
   get decodedChunks(): number {
@@ -287,7 +304,23 @@ export class MapService {
       if (!image) return { bytes: this.#emptyTile, cached: false, empty: true };
 
       const bytes = encodePng(image);
-      await this.tileCache.write(dimension, zoom, x, y, bytes);
+      // A cache that cannot be written to (full disk, permissions changed under
+      // a running server) costs performance, not correctness: the tile has
+      // already been drawn, so it is served either way.
+      try {
+        await this.tileCache.write(dimension, zoom, x, y, bytes);
+        this.#cacheWriteFailureReported = false;
+      } catch (error) {
+        this.#cacheWriteFailures++;
+        if (!this.#cacheWriteFailureReported) {
+          this.#cacheWriteFailureReported = true;
+          this.#log.warn('cache.write_failed', {
+            tile: `${dimension}/${zoom}/${x}/${y}`,
+            error: message(error),
+            note: 'tiles are still being served, but every request has to redraw them',
+          });
+        }
+      }
       return { bytes, cached: false, empty: false };
     })().finally(() => this.#inFlight.delete(key));
 
@@ -349,11 +382,15 @@ export class MapService {
       source = await readSourceState(this.#options.worldPath);
     } catch (error) {
       this.#failedRefreshCount++;
+      this.#consecutiveRefreshFailures++;
       stats.error = `could not read the world directory: ${message(error)}`;
       return finish();
     }
 
-    if (source.sourceId === this.#world.snapshot.sourceId) return finish();
+    if (source.sourceId === this.#world.snapshot.sourceId) {
+      this.#consecutiveRefreshFailures = 0;
+      return finish();
+    }
     stats.sourceChanged = true;
 
     // Everything below runs against a *new* snapshot while the previous one
@@ -375,8 +412,16 @@ export class MapService {
         snapshot,
       });
       scan = await next.scan(this.#dimension);
+      this.#log.debug('snapshot.created', {
+        sourceId: snapshot.sourceId,
+        files: snapshot.fileCount,
+        bytes: snapshot.byteCount,
+        copyMs: snapshot.copyMs,
+        vanished: snapshot.vanishedFiles.length,
+      });
     } catch (error) {
       this.#failedRefreshCount++;
+      this.#consecutiveRefreshFailures++;
       stats.error = `snapshot failed, keeping the previous one: ${message(error)}`;
       if (next) await next.close().catch(() => {});
       // A copy that could not be opened or scanned must not be reused.
@@ -384,6 +429,7 @@ export class MapService {
       return finish();
     }
 
+    this.#consecutiveRefreshFailures = 0;
     stats.scanMs = scan.scanMs;
     stats.chunksScanned = scan.chunks.length;
 
@@ -483,7 +529,13 @@ export class MapService {
     return { rendered, changed };
   }
 
+  get emptyTile(): Uint8Array {
+    return this.#emptyTile;
+  }
+
   async close(): Promise<void> {
+    if (this.#refreshing) await this.#refreshing.catch(() => {});
+    await Promise.allSettled([...this.#inFlight.values(), ...this.#surfacesInFlight.values()]);
     await this.#world.close();
   }
 }
