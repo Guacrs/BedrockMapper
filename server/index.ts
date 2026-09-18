@@ -17,6 +17,7 @@ import { MapService, type RefreshStats } from './map-service.ts';
 import { logPlayerEvent, PlayerActivity } from './players/activity.ts';
 import { PlayerStore, PlayerValidationError, parsePlayerUpdate } from './players/store.ts';
 import { checkEnvironment, formatProblems } from './startup.ts';
+import { hashFallbackNames, summarizeDatabase } from './renderer/block-palette.ts';
 import { NATIVE_ZOOM } from './tiles/coords.ts';
 import { dimensionById } from './world/dimensions.ts';
 
@@ -318,6 +319,15 @@ export async function startServer(config: Config, options: StartServerOptions = 
         lastWorldRefresh: map.lastRefresh?.at ?? null,
         playerDataAge: playerState.ageMs,
       } satisfies HealthInfo);
+      return;
+    }
+
+    if (pathname === '/api/debug/block-colors') {
+      const summary = summarizeDatabase();
+      sendJson(response, 200, {
+        ...summary,
+        hashFallbacksSeen: hashFallbackNames(),
+      });
       return;
     }
 
