@@ -21,11 +21,14 @@ function namesOf(players: readonly PlayerPosition[]): string[] {
 }
 
 export class PlayerActivity {
+  readonly timeoutMs: number;
   #names: string[] | null = null;
   #lastUpdate: number | null = null;
   #stale = false;
 
-  constructor(private readonly timeoutMs: number) {}
+  constructor(timeoutMs: number) {
+    this.timeoutMs = timeoutMs;
+  }
 
   /** Records an accepted report and returns what should be logged, if anything. */
   record(players: readonly PlayerPosition[], at: number = Date.now()): PlayerEvent[] {

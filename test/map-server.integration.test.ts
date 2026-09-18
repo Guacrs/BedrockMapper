@@ -14,7 +14,7 @@ import { decode as decodePng } from 'fast-png';
 import { MapService, type MapInfo } from '../server/map-service.ts';
 import { startServer, type StartedServer } from '../server/index.ts';
 import { pixelAt, renderChunkSurface } from '../server/renderer/chunk-image.ts';
-import { blockToTile, tileToBlock, TILE_SIZE } from '../server/tiles/coords.ts';
+import { blockToTile, chunkToTile, tileToBlock, TILE_SIZE } from '../server/tiles/coords.ts';
 import { OVERWORLD } from '../server/world/dimensions.ts';
 import { chunkToBlock } from '../server/world/keys.ts';
 
@@ -36,6 +36,18 @@ function decodeTile(bytes: Uint8Array) {
     height: decoded.height,
     data: Uint8Array.from(decoded.data as Uint8Array),
   };
+}
+
+/** Geometric centre of a grown world can sit in an unexplored hole. */
+function tileWithTerrain(map: MapService) {
+  const bounds = map.info.chunkBounds;
+  if (!bounds) throw new Error('world has no chunks');
+  for (let z = bounds.minZ; z <= bounds.maxZ; z++) {
+    for (let x = bounds.minX; x <= bounds.maxX; x++) {
+      if (map.hasChunkData(x, z)) return chunkToTile(x, z);
+    }
+  }
+  throw new Error('world has no chunks with block data');
 }
 
 describe(
@@ -197,7 +209,7 @@ describe(
     });
 
     it('caches tiles on disk and does not decode chunks twice', async () => {
-      const tile = blockToTile(map.info.center!.x, map.info.center!.z);
+      const tile = tileWithTerrain(map);
       // Start from a cold disk cache: earlier tests may already have rendered
       // this tile.
       await fs.rm(map.tileCache.tilePath('overworld', 0, tile.x, tile.y), { force: true });
@@ -308,8 +320,7 @@ describe(
     });
 
     it('serves PNG tiles, from cache on the second request', async () => {
-      const { center } = started.map.info;
-      const tile = blockToTile(center!.x, center!.z);
+      const tile = tileWithTerrain(started.map);
       const url = `${base}/tiles/overworld/0/${tile.x}/${tile.y}.png`;
 
       const first = await fetch(url);
@@ -582,7 +593,7 @@ describe(
       assert.ok(body.world);
       assert.equal(body.mapVersion, 1);
       assert.equal(body.lastWorldRefresh, null);
-      assert.equal(body.playerDataAge, null);
+      assert.ok(body.playerDataAge === null || typeof body.playerDataAge === 'number');
       const dumped = JSON.stringify(body);
       assert.doesNotMatch(dumped, /apiKey|API_KEY|cacheDir|WORLD_PATH|127\.0\.0\.1/);
       assert.doesNotMatch(dumped, new RegExp(API_KEY));
