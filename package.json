@@ -1,0 +1,31 @@
+{
+  "name": "bedrock-map",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Lightweight top-down web map for an official Minecraft Bedrock Dedicated Server world",
+  "type": "module",
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "scripts": {
+    "inspect-world": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/inspect-world.ts",
+    "render-chunk": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/render-chunk.ts",
+    "test": "node --experimental-strip-types --disable-warning=ExperimentalWarning --test test/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "dev": "node --experimental-strip-types --disable-warning=ExperimentalWarning --watch server/index.ts",
+    "start": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/index.ts",
+    "render-map": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/render-map.ts",
+    "fake-players": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/fake-players.ts"
+  },
+  "dependencies": {
+    "@8crafter/leveldb-zlib": "^1.6.0",
+    "fast-png": "^8.0.0",
+    "leaflet": "^1.9.4",
+    "mcbe-leveldb": "^1.23.0",
+    "prismarine-nbt": "^2.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "typescript": "^5.9.2"
+  }
+}

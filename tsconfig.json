@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "es2023",
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "lib": ["esnext"],
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
+    // The browser modules are plain JS; types are inferred so the tests that
+    // import them are still checked, but the files themselves are not.
+    "allowJs": true,
+    "checkJs": false,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["server/**/*.ts", "server/**/*.d.ts", "test/**/*.ts", "web/**/*.js"]
+}

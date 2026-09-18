@@ -1,0 +1,90 @@
+html,
+body {
+  margin: 0;
+  height: 100%;
+  background: #10151c;
+  color: #e6edf3;
+  font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+#map {
+  position: absolute;
+  inset: 0;
+  background: #10151c;
+}
+
+/* Keep the terrain crisp when Leaflet scales the native tiles. */
+.leaflet-tile,
+.leaflet-tile-container img {
+  image-rendering: pixelated;
+}
+
+.leaflet-container {
+  background: #10151c;
+}
+
+#hud {
+  position: absolute;
+  z-index: 500;
+  left: 10px;
+  bottom: 10px;
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 6px 10px;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  background: rgba(13, 17, 23, 0.85);
+  pointer-events: none;
+}
+
+#cursor {
+  min-width: 22ch;
+  color: #7ee787;
+}
+
+#world {
+  color: #9aa7b4;
+}
+
+#players {
+  color: #f0883e;
+}
+
+#status {
+  position: absolute;
+  z-index: 500;
+  right: 10px;
+  top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 10px;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  background: rgba(13, 17, 23, 0.85);
+  pointer-events: none;
+  text-align: right;
+}
+
+#status .ok {
+  color: #7ee787;
+}
+
+#status .warn {
+  color: #e3b341;
+}
+
+#status .error {
+  color: #f85149;
+}
+
+.player-popup-name {
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.leaflet-popup-content {
+  margin: 8px 12px;
+  font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
