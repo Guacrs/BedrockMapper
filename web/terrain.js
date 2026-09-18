@@ -61,6 +61,29 @@ export function worldSummary(world, state) {
 }
 
 /**
+ * Leaflet options for the terrain layer.
+ *
+ * The server only renders native zoom 0. Leaflet still has to be allowed to
+ * stay on the map at every zoom the map itself offers: GridLayer's default
+ * `minZoom` is 0, so without these the layer unloads every tile as soon as you
+ * zoom out, even though `minNativeZoom` would otherwise scale the native tiles.
+ *
+ * @param {{ tileSize: number, nativeZoom: number, minZoom: number, maxZoom: number }} info
+ * @returns {Record<string, unknown>}
+ */
+export function tileLayerOptions(info) {
+  return {
+    tileSize: info.tileSize,
+    minZoom: info.minZoom,
+    maxZoom: info.maxZoom,
+    minNativeZoom: info.nativeZoom,
+    maxNativeZoom: info.nativeZoom,
+    noWrap: true,
+    keepBuffer: 2,
+  };
+}
+
+/**
  * The Leaflet tile layer plus the version bookkeeping.
  *
  * `update()` is given whatever GET /api/map/state last returned and only touches
@@ -85,12 +108,7 @@ export class TerrainLayer {
     this.#blockBounds = info.blockBounds ?? null;
     const bounds = this.#latLngBounds();
     this.#layer = L.tileLayer(tileUrl(this.#dimension, this.#version), {
-      tileSize: info.tileSize,
-      // The server renders one zoom level; Leaflet scales it for the others.
-      minNativeZoom: info.nativeZoom,
-      maxNativeZoom: info.nativeZoom,
-      noWrap: true,
-      keepBuffer: 2,
+      ...tileLayerOptions(info),
       ...(bounds ? { bounds } : {}),
     }).addTo(map);
   }
