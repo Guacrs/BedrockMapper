@@ -19,7 +19,7 @@ import {
   scaleNearest,
   shadeFactor,
 } from '../renderer/chunk-image.ts';
-import { blockColor, hasKnownColor } from '../renderer/colors.ts';
+import { blockColor, resolveBlockColor } from '../renderer/colors.ts';
 import { shortBlockName } from '../world/blocks.ts';
 import { OVERWORLD, dimensionById } from '../world/dimensions.ts';
 import { CHUNK_SIZE, chunkToBlock, columnIndex } from '../world/keys.ts';
@@ -104,10 +104,10 @@ try {
     console.log(`average surface Y:  ${stats.average.toFixed(2)}`);
     console.log(`\nsurface block types (${stats.counts.size}):`);
     for (const [block, count] of [...stats.counts.entries()].sort((a, b) => b[1] - a[1])) {
-      const [r, g, b] = blockColor(block);
+      const resolved = resolveBlockColor(block);
       console.log(
         `  ${String(count).padStart(3)} x ${shortBlockName(block).padEnd(22)} ` +
-          `rgb(${r},${g},${b})${hasKnownColor(block) ? '' : ' [hashed fallback]'}`,
+          `rgb(${resolved.rgb.join(',')}) ${resolved.hex} [${resolved.label}]`,
       );
     }
 

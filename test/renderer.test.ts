@@ -11,7 +11,7 @@ import {
   scaleNearest,
   shadeFactor,
 } from '../server/renderer/chunk-image.ts';
-import { blockColor, hasKnownColor } from '../server/renderer/colors.ts';
+import { blockColor, hasKnownColor, resolveBlockColor } from '../server/renderer/colors.ts';
 import { columnIndex } from '../server/world/keys.ts';
 import { NO_SURFACE, type ChunkSurface } from '../server/world/surface.ts';
 
@@ -40,20 +40,32 @@ function makeSurface(
 }
 
 describe('block colours', () => {
-  it('uses the curated palette for common surface blocks', () => {
-    assert.deepEqual(blockColor('minecraft:water'), [59, 110, 190]);
-    assert.deepEqual(blockColor('minecraft:grass_block'), [106, 168, 79]);
-    assert.deepEqual(blockColor('minecraft:snow_layer'), [246, 250, 252]);
-    assert.deepEqual(blockColor('minecraft:bedrock'), [58, 58, 58]);
+  it('uses official map colours (with Bedrock tints) for common surface blocks', () => {
+    // White map_color × plains-like Bedrock tint.
+    assert.deepEqual(blockColor('minecraft:water'), [68, 175, 245]);
+    assert.deepEqual(blockColor('minecraft:grass_block'), [146, 188, 88]);
+    assert.deepEqual(blockColor('minecraft:spruce_leaves'), [97, 153, 97]);
+    assert.deepEqual(blockColor('minecraft:podzol'), [129, 86, 49]);
+    assert.deepEqual(blockColor('minecraft:sand'), [247, 233, 163]);
+    assert.deepEqual(blockColor('minecraft:snow_layer'), [255, 255, 255]);
+    assert.deepEqual(blockColor('minecraft:stone'), [112, 112, 112]);
+    assert.deepEqual(blockColor('minecraft:bedrock'), [112, 112, 112]);
+    assert.deepEqual(blockColor('minecraft:brown_mushroom'), [102, 76, 51]);
+    assert.deepEqual(blockColor('minecraft:white_wool_stairs'), [233, 236, 236]);
   });
 
-  it('matches families by name rule', () => {
-    assert.deepEqual(blockColor('minecraft:spruce_leaves'), blockColor('minecraft:birch_leaves'));
-    assert.deepEqual(blockColor('minecraft:oak_log'), blockColor('minecraft:jungle_log'));
-    assert.deepEqual(blockColor('minecraft:cobbled_deepslate'), blockColor('minecraft:deepslate_bricks'));
-    for (const name of ['minecraft:acacia_leaves', 'minecraft:deepslate_iron_ore', 'minecraft:red_sandstone']) {
-      assert.equal(hasKnownColor(name), true, `${name} should match a rule`);
-    }
+  it('keeps spruce and birch leaves distinct via Bedrock foliage tints', () => {
+    assert.notDeepEqual(blockColor('minecraft:spruce_leaves'), blockColor('minecraft:birch_leaves'));
+    assert.deepEqual(blockColor('minecraft:oak_leaves'), [119, 171, 47]);
+    assert.deepEqual(blockColor('minecraft:birch_leaves'), [128, 167, 85]);
+  });
+
+  it('matches unknown members of a block family to that family map colour', () => {
+    assert.deepEqual(blockColor('minecraft:future_update_leaves'), blockColor('minecraft:oak_leaves'));
+    assert.deepEqual(blockColor('minecraft:future_update_planks'), blockColor('minecraft:oak_planks'));
+    assert.equal(hasKnownColor('minecraft:future_update_leaves'), true);
+    assert.equal(hasKnownColor('minecraft:deepslate_iron_ore'), true);
+    assert.equal(hasKnownColor('minecraft:red_sandstone'), true);
   });
 
   it('gives unknown blocks a deterministic fallback instead of crashing', () => {
@@ -67,6 +79,13 @@ describe('block colours', () => {
     }
     assert.notDeepEqual(color, blockColor('minecraft:another_unknown_block'));
     assert.deepEqual(blockColor(''), blockColor(''));
+  });
+
+  it('describes the colour source the way the debug report does', () => {
+    assert.equal(resolveBlockColor('minecraft:grass_block').label, 'map-color + grass tint');
+    assert.equal(resolveBlockColor('minecraft:spruce_leaves').label, 'map-color + evergreen foliage tint');
+    assert.equal(resolveBlockColor('minecraft:podzol').label, 'map-color');
+    assert.equal(resolveBlockColor('minecraft:some_block_from_a_future_update').label, 'hash fallback');
   });
 });
 

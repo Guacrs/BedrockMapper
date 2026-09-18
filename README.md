@@ -189,7 +189,8 @@ reports are live or stale. A failed refresh keeps the last good map on screen an
 1. Stop BedrockMapper (`SIGINT` / `SIGTERM`, or your supervisor's stop). Do **not** stop BDS.
 2. `git pull` (or unpack the new files) and `npm install`.
 3. Read `.env.example` for new settings; merge anything you need into `.env`.
-4. `npm run start`.
+4. If the terrain colours changed, delete `MAP_CACHE/tiles` (or the whole `MAP_CACHE`) so tiles redraw.
+5. `npm run start`.
 
 The tile cache and the current world snapshot survive a restart as long as `MAP_CACHE` is the same
 directory. A world that changed while the map was down is snapshotted again on startup; only tiles
@@ -235,6 +236,8 @@ Useful commands besides `start`:
 ```bash
 npm run inspect-world                    # dump chunks from the snapshot
 npm run render-chunk -- --chunk 0,0      # one PNG, for debugging
+npm run block-colors:report              # vanilla map-colour coverage
+npm run block-colors:world               # colour source for surface blocks in WORLD_PATH
 npm test                                 # unit tests
 TEST_WORLD_PATH="/opt/bds/worlds/Bedrock level" npm test
 npm run typecheck
