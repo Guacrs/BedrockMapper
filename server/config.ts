@@ -22,6 +22,14 @@ export interface Config {
   cacheDir: string;
   /** How often the live world is checked for changes, milliseconds. 0 disables. */
   worldRefreshInterval: number;
+  /**
+   * After a tile is redrawn, ignore further digests for that tile for this many
+   * milliseconds (BlueMap-style update cooldown). 0 disables. Added/removed
+   * chunks still bypass the cooldown so the map extent stays honest.
+   */
+  tileUpdateCooldown: number;
+  /** How many invalidated tiles a refresh redraws at once. */
+  refreshRenderConcurrency: number;
   /** How often the browser polls for player positions, milliseconds. */
   playerUpdateInterval: number;
   /** After this long without a player update the list is treated as unavailable. */
@@ -35,7 +43,11 @@ export const DEFAULTS = {
   host: '127.0.0.1',
   port: 3000,
   cacheDir: './cache',
-  worldRefreshInterval: 30_000,
+  // Live BDS worlds rewrite LevelDB constantly; 90s is enough for a top-down
+  // map without thrashing the event loop that also serves tiles.
+  worldRefreshInterval: 90_000,
+  tileUpdateCooldown: 60_000,
+  refreshRenderConcurrency: 2,
   playerUpdateInterval: 3_000,
   playerDataTimeout: 10_000,
   logLevel: 'info' as LogLevel,
@@ -43,6 +55,9 @@ export const DEFAULTS = {
 
 /** Refreshing faster than this hammers the disk for no visible benefit. */
 const MIN_REFRESH_INTERVAL = 1_000;
+const MIN_TILE_COOLDOWN = 0;
+const MIN_RENDER_CONCURRENCY = 1;
+const MAX_RENDER_CONCURRENCY = 16;
 const MIN_PLAYER_INTERVAL = 500;
 const MIN_PLAYER_TIMEOUT = 1_000;
 
@@ -150,6 +165,18 @@ export function loadConfig(
         min: MIN_REFRESH_INTERVAL,
         allowZero: true,
       }),
+    tileUpdateCooldown:
+      overrides.tileUpdateCooldown ??
+      parse.integer('TILE_UPDATE_COOLDOWN', DEFAULTS.tileUpdateCooldown, {
+        min: MIN_TILE_COOLDOWN,
+        allowZero: true,
+      }),
+    refreshRenderConcurrency:
+      overrides.refreshRenderConcurrency ??
+      parse.integer('REFRESH_RENDER_CONCURRENCY', DEFAULTS.refreshRenderConcurrency, {
+        min: MIN_RENDER_CONCURRENCY,
+        max: MAX_RENDER_CONCURRENCY,
+      }),
     playerUpdateInterval:
       overrides.playerUpdateInterval ??
       parse.integer('PLAYER_UPDATE_INTERVAL', DEFAULTS.playerUpdateInterval, { min: MIN_PLAYER_INTERVAL }),
@@ -190,10 +217,17 @@ export function configWarnings(config: Config): string[] {
 
   if (config.worldRefreshInterval === 0) {
     warnings.push('WORLD_REFRESH_INTERVAL=0: terrain is read once at startup and never refreshed.');
-  } else if (config.worldRefreshInterval < 5_000) {
+  } else if (config.worldRefreshInterval < 30_000) {
     warnings.push(
       `WORLD_REFRESH_INTERVAL=${config.worldRefreshInterval} ms is aggressive; each refresh copies the ` +
         'world database and rescans its chunks.',
+    );
+  }
+
+  if (config.refreshRenderConcurrency > 4) {
+    warnings.push(
+      `REFRESH_RENDER_CONCURRENCY=${config.refreshRenderConcurrency} can make the map feel laggy while ` +
+        'tiles redraw, because the same process also serves the browser.',
     );
   }
 
@@ -215,6 +249,8 @@ export function describeConfig(config: Config): Record<string, unknown> {
     host: config.host,
     port: config.port,
     refresh: config.worldRefreshInterval,
+    tileCooldown: config.tileUpdateCooldown,
+    refreshConcurrency: config.refreshRenderConcurrency,
     playerTimeout: config.playerDataTimeout,
     apiKey: config.apiKey ? 'set' : 'unset',
     logLevel: config.logLevel,

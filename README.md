@@ -51,7 +51,9 @@ sentence saying what to change; nothing is silently replaced with a default.
 | `HOST` | `127.0.0.1` | Bind address. `127.0.0.1` is local only. `0.0.0.0` listens on every interface |
 | `PORT` | `3000` | HTTP port |
 | `MAP_CACHE` | `./cache` | Snapshots and rendered tiles. Must **not** be inside `WORLD_PATH` |
-| `WORLD_REFRESH_INTERVAL` | `30000` | How often the live world is checked, in ms. `0` reads it once |
+| `WORLD_REFRESH_INTERVAL` | `90000` | How often the live world is checked, in ms. `0` reads it once |
+| `TILE_UPDATE_COOLDOWN` | `60000` | After a tile redraw, ignore further digests for that tile for this many ms. `0` off |
+| `REFRESH_RENDER_CONCURRENCY` | `2` | How many tiles a refresh redraws at once (1–16) |
 | `PLAYER_UPDATE_INTERVAL` | `3000` | How often the browser polls for player positions, in ms |
 | `PLAYER_DATA_TIMEOUT` | `10000` | After this many ms without a report, markers disappear |
 | `API_KEY` | _(empty)_ | Shared secret for `POST /api/players`. Empty disables player updates |
@@ -248,6 +250,8 @@ npm run typecheck
 - Overworld only. The Nether and the End are not rendered.
 - One rendered zoom level (1 pixel per block). Zooming out scales tiles in the browser.
 - Terrain is as fresh as `WORLD_REFRESH_INTERVAL` **and** as fresh as BDS's own saving.
+  Tiles that just redrew also respect `TILE_UPDATE_COOLDOWN` so busy areas are not
+  redrawn on every save. The browser only fetches new tiles after pan/zoom settles.
 - Every refresh that finds a change scans the whole chunk list, so cost grows with world size.
 - Player tracking needs the Beta APIs experiment and a dedicated server.
 - Positions can be a few seconds behind the player.

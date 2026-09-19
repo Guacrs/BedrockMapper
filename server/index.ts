@@ -121,14 +121,14 @@ function apiKeyFrom(request: http.IncomingMessage): string | null {
 }
 
 /**
- * How often the browser asks whether the terrain changed. Half the server's own
- * refresh interval, so a change is picked up within about one interval, and
- * never more often than every two seconds. Zero when refreshing is switched off,
- * which tells the browser not to poll at all.
+ * How often the browser asks whether the terrain changed. Matches the server's
+ * refresh interval (clamped), so an idle tab is not polling twice as often as
+ * the world can possibly change. Zero when refreshing is switched off, which
+ * tells the browser not to poll at all.
  */
 export function terrainPollInterval(worldRefreshInterval: number): number {
   if (worldRefreshInterval <= 0) return 0;
-  return Math.max(2000, Math.min(30000, Math.round(worldRefreshInterval / 2)));
+  return Math.max(5_000, Math.min(120_000, worldRefreshInterval));
 }
 
 /** The URL printed at startup: loopback when the server is bound to every interface. */
@@ -148,8 +148,11 @@ export function describeRefresh(stats: RefreshStats): string | null {
   }
   return (
     `terrain updated: ${changed} chunks (${stats.addedChunks} new, ${stats.changedChunks} changed, ` +
-    `${stats.removedChunks} gone), ${stats.tilesInvalidated} tiles invalidated, ` +
-    `${stats.tilesRegenerated} redrawn, ${stats.tilesChanged} of them different, ` +
+    `${stats.removedChunks} gone), ${stats.tilesInvalidated} tiles invalidated` +
+    (stats.tilesSkippedCooldown
+      ? ` (${stats.tilesSkippedCooldown} still cooling down)`
+      : '') +
+    `, ${stats.tilesRegenerated} redrawn, ${stats.tilesChanged} of them different, ` +
     `map version ${stats.version}, ${Math.round(stats.totalMs)} ms`
   );
 }
@@ -178,6 +181,7 @@ function logRefresh(log: Logger, stats: RefreshStats): void {
     changed: stats.changedChunks,
     removed: stats.removedChunks,
     tilesInvalidated: stats.tilesInvalidated,
+    tilesSkippedCooldown: stats.tilesSkippedCooldown,
     redrawn: stats.tilesRegenerated,
     tilesChanged: stats.tilesChanged,
     version: stats.version,
@@ -250,6 +254,8 @@ export async function startServer(config: Config, options: StartServerOptions = 
   const map = await MapService.create({
     worldPath: config.worldPath,
     cacheDir: config.cacheDir,
+    tileUpdateCooldownMs: config.tileUpdateCooldown,
+    refreshRenderConcurrency: config.refreshRenderConcurrency,
     log,
   });
   const players = new PlayerStore(config.playerDataTimeout);
@@ -547,7 +553,8 @@ function logStartup(log: Logger, config: Config, started: StartedServer): void {
   log.plain(
     `  terrain:    ${
       config.worldRefreshInterval > 0
-        ? `checked every ${config.worldRefreshInterval} ms, browser polls every ${terrainPollInterval(config.worldRefreshInterval)} ms`
+        ? `checked every ${config.worldRefreshInterval} ms, browser polls every ${terrainPollInterval(config.worldRefreshInterval)} ms` +
+          `, tile cooldown ${config.tileUpdateCooldown} ms, redraw concurrency ${config.refreshRenderConcurrency}`
         : 'automatic refresh DISABLED (WORLD_REFRESH_INTERVAL=0)'
     }`,
   );

@@ -405,6 +405,146 @@ describe(
 );
 
 describe(
+  'tile update cooldown',
+  { skip: sourceWorld ? false : 'set TEST_WORLD_PATH to a BDS world' },
+  () => {
+    let worldPath: string;
+    let cacheDir: string;
+    let temp: string;
+    let map: MapService;
+
+    before(async () => {
+      temp = await fs.mkdtemp(path.join(os.tmpdir(), 'bedrock-map-cooldown-'));
+      worldPath = path.join(temp, 'world');
+      cacheDir = path.join(temp, 'cache');
+      await copyWorld(sourceWorld!, worldPath);
+      map = await MapService.create({
+        worldPath,
+        cacheDir,
+        tileUpdateCooldownMs: 60_000,
+        refreshRenderConcurrency: 2,
+      });
+    });
+
+    after(async () => {
+      await map?.close();
+      if (temp) await fs.rm(temp, { recursive: true, force: true });
+    });
+
+    const chunkWithData = (margin = 3): ChunkPos => {
+      const bounds = map.info.chunkBounds!;
+      for (let z = bounds.minZ + margin; z <= bounds.maxZ - margin; z++) {
+        for (let x = bounds.minX + margin; x <= bounds.maxX - margin; x++) {
+          if (x % 16 === 15 || z % 16 === 15) continue;
+          let complete = true;
+          for (let dz = -1; dz <= 1 && complete; dz++) {
+            for (let dx = -1; dx <= 1; dx++) {
+              if (!map.hasChunkData(x + dx, z + dz)) complete = false;
+            }
+          }
+          if (complete) return { x, z };
+        }
+      }
+      throw new Error('no interior chunk found');
+    };
+
+    it('skips redrawing a tile that is still cooling down after a digest change', async () => {
+      const chunk = chunkWithData();
+      const tile = chunkToTile(chunk.x, chunk.z);
+      await map.tile('overworld', 0, tile.x, tile.y);
+
+      const writer = await WorldWriter.open(worldPath);
+      try {
+        assert.notEqual(await writer.removeTopSubChunk(chunk), null);
+      } finally {
+        await writer.close();
+      }
+
+      const first = await map.refresh();
+      assert.equal(first.error, null);
+      assert.equal(first.changedChunks, 1);
+      assert.equal(first.tilesInvalidated, 1);
+      assert.equal(first.tilesSkippedCooldown, 0);
+      assert.ok(first.tilesRegenerated >= 1);
+
+      const writer2 = await WorldWriter.open(worldPath);
+      try {
+        // Another surface change in the same tile while cooldown is active.
+        assert.notEqual(await writer2.removeTopSubChunk(chunk), null);
+      } finally {
+        await writer2.close();
+      }
+
+      const second = await map.refresh();
+      assert.equal(second.error, null);
+      assert.equal(second.changedChunks, 1);
+      assert.equal(second.tilesInvalidated, 0, 'cooldown must keep the cached tile');
+      assert.equal(second.tilesSkippedCooldown, 1);
+      assert.equal(second.tilesRegenerated, 0);
+    });
+
+    it('still invalidates when a chunk is added, even during cooldown', async () => {
+      const bounds = map.info.chunkBounds!;
+      const donor = chunkWithData();
+      let target: ChunkPos | null = null;
+      for (let z = bounds.minZ + 2; z <= bounds.maxZ - 2 && !target; z++) {
+        for (let x = bounds.minX + 2; x <= bounds.maxX - 2; x++) {
+          if (map.hasChunkData(x, z)) continue;
+          if (x % 16 === 15 || z % 16 === 15) continue;
+          const tile = chunkToTile(x, z);
+          // Prefer a hole inside a tile that already has terrain (so the tile is cached).
+          if (map.hasChunkData(tile.x * 16 + 8, tile.y * 16 + 8)) {
+            target = { x, z };
+            break;
+          }
+        }
+      }
+      assert.ok(target);
+      const tile = chunkToTile(target!.x, target!.z);
+      await map.tile('overworld', 0, tile.x, tile.y);
+
+      // Put that tile on cooldown via an unrelated digest change in the same tile.
+      // A prior test may already have cooled it - either outcome is fine.
+      const neighbour = (() => {
+        for (let z = tile.y * 16; z < tile.y * 16 + 16; z++) {
+          for (let x = tile.x * 16; x < tile.x * 16 + 16; x++) {
+            if (x === target!.x && z === target!.z) continue;
+            if (x % 16 === 15 || z % 16 === 15) continue;
+            if (map.hasChunkData(x, z)) return { x, z };
+          }
+        }
+        return null;
+      })();
+      assert.ok(neighbour);
+      const warm = await WorldWriter.open(worldPath);
+      try {
+        assert.notEqual(await warm.removeTopSubChunk(neighbour!), null);
+      } finally {
+        await warm.close();
+      }
+      const warmed = await map.refresh();
+      assert.equal(warmed.error, null);
+      assert.ok(
+        warmed.tilesRegenerated >= 1 || warmed.tilesSkippedCooldown >= 1,
+        'the tile should be cooling down (or already was)',
+      );
+
+      const writer = await WorldWriter.open(worldPath);
+      try {
+        assert.ok((await writer.copyChunk(donor, target!)) > 0);
+      } finally {
+        await writer.close();
+      }
+
+      const stats = await map.refresh();
+      assert.equal(stats.error, null);
+      assert.equal(stats.addedChunks, 1);
+      assert.ok(stats.tilesInvalidated >= 1, 'new chunks bypass cooldown');
+    });
+  },
+);
+
+describe(
   'terrain refresh over HTTP',
   { skip: sourceWorld ? false : 'set TEST_WORLD_PATH to a BDS world' },
   () => {
@@ -424,6 +564,8 @@ describe(
         host: '127.0.0.1',
         port: 0,
         worldRefreshInterval: 250,
+        tileUpdateCooldown: 0,
+        refreshRenderConcurrency: 2,
         playerUpdateInterval: 1000,
         playerDataTimeout: 10000,
         apiKey,
@@ -445,7 +587,7 @@ describe(
       };
       assert.equal(info.version, 1);
       assert.equal(info.worldRefreshInterval, 250);
-      assert.equal(info.terrainPollInterval, 2000);
+      assert.equal(info.terrainPollInterval, 5000);
 
       const state = (await fetch(`${base}/api/map/state`).then((response) => response.json())) as {
         version: number;
