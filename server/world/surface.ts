@@ -3,17 +3,21 @@
  *
  * Subchunks are walked from the top of the world downwards and each column is
  * resolved once, so a chunk costs at most one pass over the subchunks that
- * actually exist.
+ * actually exist. When the surface is water, the scan also measures how deep
+ * the water column is (still only using already-decoded subchunks).
  */
 
 import type { Dimension } from './dimensions.ts';
-import { isInvisible } from './blocks.ts';
+import { isInvisible, isWater } from './blocks.ts';
 import { CHUNK_SIZE, blockIndex, columnIndex, SUBCHUNK_SIZE } from './keys.ts';
 import type { SubChunk } from './subchunk.ts';
 import type { BedrockWorld } from './world.ts';
 
 /** Y value used for columns where no visible block was found. */
 export const NO_SURFACE = -32768;
+
+/** Cap stored water depth so a single byte stays meaningful on the map. */
+export const MAX_WATER_DEPTH = 24;
 
 export interface ChunkSurface {
   chunkX: number;
@@ -22,10 +26,59 @@ export interface ChunkSurface {
   heights: Int16Array;
   /** 256 entries; null where the column has no visible block. */
   blocks: (string | null)[];
+  /**
+   * 256 entries. Thickness of a water column when the surface block is water,
+   * otherwise 0. Measured from already-decoded subchunks only.
+   */
+  waterDepths: Uint8Array;
   /** Number of resolved columns (256 for fully generated terrain). */
   resolvedColumns: number;
   /** Subchunks that could not be decoded, e.g. legacy formats. */
   skipped: { index: number; version: number }[];
+}
+
+function paletteName(subChunk: SubChunk, x: number, y: number, z: number): string | null {
+  const layer = subChunk.layers[0];
+  if (!layer) return null;
+  const paletteIndex = layer.indices[blockIndex(x, y, z)] as number;
+  return layer.palette[paletteIndex]?.name ?? null;
+}
+
+/**
+ * Counts consecutive water blocks from `startY` downward in `startIndex`, then
+ * through any lower subchunks already decoded for this chunk.
+ */
+function measureWaterDepth(
+  orderedTopDown: SubChunk[],
+  byIndex: Map<number, SubChunk>,
+  startIndex: number,
+  startLocalY: number,
+  x: number,
+  z: number,
+): number {
+  let depth = 1;
+  let index = startIndex;
+  let localY = startLocalY - 1;
+
+  while (depth < MAX_WATER_DEPTH) {
+    const subChunk = byIndex.get(index);
+    if (!subChunk) {
+      // No decoded subchunk at this level - stop rather than inventing depth.
+      break;
+    }
+    while (localY >= 0 && depth < MAX_WATER_DEPTH) {
+      const name = paletteName(subChunk, x, localY, z);
+      if (!name || isInvisible(name) || !isWater(name)) return depth;
+      depth++;
+      localY--;
+    }
+    index--;
+    localY = SUBCHUNK_SIZE - 1;
+    if (!orderedTopDown.some((candidate) => candidate.index === index) && !byIndex.has(index)) {
+      break;
+    }
+  }
+  return depth;
 }
 
 /** Computes the surface of already-decoded subchunks (top-down order not required). */
@@ -36,9 +89,12 @@ export function surfaceFromSubChunks(
 ): ChunkSurface {
   const heights = new Int16Array(CHUNK_SIZE * CHUNK_SIZE).fill(NO_SURFACE);
   const blocks: (string | null)[] = new Array(CHUNK_SIZE * CHUNK_SIZE).fill(null);
+  const waterDepths = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE);
   let resolvedColumns = 0;
 
   const ordered = [...subChunks].sort((a, b) => b.index - a.index);
+  const byIndex = new Map(ordered.map((subChunk) => [subChunk.index, subChunk]));
+
   for (const subChunk of ordered) {
     if (resolvedColumns === blocks.length) break;
     const layer = subChunk.layers[0];
@@ -56,8 +112,12 @@ export function surfaceFromSubChunks(
         for (let y = SUBCHUNK_SIZE - 1; y >= 0; y--) {
           const paletteIndex = layer.indices[blockIndex(x, y, z)] as number;
           if (!visible[paletteIndex]) continue;
-          blocks[column] = layer.palette[paletteIndex]!.name;
+          const name = layer.palette[paletteIndex]!.name;
+          blocks[column] = name;
           heights[column] = baseY + y;
+          if (isWater(name)) {
+            waterDepths[column] = measureWaterDepth(ordered, byIndex, subChunk.index, y, x, z);
+          }
           resolvedColumns++;
           break;
         }
@@ -65,7 +125,7 @@ export function surfaceFromSubChunks(
     }
   }
 
-  return { chunkX, chunkZ, heights, blocks, resolvedColumns, skipped: [] };
+  return { chunkX, chunkZ, heights, blocks, waterDepths, resolvedColumns, skipped: [] };
 }
 
 /** Reads a chunk from the world and computes its surface. */

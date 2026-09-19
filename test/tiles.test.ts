@@ -41,7 +41,7 @@ function syntheticSurface(
       if (name) resolved++;
     }
   }
-  return { chunkX, chunkZ, heights, blocks, resolvedColumns: resolved, skipped: [] };
+  return { chunkX, chunkZ, heights, blocks, waterDepths: new Uint8Array(256), resolvedColumns: resolved, skipped: [] };
 }
 
 function tilePixel(image: RenderedImage, x: number, y: number) {

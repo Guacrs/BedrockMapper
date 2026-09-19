@@ -106,4 +106,23 @@ describe('highest visible block detection', () => {
       assert.equal(surface.heights[columnIndex(x, 7)], x);
     }
   });
+
+  it('measures water column depth from already-decoded subchunks', () => {
+    // Subchunk 4: water on top of stone. Depth is how many water blocks sit above stone.
+    const subChunk = makeSubChunk(4, [AIR, 'minecraft:water', 'minecraft:stone'], (_x, y) => {
+      if (y >= 10) return 1; // water at local 10..15 → 6 deep
+      if (y >= 8) return 2; // stone floor
+      return 0;
+    });
+    const surface = surfaceFromSubChunks(0, 0, [subChunk]);
+    assert.equal(surface.blocks[columnIndex(2, 2)], 'minecraft:water');
+    assert.equal(surface.waterDepths[columnIndex(2, 2)], 6);
+    assert.equal(surface.heights[columnIndex(2, 2)], 4 * 16 + 15);
+  });
+
+  it('leaves waterDepth at 0 for non-water surfaces', () => {
+    const subChunk = makeSubChunk(4, [AIR, 'minecraft:grass_block'], (_x, y) => (y === 8 ? 1 : 0));
+    const surface = surfaceFromSubChunks(0, 0, [subChunk]);
+    assert.equal(surface.waterDepths[columnIndex(0, 0)], 0);
+  });
 });

@@ -2,18 +2,22 @@
  * Resolves a Bedrock block name to a map colour.
  *
  * Lookup order:
- *   1. generated vanilla `minecraft:map_color` entries (data/block-colors.json)
- *   2. family-name fallbacks (*_leaves, *_log, …)
- *   3. deterministic hash, so an unknown future block still paints
+ *   1. name aliases (Java ↔ Bedrock id differences, renames)
+ *   2. generated vanilla `minecraft:map_color` entries (data/block-colors.json)
+ *   3. family-name fallbacks (*_leaves, *_log, deepslate*, *brick*, …)
+ *   4. deterministic hash, so an unknown future block still paints
  *
  * Tint categories are stored with the colour and multiplied by a plains-like
  * default. Biome-specific map tints can replace those defaults later without
- * changing the database. Height shading is applied by the renderer after this.
+ * changing the database — biome ids live in Data3D and are not decoded yet.
+ * Height shading and water-depth darkening are applied by the renderer after
+ * this.
  */
 
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isWater } from '../world/blocks.ts';
 
 export type Rgb = readonly [number, number, number];
 
@@ -77,7 +81,29 @@ const FAMILY_BASE: Record<string, { color: Rgb; tint: TintMethod }> = {
   wool: { color: [199, 199, 199], tint: 'none' },
   sandstone: { color: [247, 233, 163], tint: 'none' },
   ore: { color: [112, 112, 112], tint: 'none' },
+  deepslate: { color: [100, 100, 100], tint: 'none' },
+  brick: { color: [153, 51, 51], tint: 'none' },
+  ice: { color: [160, 160, 255], tint: 'none' },
+  gravel: { color: [112, 112, 112], tint: 'none' },
+  path: { color: [151, 109, 77], tint: 'none' },
+  crop: { color: [0, 124, 0], tint: 'none' },
+  copper: { color: [216, 127, 51], tint: 'none' },
+  glass: { color: [199, 199, 199], tint: 'none' },
 };
+
+/**
+ * Bedrock / Java name differences that would otherwise fall to hash.
+ * Keys and values are full `minecraft:` ids.
+ */
+const BLOCK_ALIASES: Record<string, string> = {
+  'minecraft:dirt_path': 'minecraft:grass_path',
+  'minecraft:bricks': 'minecraft:brick_block',
+  'minecraft:nether_bricks': 'minecraft:nether_brick',
+  'minecraft:red_nether_bricks': 'minecraft:red_nether_brick',
+};
+
+/** Deep-ocean target used when blending water by column depth. */
+const DEEP_WATER: Rgb = [30, 78, 140];
 
 let database: BlockColorDatabase | null = null;
 const resolved = new Map<string, ResolvedBlockColor>();
@@ -121,12 +147,44 @@ export function multiplyRgb(base: Rgb, tint: Rgb): Rgb {
   ];
 }
 
+export function lerpRgb(from: Rgb, to: Rgb, t: number): Rgb {
+  const clamped = Math.min(1, Math.max(0, t));
+  return [
+    Math.round(from[0] + (to[0] - from[0]) * clamped),
+    Math.round(from[1] + (to[1] - from[1]) * clamped),
+    Math.round(from[2] + (to[2] - from[2]) * clamped),
+  ];
+}
+
+/**
+ * Darkens water slightly with column depth. Shallow water stays close to the
+ * plains-like map tint; deeper columns lean toward a darker blue. No extra
+ * world reads — depth comes from the surface scan.
+ */
+export function deepenWater(rgb: Rgb, depth: number): Rgb {
+  if (depth <= 1) return rgb;
+  const t = (Math.min(depth, 16) - 1) / 15;
+  return lerpRgb(rgb, DEEP_WATER, t * 0.65);
+}
+
+/** Final pixel colour for a surface block, including optional water depth. */
+export function surfaceBlockColor(blockName: string, waterDepth = 0): Rgb {
+  const base = blockColor(blockName);
+  return isWater(blockName) && waterDepth > 1 ? deepenWater(base, waterDepth) : base;
+}
+
 export function isTintMethod(value: string): value is TintMethod {
   return (TINT_METHODS as readonly string[]).includes(value);
 }
 
 export function normalizeBlockName(blockName: string): string {
   return blockName.startsWith('minecraft:') ? blockName : `minecraft:${blockName}`;
+}
+
+/** Resolves known Bedrock/Java renames before the database lookup. */
+export function aliasBlockName(blockName: string): string {
+  const id = normalizeBlockName(blockName);
+  return BLOCK_ALIASES[id] ?? id;
 }
 
 function tintRgb(db: BlockColorDatabase, tint: TintMethod): Rgb | null {
@@ -184,8 +242,40 @@ export function familyFallback(blockName: string): { color: Rgb; tint: TintMetho
   if (name.includes('sandstone')) {
     return pick('minecraft:sandstone', FAMILY_BASE.sandstone!);
   }
+  if (name.endsWith('_path') || name.includes('_path')) {
+    return pick('minecraft:grass_path', FAMILY_BASE.path!);
+  }
+  if (name.includes('deepslate')) {
+    return pick('minecraft:deepslate', FAMILY_BASE.deepslate!);
+  }
+  if (name.includes('ice')) {
+    return pick('minecraft:ice', FAMILY_BASE.ice!);
+  }
+  if (name.endsWith('_gravel') || name.endsWith(':gravel') || name.includes('_gravel')) {
+    return pick('minecraft:gravel', FAMILY_BASE.gravel!);
+  }
+  // Clay bricks (not stone_bricks / deepslate_bricks — those are exact DB hits).
+  if (name.includes('brick')) {
+    return pick('minecraft:brick_block', FAMILY_BASE.brick!);
+  }
   if (name.endsWith('_ore') || name.includes('_ore')) {
     return pick('minecraft:stone', FAMILY_BASE.ore!);
+  }
+  if (name.includes('copper')) {
+    return pick('minecraft:copper_block', FAMILY_BASE.copper!);
+  }
+  if (name.includes('glass')) {
+    return pick('minecraft:glass', FAMILY_BASE.glass!);
+  }
+  if (
+    name.endsWith('_crop') ||
+    name.endsWith(':wheat') ||
+    name.endsWith(':carrots') ||
+    name.endsWith(':potatoes') ||
+    name.endsWith(':beetroot') ||
+    name.includes('_stem')
+  ) {
+    return pick('minecraft:wheat', FAMILY_BASE.crop!);
   }
   return null;
 }
@@ -232,8 +322,8 @@ export function resolveBlockColor(blockName: string): ResolvedBlockColor {
   if (cached) return cached;
 
   const db = getBlockColorDatabase();
-  const id = normalizeBlockName(blockName);
-  const exact = db.blocks[id] ?? db.blocks[blockName];
+  const id = aliasBlockName(blockName);
+  const exact = db.blocks[id] ?? db.blocks[blockName] ?? db.blocks[normalizeBlockName(blockName)];
   let value: ResolvedBlockColor;
   if (exact) {
     value = finish(parseHexColor(exact.color), exact.tint, 'map-color', db);

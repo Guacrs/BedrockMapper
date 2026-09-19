@@ -7,8 +7,8 @@
  * neighbouring chunks as well, so relief continues across chunk borders.
  */
 
-import { applyShade, CHANNELS, shadeFromNeighbors, type RenderedImage } from '../renderer/chunk-image.ts';
-import { blockColor } from '../renderer/colors.ts';
+import { applyShade, CHANNELS, shadeFactorForBlock, shadeFromNeighbors, type RenderedImage } from '../renderer/chunk-image.ts';
+import { surfaceBlockColor } from '../renderer/colors.ts';
 import { columnIndex } from '../world/keys.ts';
 import { NO_SURFACE, type ChunkSurface } from '../world/surface.ts';
 import { CHUNKS_PER_TILE, TILE_SIZE, floorDiv, tileToBlock, tileToChunk } from './coords.ts';
@@ -90,8 +90,10 @@ export async function renderTile(
       if (!block) continue;
 
       const y = surface.heights[column]!;
-      const factor = shadeFromNeighbors(y, heightAt(blockX, blockZ - 1), heightAt(blockX - 1, blockZ));
-      const [r, g, b] = applyShade(blockColor(block), factor);
+      const slope = shadeFromNeighbors(y, heightAt(blockX, blockZ - 1), heightAt(blockX - 1, blockZ));
+      const factor = shadeFactorForBlock(block, slope);
+      const depth = surface.waterDepths?.[column] ?? 0;
+      const [r, g, b] = applyShade(surfaceBlockColor(block, depth), factor);
       const offset = (pixelY * TILE_SIZE + pixelX) * CHANNELS;
       data[offset] = r;
       data[offset + 1] = g;

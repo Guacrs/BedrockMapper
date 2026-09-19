@@ -253,6 +253,11 @@ npm run typecheck
   Tiles that just redrew also respect `TILE_UPDATE_COOLDOWN` so busy areas are not
   redrawn on every save. The browser only fetches new tiles after pan/zoom settles.
 - Every refresh that finds a change scans the whole chunk list, so cost grows with world size.
+- Grass / foliage / water use plains-like default tints. Per-biome map tints need Data3D
+  biome decoding and are not implemented yet.
 - Player tracking needs the Beta APIs experiment and a dedicated server.
 - Positions can be a few seconds behind the player.
 - Simulated GameTest players are skipped; real players are unaffected.
+
+After a colour or shading change, walk through
+[`docs/terrain-visual-checklist.md`](docs/terrain-visual-checklist.md).
