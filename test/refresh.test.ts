@@ -23,6 +23,7 @@ function stats(overrides: Partial<RefreshStats> = {}): RefreshStats {
     removedChunks: 0,
     chunksDecoded: 0,
     tilesInvalidated: 0,
+    tilesSkippedCooldown: 0,
     tilesRegenerated: 0,
     tilesChanged: 0,
     totalMs: 60,
@@ -115,10 +116,10 @@ describe('tiles affected by a chunk', () => {
 });
 
 describe('terrain poll interval', () => {
-  it('is half the refresh interval, within sane limits', () => {
-    assert.equal(terrainPollInterval(30000), 15000);
-    assert.equal(terrainPollInterval(1000), 2000);
-    assert.equal(terrainPollInterval(600000), 30000);
+  it('tracks the refresh interval within sane limits', () => {
+    assert.equal(terrainPollInterval(90_000), 90_000);
+    assert.equal(terrainPollInterval(1_000), 5_000);
+    assert.equal(terrainPollInterval(600_000), 120_000);
   });
 
   it('is zero when automatic refreshing is switched off', () => {
@@ -142,13 +143,15 @@ describe('refresh log line', () => {
         addedChunks: 4,
         changedChunks: 2,
         tilesInvalidated: 3,
+        tilesSkippedCooldown: 2,
         tilesRegenerated: 3,
         tilesChanged: 2,
         version: 7,
       }),
     )!;
     assert.match(line, /6 chunks \(4 new, 2 changed, 0 gone\)/);
-    assert.match(line, /3 tiles invalidated, 3 redrawn, 2 of them different/);
+    assert.match(line, /3 tiles invalidated \(2 still cooling down\)/);
+    assert.match(line, /3 redrawn, 2 of them different/);
     assert.match(line, /map version 7/);
   });
 
@@ -173,7 +176,7 @@ describe('browser terrain layer helpers', () => {
     assert.ok(!boundsEqual(null, bounds));
   });
 
-  it('lets Leaflet scale native tiles below zoom 0', () => {
+  it('lets Leaflet scale native tiles below zoom 0 and waits for idle pans', () => {
     // GridLayer defaults minZoom to 0, which unloads every tile as soon as the
     // map zooms out. The layer has to share the map's zoom range so that
     // minNativeZoom can clamp the request to zoom 0 instead of going blank.
@@ -188,6 +191,8 @@ describe('browser terrain layer helpers', () => {
     assert.equal(options.minNativeZoom, 0);
     assert.equal(options.maxNativeZoom, 0);
     assert.ok(options.minZoom < options.minNativeZoom);
+    assert.equal(options.updateWhenIdle, true);
+    assert.equal(options.updateWhenZooming, false);
   });
 
   it('summarises the world for the status bar', () => {

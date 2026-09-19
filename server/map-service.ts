@@ -43,8 +43,8 @@ import { BedrockWorld, type WorldScan } from './world/world.ts';
 /** Upper bound on cached chunk surfaces (~1 KB each). */
 const SURFACE_CACHE_LIMIT = 8192;
 
-/** How many invalidated tiles are redrawn at once during a refresh. */
-const REFRESH_RENDER_CONCURRENCY = 4;
+/** Default how many invalidated tiles are redrawn at once during a refresh. */
+const DEFAULT_REFRESH_RENDER_CONCURRENCY = 2;
 
 export interface MapInfo {
   world: { name: string; version: string | null };
@@ -91,6 +91,8 @@ export interface RefreshStats {
   /** Chunk surfaces decoded as part of the refresh. */
   chunksDecoded: number;
   tilesInvalidated: number;
+  /** Tiles that still had a recent redraw, so this refresh left them alone. */
+  tilesSkippedCooldown: number;
   tilesRegenerated: number;
   /** Redrawn tiles that really came out different, i.e. what the browser needs. */
   tilesChanged: number;
@@ -113,6 +115,13 @@ export interface MapServiceOptions {
   cacheDir: string;
   minZoom?: number;
   maxZoom?: number;
+  /**
+   * After a tile is redrawn, skip invalidating it again for this many ms unless
+   * a chunk was added or removed inside it. 0 disables.
+   */
+  tileUpdateCooldownMs?: number;
+  /** Parallel tile redraws during refresh. */
+  refreshRenderConcurrency?: number;
   log?: Logger;
 }
 
@@ -169,6 +178,8 @@ export class MapService {
   #consecutiveRefreshFailures = 0;
   #cacheWriteFailures = 0;
   #cacheWriteFailureReported = false;
+  /** tile "x,y" -> earliest time another digest-driven invalidate is allowed. */
+  #tileCooldownUntil = new Map<string, number>();
   #log: Logger;
 
   private constructor(
@@ -362,6 +373,7 @@ export class MapService {
       removedChunks: 0,
       chunksDecoded: 0,
       tilesInvalidated: 0,
+      tilesSkippedCooldown: 0,
       tilesRegenerated: 0,
       tilesChanged: 0,
       totalMs: 0,
@@ -454,9 +466,16 @@ export class MapService {
 
     if (diff.all.length) {
       const decodedBefore = this.#decodedChunks;
-      const stale = await this.#invalidateTilesFor(diff.all);
-      stats.tilesInvalidated = stale.length;
-      const redrawn = await this.#renderTiles(stale);
+      const forced = new Set<string>();
+      for (const chunk of [...diff.added, ...diff.removed]) {
+        for (const tile of tilesAffectedByChunk(chunk.x, chunk.z)) {
+          forced.add(`${tile.x},${tile.y}`);
+        }
+      }
+      const stale = await this.#invalidateTilesFor(diff.all, forced);
+      stats.tilesInvalidated = stale.invalidated.length;
+      stats.tilesSkippedCooldown = stale.skippedCooldown;
+      const redrawn = await this.#renderTiles(stale.invalidated);
       stats.tilesRegenerated = redrawn.rendered;
       stats.tilesChanged = redrawn.changed;
       stats.chunksDecoded = this.#decodedChunks - decodedBefore;
@@ -484,10 +503,15 @@ export class MapService {
    * Drops the cached tiles the given chunks are drawn into, keeping what each of
    * them looked like, and reports the ones that were actually cached - those are
    * the tiles worth drawing again now.
+   *
+   * Tiles still inside the update cooldown are left on disk unless `forced`
+   * names them (chunk added or removed), so busy worlds do not redraw the same
+   * area every save tick.
    */
   async #invalidateTilesFor(
     chunks: readonly { x: number; z: number }[],
-  ): Promise<{ tile: TilePos; before: Uint8Array }[]> {
+    forced: ReadonlySet<string> = new Set(),
+  ): Promise<{ invalidated: { tile: TilePos; before: Uint8Array }[]; skippedCooldown: number }> {
     const tiles = new Map<string, TilePos>();
     for (const chunk of chunks) {
       for (const tile of tilesAffectedByChunk(chunk.x, chunk.z)) {
@@ -495,15 +519,27 @@ export class MapService {
       }
     }
 
+    const cooldownMs = this.#options.tileUpdateCooldownMs ?? 0;
+    const now = Date.now();
     const wereCached: { tile: TilePos; before: Uint8Array }[] = [];
-    for (const tile of tiles.values()) {
+    let skippedCooldown = 0;
+
+    for (const [key, tile] of tiles) {
+      if (!forced.has(key) && cooldownMs > 0) {
+        const until = this.#tileCooldownUntil.get(key);
+        if (until !== undefined && until > now) {
+          skippedCooldown++;
+          continue;
+        }
+      }
+
       const before = await this.tileCache.read(this.#dimension.id, NATIVE_ZOOM, tile.x, tile.y);
       if (!before) continue;
       if (await this.tileCache.invalidate(this.#dimension.id, NATIVE_ZOOM, tile.x, tile.y)) {
         wereCached.push({ tile, before });
       }
     }
-    return wereCached;
+    return { invalidated: wereCached, skippedCooldown };
   }
 
   /** Redraws tiles, a few at a time so a refresh does not monopolise the CPU. */
@@ -513,7 +549,12 @@ export class MapService {
     let rendered = 0;
     let changed = 0;
     const queue = [...stale];
-    const workers = Array.from({ length: Math.min(REFRESH_RENDER_CONCURRENCY, queue.length) }, async () => {
+    const concurrency = Math.max(
+      1,
+      this.#options.refreshRenderConcurrency ?? DEFAULT_REFRESH_RENDER_CONCURRENCY,
+    );
+    const cooldownMs = this.#options.tileUpdateCooldownMs ?? 0;
+    const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
       for (let entry = queue.pop(); entry; entry = queue.pop()) {
         const result = await this.tile(this.#dimension.id, NATIVE_ZOOM, entry.tile.x, entry.tile.y).catch(
           () => null,
@@ -523,6 +564,9 @@ export class MapService {
         // An emptied tile stops being served as an image at all, which the
         // browser has to be told about just like a redrawn one.
         if (result.empty || !sameBytes(result.bytes, entry.before)) changed++;
+        if (cooldownMs > 0) {
+          this.#tileCooldownUntil.set(`${entry.tile.x},${entry.tile.y}`, Date.now() + cooldownMs);
+        }
       }
     });
     await Promise.all(workers);

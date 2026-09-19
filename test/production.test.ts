@@ -33,6 +33,8 @@ describe('configuration validation', () => {
     assert.equal(config.host, DEFAULTS.host);
     assert.equal(config.port, DEFAULTS.port);
     assert.equal(config.worldRefreshInterval, DEFAULTS.worldRefreshInterval);
+    assert.equal(config.tileUpdateCooldown, DEFAULTS.tileUpdateCooldown);
+    assert.equal(config.refreshRenderConcurrency, DEFAULTS.refreshRenderConcurrency);
     assert.equal(config.playerUpdateInterval, DEFAULTS.playerUpdateInterval);
     assert.equal(config.playerDataTimeout, DEFAULTS.playerDataTimeout);
     assert.equal(config.logLevel, DEFAULTS.logLevel);
@@ -78,14 +80,17 @@ describe('configuration validation', () => {
   });
 
   it('allows PORT=0 and WORLD_REFRESH_INTERVAL=0', () => {
-    const config = loadConfig({}, env({ PORT: '0', WORLD_REFRESH_INTERVAL: '0' }));
+    const config = loadConfig({}, env({ PORT: '0', WORLD_REFRESH_INTERVAL: '0', TILE_UPDATE_COOLDOWN: '0' }));
     assert.equal(config.port, 0);
     assert.equal(config.worldRefreshInterval, 0);
+    assert.equal(config.tileUpdateCooldown, 0);
   });
 
   it('does not silently fall back when a number is out of range', () => {
     assert.throws(() => loadConfig({}, env({ PORT: '70000' })), ConfigError);
     assert.throws(() => loadConfig({}, env({ WORLD_REFRESH_INTERVAL: '500' })), ConfigError);
+    assert.throws(() => loadConfig({}, env({ REFRESH_RENDER_CONCURRENCY: '0' })), ConfigError);
+    assert.throws(() => loadConfig({}, env({ REFRESH_RENDER_CONCURRENCY: '99' })), ConfigError);
   });
 
   it('warns about a public bind, a missing key and a disabled refresh', () => {
@@ -95,6 +100,16 @@ describe('configuration validation', () => {
     assert.match(warnings, /no authentication/);
     assert.match(warnings, /API_KEY is not set/);
     assert.match(warnings, /never refreshed/);
+  });
+
+  it('warns when refresh is aggressive or redraw concurrency is high', () => {
+    const config = loadConfig(
+      {},
+      env({ WORLD_REFRESH_INTERVAL: '10000', REFRESH_RENDER_CONCURRENCY: '8' }),
+    );
+    const warnings = configWarnings(config).join('\n');
+    assert.match(warnings, /aggressive/);
+    assert.match(warnings, /REFRESH_RENDER_CONCURRENCY/);
   });
 
   it('warns when the API key is still the example value', () => {
@@ -170,6 +185,8 @@ describe('world and cache startup checks', () => {
       port: 3000,
       cacheDir: path.join(os.tmpdir(), 'missing-world', 'cache'),
       worldRefreshInterval: 30000,
+      tileUpdateCooldown: 0,
+      refreshRenderConcurrency: 2,
       playerUpdateInterval: 3000,
       playerDataTimeout: 10000,
       apiKey: '',

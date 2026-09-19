@@ -6,6 +6,11 @@
  * the browser (and any cache in between) fetch the redrawn tiles - no page
  * reload, no WebSocket, and unchanged tiles keep being served from cache while
  * the map is idle.
+ *
+ * While the user is panning or zooming, Leaflet keeps the tiles already on
+ * screen (scaled / soft while zooming) and only fetches fresh ones after the
+ * view settles - the same idea as BlueMap showing lower detail until you stop
+ * on an area.
  */
 
 import { blockToLatLng } from './coords.js';
@@ -68,6 +73,10 @@ export function worldSummary(world, state) {
  * `minZoom` is 0, so without these the layer unloads every tile as soon as you
  * zoom out, even though `minNativeZoom` would otherwise scale the native tiles.
  *
+ * `updateWhenIdle` / `updateWhenZooming: false` keep the current tiles on
+ * screen while you drag or wheel-zoom, and only request new ones when the view
+ * settles - far less thrash than loading on every pan frame.
+ *
  * @param {{ tileSize: number, nativeZoom: number, minZoom: number, maxZoom: number }} info
  * @returns {Record<string, unknown>}
  */
@@ -80,6 +89,8 @@ export function tileLayerOptions(info) {
     maxNativeZoom: info.nativeZoom,
     noWrap: true,
     keepBuffer: 2,
+    updateWhenIdle: true,
+    updateWhenZooming: false,
   };
 }
 
@@ -88,7 +99,9 @@ export function tileLayerOptions(info) {
  *
  * `update()` is given whatever GET /api/map/state last returned and only touches
  * Leaflet when the version actually moved, so polling an idle server costs one
- * small request and nothing else.
+ * small request and nothing else. If the map is mid-pan or mid-zoom, the URL
+ * bump waits until `moveend` / `zoomend` so a live refresh does not yank tiles
+ * out from under the pointer.
  */
 export class TerrainLayer {
   #map;
@@ -96,6 +109,9 @@ export class TerrainLayer {
   #layer;
   #version;
   #blockBounds;
+  /** @type {MapState | null} */
+  #pending = null;
+  #busy = false;
 
   /**
    * @param {any} map Leaflet map
@@ -111,6 +127,14 @@ export class TerrainLayer {
       ...tileLayerOptions(info),
       ...(bounds ? { bounds } : {}),
     }).addTo(map);
+
+    map.on('movestart zoomstart', () => {
+      this.#busy = true;
+    });
+    map.on('moveend zoomend', () => {
+      this.#busy = false;
+      this.#flushPending();
+    });
   }
 
   get version() {
@@ -137,10 +161,25 @@ export class TerrainLayer {
 
   /**
    * @param {MapState} state GET /api/map/state
-   * @returns {boolean} true when the tiles were reloaded
+   * @returns {boolean} true when the tiles were reloaded (or queued to reload)
    */
   update(state) {
     if (!state || state.version === this.#version) return false;
+    this.#pending = state;
+    if (this.#busy) return true;
+    return this.#flushPending();
+  }
+
+  /**
+   * @returns {boolean}
+   */
+  #flushPending() {
+    const state = this.#pending;
+    if (!state || state.version === this.#version) {
+      this.#pending = null;
+      return false;
+    }
+    this.#pending = null;
     this.#version = state.version;
 
     // A new area of the world can extend the map, so the layer's bounds have to
