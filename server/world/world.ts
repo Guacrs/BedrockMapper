@@ -18,6 +18,7 @@ import {
   type DimensionId,
 } from './dimensions.ts';
 import { ChunkTag, chunkKey, parseChunkKey, subChunkKey, type ChunkPos } from './keys.ts';
+import { parseData3D, type ChunkBiomes } from './data3d.ts';
 import { snapshotWorld, type SnapshotResult, type SourceState } from './snapshot.ts';
 import { decodeSubChunk, LegacySubChunkError, type SubChunk } from './subchunk.ts';
 
@@ -243,6 +244,13 @@ export class BedrockWorld {
       if (value?.length) return value.readUInt8(0);
     }
     return null;
+  }
+
+  /** Data3D biome palettes for a chunk, or null when the record is missing. */
+  async readChunkBiomes(dimension: Dimension, x: number, z: number): Promise<ChunkBiomes | null> {
+    const value = await this.#db.get(chunkKey(dimension, x, z, ChunkTag.Data3D));
+    if (!value?.length) return null;
+    return parseData3D(value, dimension);
   }
 
   /** True when the chunk exists in the database. */

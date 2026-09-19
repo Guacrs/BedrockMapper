@@ -23,7 +23,7 @@ import {
 import { surfaceBlockColor } from '../server/renderer/colors.ts';
 import { OVERWORLD } from '../server/world/dimensions.ts';
 import { columnIndex } from '../server/world/keys.ts';
-import { NO_SURFACE, readChunkSurface, type ChunkSurface } from '../server/world/surface.ts';
+import { NO_SURFACE, NO_BIOME, readChunkSurface, type ChunkSurface } from '../server/world/surface.ts';
 import { BedrockWorld } from '../server/world/world.ts';
 
 const worldPath = process.env.TEST_WORLD_PATH ?? process.env.WORLD_PATH;
@@ -84,7 +84,11 @@ describe(
             block,
             shadeFactor(surface, localX, localZ, surface.heights[column]!),
           );
-          const expected = surfaceBlockColor(block, surface.waterDepths[column]!);
+          const expected = surfaceBlockColor(
+            block,
+            surface.waterDepths[column]!,
+            surface.biomes[column] === NO_BIOME ? null : surface.biomes[column]!,
+          );
           assert.equal(a, 255);
           assert.deepEqual(
             [r, g, b],
@@ -103,7 +107,13 @@ describe(
           const block = surface.blocks[column]!;
           assert.deepEqual(
             pixelAt(image, localX, localZ).slice(0, 3),
-            [...surfaceBlockColor(block, surface.waterDepths[column]!)],
+            [
+              ...surfaceBlockColor(
+                block,
+                surface.waterDepths[column]!,
+                surface.biomes[column] === NO_BIOME ? null : surface.biomes[column]!,
+              ),
+            ],
           );
         }
       }

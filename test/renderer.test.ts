@@ -37,6 +37,7 @@ function makeSurface(
     heights,
     blocks,
     waterDepths: new Uint8Array(256),
+    biomes: new Uint16Array(256).fill(0xffff),
     resolvedColumns: block ? 256 : 0,
     skipped: [],
   };
@@ -120,6 +121,21 @@ describe('block colours', () => {
     assert.deepEqual(deepenWater(shallow, 1), shallow);
     // Non-water blocks ignore the depth argument.
     assert.deepEqual(surfaceBlockColor('minecraft:grass_block', 20), blockColor('minecraft:grass_block'));
+  });
+
+  it('applies dappled forest biome tints so foliage reads orange', () => {
+    const dappledId = 195; // minecraft:dappled_forest
+    const grass = surfaceBlockColor('minecraft:grass_block', 0, dappledId);
+    const leaves = surfaceBlockColor('minecraft:oak_leaves', 0, dappledId);
+    const plainsGrass = blockColor('minecraft:grass_block');
+    assert.notDeepEqual(grass, plainsGrass);
+    assert.ok(grass[0]! > grass[2]!, 'dappled grass should be orange-dominant');
+    assert.ok(leaves[0]! > leaves[2]!, 'dappled oak leaves should be orange-dominant');
+    // Spruce keeps its fixed evergreen tint even in dappled forest.
+    assert.deepEqual(
+      surfaceBlockColor('minecraft:spruce_leaves', 0, dappledId),
+      blockColor('minecraft:spruce_leaves'),
+    );
   });
 });
 
