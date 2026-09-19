@@ -137,6 +137,21 @@ describe('block colours', () => {
       blockColor('minecraft:spruce_leaves'),
     );
   });
+
+  it('applies map colour, biome tint, then water depth (shade is applied later)', () => {
+    const dappledId = 195;
+    const resolved = resolveBlockColor('minecraft:water');
+    const tinted = surfaceBlockColor('minecraft:water', 1, dappledId);
+    const deepTinted = surfaceBlockColor('minecraft:water', 12, dappledId);
+    // Biome replaces the neutral tint, using the untinted map-colour base.
+    assert.notDeepEqual(tinted, resolved.rgb);
+    assert.notDeepEqual(tinted, resolved.base);
+    // Depth darkening runs after tinting; shallow biome water stays at the tinted colour.
+    assert.deepEqual(tinted, surfaceBlockColor('minecraft:water', 0, dappledId));
+    assert.notDeepEqual(deepTinted, tinted);
+    // Depth blends toward deep-ocean blue from the already-tinted colour.
+    assert.ok(deepTinted[0]! < tinted[0]!, 'depth darkens the tinted water');
+  });
 });
 
 describe('elevation shading', () => {
