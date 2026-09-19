@@ -17,7 +17,7 @@ import { encode as encodePngBytes } from 'fast-png';
 import { surfaceBlockColor, type Rgb } from './colors.ts';
 import { isWater } from '../world/blocks.ts';
 import { CHUNK_SIZE, columnIndex } from '../world/keys.ts';
-import { NO_SURFACE, type ChunkSurface } from '../world/surface.ts';
+import { NO_SURFACE, NO_BIOME, type ChunkSurface } from '../world/surface.ts';
 
 export const CHANNELS = 4;
 
@@ -125,7 +125,9 @@ export function renderChunkSurface(surface: ChunkSurface, options: RenderOptions
       const slope = shading ? shadeFactor(surface, localX, localZ, y, neighborHeight) : 1;
       const factor = shadeFactorForBlock(block, slope);
       const depth = depths?.[column] ?? 0;
-      const [r, g, b] = applyShade(surfaceBlockColor(block, depth), factor);
+      const biome = surface.biomes?.[column];
+      const biomeId = biome === undefined || biome === NO_BIOME ? null : biome;
+      const [r, g, b] = applyShade(surfaceBlockColor(block, depth, biomeId), factor);
       data[offset] = r;
       data[offset + 1] = g;
       data[offset + 2] = b;

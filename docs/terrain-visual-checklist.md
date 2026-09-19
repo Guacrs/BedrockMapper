@@ -26,6 +26,8 @@ Create or open a world that includes as many of these as practical:
    heavily mottled from slope shading.
 2. **Grass / foliage** — Plains grass is a muted olive map green (not neon).
    Oak, birch and spruce leaves are distinct from each other and from grass.
+   **Dappled forest** (and other tinted biomes) should show their biome colour —
+   orange canopy/grass in dappled forest, not plains green.
 3. **Sand / red sand / snow / ice** — Desert, red sand, snow and ice are
    immediately separable from grass and stone.
 4. **Elevation** — Hills and cliffs show subtle brightness changes (lighter on

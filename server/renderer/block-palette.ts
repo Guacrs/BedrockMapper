@@ -18,6 +18,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isWater } from '../world/blocks.ts';
+import { biomeTintRgb } from './biome-tints.ts';
 
 export type Rgb = readonly [number, number, number];
 
@@ -167,10 +168,19 @@ export function deepenWater(rgb: Rgb, depth: number): Rgb {
   return lerpRgb(rgb, DEEP_WATER, t * 0.65);
 }
 
-/** Final pixel colour for a surface block, including optional water depth. */
-export function surfaceBlockColor(blockName: string, waterDepth = 0): Rgb {
-  const base = blockColor(blockName);
-  return isWater(blockName) && waterDepth > 1 ? deepenWater(base, waterDepth) : base;
+/** Final pixel colour for a surface block, including optional water depth and biome tint. */
+export function surfaceBlockColor(
+  blockName: string,
+  waterDepth = 0,
+  biomeId: number | null = null,
+): Rgb {
+  const resolved = resolveBlockColor(blockName);
+  let rgb = resolved.rgb;
+  if (biomeId != null && resolved.tint !== 'none') {
+    const biomeTint = biomeTintRgb(biomeId, resolved.tint);
+    if (biomeTint) rgb = multiplyRgb(resolved.base, biomeTint);
+  }
+  return isWater(blockName) && waterDepth > 1 ? deepenWater(rgb, waterDepth) : rgb;
 }
 
 export function isTintMethod(value: string): value is TintMethod {
