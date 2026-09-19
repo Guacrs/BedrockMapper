@@ -5,13 +5,15 @@ import {
   CHANNELS,
   SHADE_MAX,
   SHADE_MIN,
+  WATER_SHADE_WEIGHT,
   encodePng,
   pixelAt,
   renderChunkSurface,
   scaleNearest,
   shadeFactor,
+  shadeFactorForBlock,
 } from '../server/renderer/chunk-image.ts';
-import { blockColor, hasKnownColor, resolveBlockColor } from '../server/renderer/colors.ts';
+import { blockColor, deepenWater, hasKnownColor, resolveBlockColor, surfaceBlockColor } from '../server/renderer/colors.ts';
 import { columnIndex } from '../server/world/keys.ts';
 import { NO_SURFACE, type ChunkSurface } from '../server/world/surface.ts';
 
@@ -34,6 +36,8 @@ function makeSurface(
     chunkZ: 0,
     heights,
     blocks,
+    waterDepths: new Uint8Array(256),
+    biomes: new Uint16Array(256).fill(0xffff),
     resolvedColumns: block ? 256 : 0,
     skipped: [],
   };
@@ -66,6 +70,26 @@ describe('block colours', () => {
     assert.equal(hasKnownColor('minecraft:future_update_leaves'), true);
     assert.equal(hasKnownColor('minecraft:deepslate_iron_ore'), true);
     assert.equal(hasKnownColor('minecraft:red_sandstone'), true);
+    assert.deepEqual(blockColor('minecraft:future_deepslate_thing'), blockColor('minecraft:deepslate'));
+    assert.deepEqual(blockColor('minecraft:mystery_ice_sheet'), blockColor('minecraft:ice'));
+    assert.deepEqual(blockColor('minecraft:weird_brick_stairs'), blockColor('minecraft:brick_block'));
+    assert.deepEqual(blockColor('minecraft:custom_dirt_path'), blockColor('minecraft:grass_path'));
+  });
+
+  it('aliases Java-style names onto Bedrock map colours', () => {
+    assert.deepEqual(blockColor('minecraft:dirt_path'), blockColor('minecraft:grass_path'));
+    assert.deepEqual(blockColor('minecraft:bricks'), blockColor('minecraft:brick_block'));
+    assert.deepEqual(blockColor('minecraft:nether_bricks'), blockColor('minecraft:nether_brick'));
+    assert.equal(hasKnownColor('minecraft:dirt_path'), true);
+    assert.equal(hasKnownColor('minecraft:bricks'), true);
+  });
+
+  it('keeps constructed materials distinct from plain stone and dirt', () => {
+    assert.notDeepEqual(blockColor('minecraft:brick_block'), blockColor('minecraft:stone'));
+    assert.notDeepEqual(blockColor('minecraft:white_concrete'), blockColor('minecraft:stone'));
+    assert.notDeepEqual(blockColor('minecraft:oak_planks'), blockColor('minecraft:stone'));
+    assert.notDeepEqual(blockColor('minecraft:orange_terracotta'), blockColor('minecraft:dirt'));
+    assert.notDeepEqual(blockColor('minecraft:iron_block'), blockColor('minecraft:dirt'));
   });
 
   it('gives unknown blocks a deterministic fallback instead of crashing', () => {
@@ -86,6 +110,32 @@ describe('block colours', () => {
     assert.equal(resolveBlockColor('minecraft:spruce_leaves').label, 'map-color + evergreen foliage tint');
     assert.equal(resolveBlockColor('minecraft:podzol').label, 'map-color');
     assert.equal(resolveBlockColor('minecraft:some_block_from_a_future_update').label, 'hash fallback');
+  });
+
+  it('darkens deeper water without leaving the blue family', () => {
+    const shallow = surfaceBlockColor('minecraft:water', 1);
+    const deep = surfaceBlockColor('minecraft:water', 12);
+    assert.deepEqual(shallow, blockColor('minecraft:water'));
+    assert.ok(deep[2]! > deep[0]!, 'deep water should stay blue-dominant');
+    assert.ok(deep[2]! < shallow[2]!, 'deeper water should be darker');
+    assert.deepEqual(deepenWater(shallow, 1), shallow);
+    // Non-water blocks ignore the depth argument.
+    assert.deepEqual(surfaceBlockColor('minecraft:grass_block', 20), blockColor('minecraft:grass_block'));
+  });
+
+  it('applies dappled forest biome tints so foliage reads orange', () => {
+    const dappledId = 195; // minecraft:dappled_forest
+    const grass = surfaceBlockColor('minecraft:grass_block', 0, dappledId);
+    const leaves = surfaceBlockColor('minecraft:oak_leaves', 0, dappledId);
+    const plainsGrass = blockColor('minecraft:grass_block');
+    assert.notDeepEqual(grass, plainsGrass);
+    assert.ok(grass[0]! > grass[2]!, 'dappled grass should be orange-dominant');
+    assert.ok(leaves[0]! > leaves[2]!, 'dappled oak leaves should be orange-dominant');
+    // Spruce keeps its fixed evergreen tint even in dappled forest.
+    assert.deepEqual(
+      surfaceBlockColor('minecraft:spruce_leaves', 0, dappledId),
+      blockColor('minecraft:spruce_leaves'),
+    );
   });
 });
 
@@ -115,6 +165,15 @@ describe('elevation shading', () => {
     assert.ok(withNeighbour > 1, 'edge columns should shade against supplied neighbours');
   });
 
+  it('mutes slope shading on water so depth stays visible', () => {
+    const steep = 1.3;
+    const muted = shadeFactorForBlock('minecraft:water', steep);
+    assert.ok(muted < steep);
+    assert.ok(muted > 1);
+    assert.equal(muted, 1 + (steep - 1) * WATER_SHADE_WEIGHT);
+    assert.equal(shadeFactorForBlock('minecraft:stone', steep), steep);
+  });
+
   it('changes pixel brightness without changing hue ordering', () => {
     const slope = makeSurface('minecraft:stone', (_x, z) => 64 + z);
     const image = renderChunkSurface(slope);
@@ -124,6 +183,18 @@ describe('elevation shading', () => {
 
     const unshaded = renderChunkSurface(slope, { shading: false });
     assert.deepEqual(pixelAt(unshaded, 5, 5).slice(0, 3), [...blockColor('minecraft:stone')]);
+  });
+
+  it('applies water depth when rendering a surface', () => {
+    const surface = makeSurface('minecraft:water');
+    surface.waterDepths.fill(1);
+    surface.waterDepths[columnIndex(4, 4)] = 14;
+    const image = renderChunkSurface(surface, { shading: false });
+    const shallow = pixelAt(image, 0, 0).slice(0, 3);
+    const deep = pixelAt(image, 4, 4).slice(0, 3);
+    assert.deepEqual(shallow, [...blockColor('minecraft:water')]);
+    assert.notDeepEqual(deep, shallow);
+    assert.ok(deep[2]! < shallow[2]!);
   });
 });
 

@@ -1,0 +1,906 @@
+{
+  "version": "1.26.50",
+  "source": "Mojang bedrock-samples client biomes + climate colormap sampling (grass.png/foliage.png)",
+  "defaults": {
+    "grass": "#92BC58",
+    "foliage": "#77AB2F",
+    "birch_foliage": "#80A755",
+    "evergreen_foliage": "#619961",
+    "dry_foliage": "#A37546",
+    "water": "#44AFF5"
+  },
+  "biomes": {
+    "minecraft:bamboo_jungle": {
+      "id": 48,
+      "grass": "#59C93C",
+      "foliage": "#30BB0B",
+      "dry_foliage": "#A37546",
+      "water": "#14A2C5",
+      "temperature": 0.95,
+      "downfall": 0.9
+    },
+    "minecraft:bamboo_jungle_hills": {
+      "id": 49,
+      "grass": "#59C93C",
+      "foliage": "#30BB0B",
+      "dry_foliage": "#A37546",
+      "water": "#1B9ED8",
+      "temperature": 0.95,
+      "downfall": 0.9
+    },
+    "minecraft:basalt_deltas": {
+      "id": 181,
+      "grass": "#BFB755",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#3F76E4",
+      "temperature": 2,
+      "downfall": 0
+    },
+    "minecraft:beach": {
+      "id": 16,
+      "grass": "#91BD59",
+      "foliage": "#77AB2F",
+      "dry_foliage": "#A37546",
+      "water": "#157CAB",
+      "temperature": 0.8,
+      "downfall": 0.4
+    },
+    "minecraft:birch_forest": {
+      "id": 27,
+      "grass": "#88BB67",
+      "foliage": "#6BA941",
+      "dry_foliage": "#A37546",
+      "water": "#0677CE",
+      "temperature": 0.6,
+      "downfall": 0.6
+    },
+    "minecraft:birch_forest_hills": {
+      "id": 28,
+      "grass": "#88BB67",
+      "foliage": "#6BA941",
+      "dry_foliage": "#A37546",
+      "water": "#0A74C4",
+      "temperature": 0.6,
+      "downfall": 0.6
+    },
+    "minecraft:birch_forest_hills_mutated": {
+      "id": 156,
+      "grass": "#79C05A",
+      "foliage": "#59AE30",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 0.7,
+      "downfall": 0.8
+    },
+    "minecraft:birch_forest_mutated": {
+      "id": 155,
+      "grass": "#88BB67",
+      "foliage": "#6BA941",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 0.6,
+      "downfall": 0.6
+    },
+    "minecraft:cherry_grove": {
+      "id": 192,
+      "grass": "#B6DB61",
+      "foliage": "#B6DB61",
+      "dry_foliage": "#A37546",
+      "water": "#5DB7EF",
+      "temperature": 0.3,
+      "downfall": 0.8
+    },
+    "minecraft:cold_beach": {
+      "id": 26,
+      "grass": "#83B593",
+      "foliage": "#64A278",
+      "dry_foliage": "#A37546",
+      "water": "#1463A5",
+      "temperature": 0.05,
+      "downfall": 0.3
+    },
+    "minecraft:cold_ocean": {
+      "id": 44,
+      "grass": "#8EB971",
+      "foliage": "#71A74D",
+      "dry_foliage": "#A37546",
+      "water": "#2080C9",
+      "temperature": 0.5,
+      "downfall": 0.5
+    },
+    "minecraft:cold_taiga": {
+      "id": 30,
+      "grass": "#80B497",
+      "foliage": "#60A17B",
+      "dry_foliage": "#A37546",
+      "water": "#205E83",
+      "temperature": -0.5,
+      "downfall": 0.4
+    },
+    "minecraft:cold_taiga_hills": {
+      "id": 31,
+      "grass": "#80B497",
+      "foliage": "#60A17B",
+      "dry_foliage": "#A37546",
+      "water": "#245B78",
+      "temperature": -0.5,
+      "downfall": 0.4
+    },
+    "minecraft:cold_taiga_mutated": {
+      "id": 158,
+      "grass": "#80B497",
+      "foliage": "#60A17B",
+      "dry_foliage": "#A37546",
+      "water": "#205E83",
+      "temperature": -0.5,
+      "downfall": 0.4
+    },
+    "minecraft:crimson_forest": {
+      "id": 179,
+      "grass": "#BFB755",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#905957",
+      "temperature": 2,
+      "downfall": 0
+    },
+    "minecraft:dappled_forest": {
+      "id": 195,
+      "grass": "#DF6827",
+      "foliage": "#E68E30",
+      "dry_foliage": "#8C3A04",
+      "water": "#375154",
+      "temperature": 0.6,
+      "downfall": 0.6
+    },
+    "minecraft:deep_cold_ocean": {
+      "id": 45,
+      "grass": "#8EB971",
+      "foliage": "#71A74D",
+      "dry_foliage": "#A37546",
+      "water": "#2080C9",
+      "temperature": 0.5,
+      "downfall": 0.5
+    },
+    "minecraft:deep_dark": {
+      "id": 190,
+      "grass": "#91BD59",
+      "foliage": "#77AB2F",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 0.8,
+      "downfall": 0.4
+    },
+    "minecraft:deep_frozen_ocean": {
+      "id": 47,
+      "grass": "#8EB971",
+      "foliage": "#71A74D",
+      "dry_foliage": "#A37546",
+      "water": "#2570B5",
+      "temperature": 0.5,
+      "downfall": 0.5
+    },
+    "minecraft:deep_lukewarm_ocean": {
+      "id": 43,
+      "grass": "#8EB971",
+      "foliage": "#71A74D",
+      "dry_foliage": "#A37546",
+      "water": "#0D96DB",
+      "temperature": 0.5,
+      "downfall": 0.5
+    },
+    "minecraft:deep_ocean": {
+      "id": 24,
+      "grass": "#8EB971",
+      "foliage": "#71A74D",
+      "dry_foliage": "#A37546",
+      "water": "#1787D4",
+      "temperature": 0.5,
+      "downfall": 0.5
+    },
+    "minecraft:deep_warm_ocean": {
+      "id": 41,
+      "grass": "#8EB971",
+      "foliage": "#71A74D",
+      "dry_foliage": "#A37546",
+      "water": "#02B0E5",
+      "temperature": 0.5,
+      "downfall": 0.5
+    },
+    "minecraft:desert": {
+      "id": 2,
+      "grass": "#BFB755",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#32A598",
+      "temperature": 2,
+      "downfall": 0
+    },
+    "minecraft:desert_hills": {
+      "id": 17,
+      "grass": "#BFB755",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#1A7AA1",
+      "temperature": 2,
+      "downfall": 0
+    },
+    "minecraft:desert_mutated": {
+      "id": 130,
+      "grass": "#BFB755",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 2,
+      "downfall": 0
+    },
+    "minecraft:dripstone_caves": {
+      "id": 188,
+      "grass": "#8DB58A",
+      "foliage": "#70A26C",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 0.2,
+      "downfall": 0
+    },
+    "minecraft:extreme_hills": {
+      "id": 3,
+      "grass": "#8AB689",
+      "foliage": "#6DA36B",
+      "dry_foliage": "#A37546",
+      "water": "#007BF7",
+      "temperature": 0.2,
+      "downfall": 0.3
+    },
+    "minecraft:extreme_hills_edge": {
+      "id": 20,
+      "grass": "#8AB689",
+      "foliage": "#6DA36B",
+      "dry_foliage": "#A37546",
+      "water": "#045CD5",
+      "temperature": 0.2,
+      "downfall": 0.3
+    },
+    "minecraft:extreme_hills_mutated": {
+      "id": 131,
+      "grass": "#8AB689",
+      "foliage": "#6DA36B",
+      "dry_foliage": "#A37546",
+      "water": "#0E63AB",
+      "temperature": 0.2,
+      "downfall": 0.3
+    },
+    "minecraft:extreme_hills_plus_trees": {
+      "id": 34,
+      "grass": "#8AB689",
+      "foliage": "#6DA36B",
+      "dry_foliage": "#A37546",
+      "water": "#0E63AB",
+      "temperature": 0.2,
+      "downfall": 0.3
+    },
+    "minecraft:extreme_hills_plus_trees_mutated": {
+      "id": 162,
+      "grass": "#8AB689",
+      "foliage": "#6DA36B",
+      "dry_foliage": "#A37546",
+      "water": "#0E63AB",
+      "temperature": 0.2,
+      "downfall": 0.3
+    },
+    "minecraft:flower_forest": {
+      "id": 132,
+      "grass": "#79C05A",
+      "foliage": "#59AE30",
+      "dry_foliage": "#A37546",
+      "water": "#20A3CC",
+      "temperature": 0.7,
+      "downfall": 0.8
+    },
+    "minecraft:forest": {
+      "id": 4,
+      "grass": "#79C05A",
+      "foliage": "#59AE30",
+      "dry_foliage": "#A37546",
+      "water": "#1E97F2",
+      "temperature": 0.7,
+      "downfall": 0.8
+    },
+    "minecraft:forest_hills": {
+      "id": 18,
+      "grass": "#79C05A",
+      "foliage": "#59AE30",
+      "dry_foliage": "#A37546",
+      "water": "#056BD1",
+      "temperature": 0.7,
+      "downfall": 0.8
+    },
+    "minecraft:frozen_ocean": {
+      "id": 46,
+      "grass": "#80B497",
+      "foliage": "#60A17B",
+      "dry_foliage": "#A37546",
+      "water": "#2570B5",
+      "temperature": 0,
+      "downfall": 0.5
+    },
+    "minecraft:frozen_peaks": {
+      "id": 183,
+      "grass": "#80B497",
+      "foliage": "#60A17B",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": -0.7,
+      "downfall": 0.9
+    },
+    "minecraft:frozen_river": {
+      "id": 11,
+      "grass": "#80B497",
+      "foliage": "#60A17B",
+      "dry_foliage": "#A37546",
+      "water": "#185390",
+      "temperature": 0,
+      "downfall": 0.5
+    },
+    "minecraft:grove": {
+      "id": 185,
+      "grass": "#80B497",
+      "foliage": "#60A17B",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": -0.2,
+      "downfall": 0.8
+    },
+    "minecraft:hell": {
+      "id": 8,
+      "grass": "#BFB755",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#905957",
+      "temperature": 2,
+      "downfall": 0
+    },
+    "minecraft:ice_mountains": {
+      "id": 13,
+      "grass": "#80B497",
+      "foliage": "#60A17B",
+      "dry_foliage": "#A37546",
+      "water": "#1156A7",
+      "temperature": 0,
+      "downfall": 0.5
+    },
+    "minecraft:ice_plains": {
+      "id": 12,
+      "grass": "#80B497",
+      "foliage": "#60A17B",
+      "dry_foliage": "#A37546",
+      "water": "#14559B",
+      "temperature": 0,
+      "downfall": 0.5
+    },
+    "minecraft:ice_plains_spikes": {
+      "id": 140,
+      "grass": "#80B497",
+      "foliage": "#60A17B",
+      "dry_foliage": "#A37546",
+      "water": "#14559B",
+      "temperature": 0,
+      "downfall": 1
+    },
+    "minecraft:jagged_peaks": {
+      "id": 182,
+      "grass": "#80B497",
+      "foliage": "#60A17B",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": -0.7,
+      "downfall": 0.9
+    },
+    "minecraft:jungle": {
+      "id": 21,
+      "grass": "#59C93C",
+      "foliage": "#30BB0B",
+      "dry_foliage": "#A37546",
+      "water": "#14A2C5",
+      "temperature": 0.95,
+      "downfall": 0.9
+    },
+    "minecraft:jungle_edge": {
+      "id": 23,
+      "grass": "#64C73F",
+      "foliage": "#3EB80F",
+      "dry_foliage": "#A37546",
+      "water": "#0D8AE3",
+      "temperature": 0.95,
+      "downfall": 0.8
+    },
+    "minecraft:jungle_edge_mutated": {
+      "id": 151,
+      "grass": "#64C73F",
+      "foliage": "#3EB80F",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 0.95,
+      "downfall": 0.8
+    },
+    "minecraft:jungle_hills": {
+      "id": 22,
+      "grass": "#59C93C",
+      "foliage": "#30BB0B",
+      "dry_foliage": "#A37546",
+      "water": "#1B9ED8",
+      "temperature": 0.95,
+      "downfall": 0.9
+    },
+    "minecraft:jungle_mutated": {
+      "id": 149,
+      "grass": "#59C93C",
+      "foliage": "#30BB0B",
+      "dry_foliage": "#A37546",
+      "water": "#1B9ED8",
+      "temperature": 0.95,
+      "downfall": 0.9
+    },
+    "minecraft:legacy_frozen_ocean": {
+      "id": 10,
+      "grass": "#80B497",
+      "foliage": "#60A17B",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 0,
+      "downfall": 0.5
+    },
+    "minecraft:lukewarm_ocean": {
+      "id": 42,
+      "grass": "#8EB971",
+      "foliage": "#71A74D",
+      "dry_foliage": "#A37546",
+      "water": "#0D96DB",
+      "temperature": 0.5,
+      "downfall": 0.5
+    },
+    "minecraft:lush_caves": {
+      "id": 187,
+      "grass": "#B9B75B",
+      "foliage": "#A6A432",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 0.9,
+      "downfall": 0
+    },
+    "minecraft:mangrove_swamp": {
+      "id": 191,
+      "grass": "#6A7039",
+      "foliage": "#6A7039",
+      "dry_foliage": "#7B5334",
+      "water": "#3A7A6A",
+      "temperature": 0.8,
+      "downfall": 0.9
+    },
+    "minecraft:meadow": {
+      "id": 186,
+      "grass": "#86B87F",
+      "foliage": "#68A55F",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 0.3,
+      "downfall": 0.8
+    },
+    "minecraft:mega_taiga": {
+      "id": 32,
+      "grass": "#86B87F",
+      "foliage": "#68A55F",
+      "dry_foliage": "#A37546",
+      "water": "#2D6D77",
+      "temperature": 0.3,
+      "downfall": 0.8
+    },
+    "minecraft:mega_taiga_hills": {
+      "id": 33,
+      "grass": "#86B87F",
+      "foliage": "#68A55F",
+      "dry_foliage": "#A37546",
+      "water": "#286378",
+      "temperature": 0.3,
+      "downfall": 0.8
+    },
+    "minecraft:mesa": {
+      "id": 37,
+      "grass": "#90814D",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#4E7F81",
+      "temperature": 2,
+      "downfall": 0
+    },
+    "minecraft:mesa_bryce": {
+      "id": 165,
+      "grass": "#90814D",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#497F99",
+      "temperature": 2,
+      "downfall": 0
+    },
+    "minecraft:mesa_plateau": {
+      "id": 39,
+      "grass": "#BFB755",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#55809E",
+      "temperature": 2,
+      "downfall": 0
+    },
+    "minecraft:mesa_plateau_mutated": {
+      "id": 167,
+      "grass": "#90814D",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 2,
+      "downfall": 0
+    },
+    "minecraft:mesa_plateau_stone": {
+      "id": 38,
+      "grass": "#90814D",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#55809E",
+      "temperature": 2,
+      "downfall": 0
+    },
+    "minecraft:mesa_plateau_stone_mutated": {
+      "id": 166,
+      "grass": "#90814D",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 2,
+      "downfall": 0
+    },
+    "minecraft:mushroom_island": {
+      "id": 14,
+      "grass": "#55C93F",
+      "foliage": "#2BBB0F",
+      "dry_foliage": "#A37546",
+      "water": "#8A8997",
+      "temperature": 0.9,
+      "downfall": 1
+    },
+    "minecraft:mushroom_island_shore": {
+      "id": 15,
+      "grass": "#55C93F",
+      "foliage": "#2BBB0F",
+      "dry_foliage": "#A37546",
+      "water": "#818193",
+      "temperature": 0.9,
+      "downfall": 1
+    },
+    "minecraft:ocean": {
+      "id": 0,
+      "grass": "#8EB971",
+      "foliage": "#71A74D",
+      "dry_foliage": "#A37546",
+      "water": "#1787D4",
+      "temperature": 0.5,
+      "downfall": 0.5
+    },
+    "minecraft:pale_garden": {
+      "id": 193,
+      "grass": "#778272",
+      "foliage": "#878D76",
+      "dry_foliage": "#A0A69C",
+      "water": "#76889D",
+      "temperature": 0.7,
+      "downfall": 0.8
+    },
+    "minecraft:plains": {
+      "id": 1,
+      "grass": "#91BD59",
+      "foliage": "#77AB2F",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 0.8,
+      "downfall": 0.4
+    },
+    "minecraft:redwood_taiga_hills_mutated": {
+      "id": 161,
+      "grass": "#86B87F",
+      "foliage": "#68A55F",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 0.3,
+      "downfall": 0.8
+    },
+    "minecraft:redwood_taiga_mutated": {
+      "id": 160,
+      "grass": "#86B783",
+      "foliage": "#68A464",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 0.25,
+      "downfall": 0.8
+    },
+    "minecraft:river": {
+      "id": 7,
+      "grass": "#8EB971",
+      "foliage": "#71A74D",
+      "dry_foliage": "#A37546",
+      "water": "#0084FF",
+      "temperature": 0.5,
+      "downfall": 0.5
+    },
+    "minecraft:roofed_forest": {
+      "id": 29,
+      "grass": "#79C05A",
+      "foliage": "#59AE30",
+      "dry_foliage": "#7B5334",
+      "water": "#3B6CD1",
+      "temperature": 0.7,
+      "downfall": 0.8
+    },
+    "minecraft:roofed_forest_mutated": {
+      "id": 157,
+      "grass": "#79C05A",
+      "foliage": "#59AE30",
+      "dry_foliage": "#7B5334",
+      "water": "#44AFF5",
+      "temperature": 0.7,
+      "downfall": 0.8
+    },
+    "minecraft:savanna": {
+      "id": 35,
+      "grass": "#BFB755",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#2C8B9C",
+      "temperature": 1.2,
+      "downfall": 0
+    },
+    "minecraft:savanna_mutated": {
+      "id": 163,
+      "grass": "#BFB755",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#2590A8",
+      "temperature": 2,
+      "downfall": 0
+    },
+    "minecraft:savanna_plateau": {
+      "id": 36,
+      "grass": "#BFB755",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#2590A8",
+      "temperature": 1,
+      "downfall": 0
+    },
+    "minecraft:savanna_plateau_mutated": {
+      "id": 164,
+      "grass": "#82C245",
+      "foliage": "#64B216",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 1,
+      "downfall": 0.5
+    },
+    "minecraft:snowy_slopes": {
+      "id": 184,
+      "grass": "#80B497",
+      "foliage": "#60A17B",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": -0.3,
+      "downfall": 0.9
+    },
+    "minecraft:soulsand_valley": {
+      "id": 178,
+      "grass": "#BFB755",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#905957",
+      "temperature": 2,
+      "downfall": 0
+    },
+    "minecraft:stone_beach": {
+      "id": 25,
+      "grass": "#8AB689",
+      "foliage": "#6DA36B",
+      "dry_foliage": "#A37546",
+      "water": "#0D67BB",
+      "temperature": 0.2,
+      "downfall": 0.3
+    },
+    "minecraft:stony_peaks": {
+      "id": 189,
+      "grass": "#9ABE4B",
+      "foliage": "#82AC1E",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 1,
+      "downfall": 0.3
+    },
+    "minecraft:sulfur_caves": {
+      "id": 194,
+      "grass": "#ABA64F",
+      "foliage": "#77AB2F",
+      "dry_foliage": "#A37546",
+      "water": "#34BF89",
+      "temperature": 0.8,
+      "downfall": 0.4
+    },
+    "minecraft:sunflower_plains": {
+      "id": 129,
+      "grass": "#91BD59",
+      "foliage": "#77AB2F",
+      "dry_foliage": "#A37546",
+      "water": "#44AFF5",
+      "temperature": 0.8,
+      "downfall": 0.4
+    },
+    "minecraft:swampland": {
+      "id": 6,
+      "grass": "#6A7039",
+      "foliage": "#6A7039",
+      "dry_foliage": "#7B5334",
+      "water": "#617B64",
+      "temperature": 0.8,
+      "downfall": 0.9
+    },
+    "minecraft:swampland_mutated": {
+      "id": 134,
+      "grass": "#6A7039",
+      "foliage": "#6A7039",
+      "dry_foliage": "#7B5334",
+      "water": "#617B64",
+      "temperature": 0.8,
+      "downfall": 0.5
+    },
+    "minecraft:taiga": {
+      "id": 5,
+      "grass": "#86B783",
+      "foliage": "#68A464",
+      "dry_foliage": "#A37546",
+      "water": "#287082",
+      "temperature": 0.25,
+      "downfall": 0.8
+    },
+    "minecraft:taiga_hills": {
+      "id": 19,
+      "grass": "#86B783",
+      "foliage": "#68A464",
+      "dry_foliage": "#A37546",
+      "water": "#236583",
+      "temperature": 0.25,
+      "downfall": 0.8
+    },
+    "minecraft:taiga_mutated": {
+      "id": 133,
+      "grass": "#86B783",
+      "foliage": "#68A464",
+      "dry_foliage": "#A37546",
+      "water": "#1E6B82",
+      "temperature": 0.25,
+      "downfall": 0.8
+    },
+    "minecraft:the_end": {
+      "id": 9,
+      "grass": "#8EB971",
+      "foliage": "#71A74D",
+      "dry_foliage": "#A37546",
+      "water": "#62529E",
+      "temperature": 0.5,
+      "downfall": 0.5
+    },
+    "minecraft:warm_ocean": {
+      "id": 40,
+      "grass": "#8EB971",
+      "foliage": "#71A74D",
+      "dry_foliage": "#A37546",
+      "water": "#02B0E5",
+      "temperature": 0.5,
+      "downfall": 0.5
+    },
+    "minecraft:warped_forest": {
+      "id": 180,
+      "grass": "#BFB755",
+      "foliage": "#AEA42A",
+      "dry_foliage": "#A37546",
+      "water": "#905957",
+      "temperature": 2,
+      "downfall": 0
+    }
+  },
+  "byId": {
+    "0": "minecraft:ocean",
+    "1": "minecraft:plains",
+    "2": "minecraft:desert",
+    "3": "minecraft:extreme_hills",
+    "4": "minecraft:forest",
+    "5": "minecraft:taiga",
+    "6": "minecraft:swampland",
+    "7": "minecraft:river",
+    "8": "minecraft:hell",
+    "9": "minecraft:the_end",
+    "10": "minecraft:legacy_frozen_ocean",
+    "11": "minecraft:frozen_river",
+    "12": "minecraft:ice_plains",
+    "13": "minecraft:ice_mountains",
+    "14": "minecraft:mushroom_island",
+    "15": "minecraft:mushroom_island_shore",
+    "16": "minecraft:beach",
+    "17": "minecraft:desert_hills",
+    "18": "minecraft:forest_hills",
+    "19": "minecraft:taiga_hills",
+    "20": "minecraft:extreme_hills_edge",
+    "21": "minecraft:jungle",
+    "22": "minecraft:jungle_hills",
+    "23": "minecraft:jungle_edge",
+    "24": "minecraft:deep_ocean",
+    "25": "minecraft:stone_beach",
+    "26": "minecraft:cold_beach",
+    "27": "minecraft:birch_forest",
+    "28": "minecraft:birch_forest_hills",
+    "29": "minecraft:roofed_forest",
+    "30": "minecraft:cold_taiga",
+    "31": "minecraft:cold_taiga_hills",
+    "32": "minecraft:mega_taiga",
+    "33": "minecraft:mega_taiga_hills",
+    "34": "minecraft:extreme_hills_plus_trees",
+    "35": "minecraft:savanna",
+    "36": "minecraft:savanna_plateau",
+    "37": "minecraft:mesa",
+    "38": "minecraft:mesa_plateau_stone",
+    "39": "minecraft:mesa_plateau",
+    "40": "minecraft:warm_ocean",
+    "41": "minecraft:deep_warm_ocean",
+    "42": "minecraft:lukewarm_ocean",
+    "43": "minecraft:deep_lukewarm_ocean",
+    "44": "minecraft:cold_ocean",
+    "45": "minecraft:deep_cold_ocean",
+    "46": "minecraft:frozen_ocean",
+    "47": "minecraft:deep_frozen_ocean",
+    "48": "minecraft:bamboo_jungle",
+    "49": "minecraft:bamboo_jungle_hills",
+    "129": "minecraft:sunflower_plains",
+    "130": "minecraft:desert_mutated",
+    "131": "minecraft:extreme_hills_mutated",
+    "132": "minecraft:flower_forest",
+    "133": "minecraft:taiga_mutated",
+    "134": "minecraft:swampland_mutated",
+    "140": "minecraft:ice_plains_spikes",
+    "149": "minecraft:jungle_mutated",
+    "151": "minecraft:jungle_edge_mutated",
+    "155": "minecraft:birch_forest_mutated",
+    "156": "minecraft:birch_forest_hills_mutated",
+    "157": "minecraft:roofed_forest_mutated",
+    "158": "minecraft:cold_taiga_mutated",
+    "160": "minecraft:redwood_taiga_mutated",
+    "161": "minecraft:redwood_taiga_hills_mutated",
+    "162": "minecraft:extreme_hills_plus_trees_mutated",
+    "163": "minecraft:savanna_mutated",
+    "164": "minecraft:savanna_plateau_mutated",
+    "165": "minecraft:mesa_bryce",
+    "166": "minecraft:mesa_plateau_stone_mutated",
+    "167": "minecraft:mesa_plateau_mutated",
+    "178": "minecraft:soulsand_valley",
+    "179": "minecraft:crimson_forest",
+    "180": "minecraft:warped_forest",
+    "181": "minecraft:basalt_deltas",
+    "182": "minecraft:jagged_peaks",
+    "183": "minecraft:frozen_peaks",
+    "184": "minecraft:snowy_slopes",
+    "185": "minecraft:grove",
+    "186": "minecraft:meadow",
+    "187": "minecraft:lush_caves",
+    "188": "minecraft:dripstone_caves",
+    "189": "minecraft:stony_peaks",
+    "190": "minecraft:deep_dark",
+    "191": "minecraft:mangrove_swamp",
+    "192": "minecraft:cherry_grove",
+    "193": "minecraft:pale_garden",
+    "194": "minecraft:sulfur_caves",
+    "195": "minecraft:dappled_forest"
+  }
+}

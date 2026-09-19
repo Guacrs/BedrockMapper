@@ -7,10 +7,13 @@
  */
 
 export {
+  aliasBlockName,
   blockColor,
+  deepenWater,
   describeBlockColor,
   hasKnownColor,
   hashFallbackNames,
   resolveBlockColor,
+  surfaceBlockColor,
   type Rgb,
 } from './block-palette.ts';

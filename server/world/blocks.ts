@@ -29,3 +29,13 @@ export function isInvisible(blockName: string): boolean {
 export function shortBlockName(blockName: string): string {
   return blockName.startsWith('minecraft:') ? blockName.slice('minecraft:'.length) : blockName;
 }
+
+/** Surface water (still or flowing). Used for depth shading on the map. */
+export function isWater(blockName: string): boolean {
+  return (
+    blockName === 'minecraft:water' ||
+    blockName === 'minecraft:flowing_water' ||
+    blockName === 'water' ||
+    blockName === 'flowing_water'
+  );
+}

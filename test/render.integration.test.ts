@@ -18,11 +18,12 @@ import {
   pixelAt,
   renderChunkSurface,
   shadeFactor,
+  shadeFactorForBlock,
 } from '../server/renderer/chunk-image.ts';
-import { blockColor } from '../server/renderer/colors.ts';
+import { surfaceBlockColor } from '../server/renderer/colors.ts';
 import { OVERWORLD } from '../server/world/dimensions.ts';
 import { columnIndex } from '../server/world/keys.ts';
-import { NO_SURFACE, readChunkSurface, type ChunkSurface } from '../server/world/surface.ts';
+import { NO_SURFACE, NO_BIOME, readChunkSurface, type ChunkSurface } from '../server/world/surface.ts';
 import { BedrockWorld } from '../server/world/world.ts';
 
 const worldPath = process.env.TEST_WORLD_PATH ?? process.env.WORLD_PATH;
@@ -79,8 +80,15 @@ describe(
           const column = columnIndex(localX, localZ);
           const block = surface.blocks[column]!;
           const [r, g, b, a] = pixelAt(image, localX, localZ);
-          const factor = shadeFactor(surface, localX, localZ, surface.heights[column]!);
-          const expected = blockColor(block);
+          const factor = shadeFactorForBlock(
+            block,
+            shadeFactor(surface, localX, localZ, surface.heights[column]!),
+          );
+          const expected = surfaceBlockColor(
+            block,
+            surface.waterDepths[column]!,
+            surface.biomes[column] === NO_BIOME ? null : surface.biomes[column]!,
+          );
           assert.equal(a, 255);
           assert.deepEqual(
             [r, g, b],
@@ -95,8 +103,18 @@ describe(
       const image = renderChunkSurface(surface, { shading: false });
       for (let localZ = 0; localZ < 16; localZ++) {
         for (let localX = 0; localX < 16; localX++) {
-          const block = surface.blocks[columnIndex(localX, localZ)]!;
-          assert.deepEqual(pixelAt(image, localX, localZ).slice(0, 3), [...blockColor(block)]);
+          const column = columnIndex(localX, localZ);
+          const block = surface.blocks[column]!;
+          assert.deepEqual(
+            pixelAt(image, localX, localZ).slice(0, 3),
+            [
+              ...surfaceBlockColor(
+                block,
+                surface.waterDepths[column]!,
+                surface.biomes[column] === NO_BIOME ? null : surface.biomes[column]!,
+              ),
+            ],
+          );
         }
       }
     });

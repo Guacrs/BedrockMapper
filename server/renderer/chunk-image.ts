@@ -14,9 +14,10 @@
  */
 
 import { encode as encodePngBytes } from 'fast-png';
-import { blockColor, type Rgb } from './colors.ts';
+import { surfaceBlockColor, type Rgb } from './colors.ts';
+import { isWater } from '../world/blocks.ts';
 import { CHUNK_SIZE, columnIndex } from '../world/keys.ts';
-import { NO_SURFACE, type ChunkSurface } from '../world/surface.ts';
+import { NO_SURFACE, NO_BIOME, type ChunkSurface } from '../world/surface.ts';
 
 export const CHANNELS = 4;
 
@@ -24,6 +25,8 @@ export const CHANNELS = 4;
 export const SHADE_PER_BLOCK = 0.06;
 export const SHADE_MIN = 0.7;
 export const SHADE_MAX = 1.3;
+/** Slope shading is muted on water so depth darkening stays readable. */
+export const WATER_SHADE_WEIGHT = 0.35;
 
 export interface RenderedImage {
   width: number;
@@ -96,6 +99,12 @@ export function applyShade(color: Rgb, factor: number): Rgb {
   ];
 }
 
+/** Softens slope shading for water so depth darkening is not drowned out. */
+export function shadeFactorForBlock(blockName: string, factor: number): number {
+  if (!isWater(blockName) || factor === 1) return factor;
+  return 1 + (factor - 1) * WATER_SHADE_WEIGHT;
+}
+
 /**
  * Renders a 16x16 chunk surface. Columns with no visible block (ungenerated or
  * all-air) are left fully transparent.
@@ -103,6 +112,7 @@ export function applyShade(color: Rgb, factor: number): Rgb {
 export function renderChunkSurface(surface: ChunkSurface, options: RenderOptions = {}): RenderedImage {
   const { shading = true, neighborHeight } = options;
   const data = new Uint8Array(CHUNK_SIZE * CHUNK_SIZE * CHANNELS);
+  const depths = surface.waterDepths;
 
   for (let localZ = 0; localZ < CHUNK_SIZE; localZ++) {
     for (let localX = 0; localX < CHUNK_SIZE; localX++) {
@@ -112,8 +122,12 @@ export function renderChunkSurface(surface: ChunkSurface, options: RenderOptions
       if (!block) continue;
 
       const y = surface.heights[column]!;
-      const factor = shading ? shadeFactor(surface, localX, localZ, y, neighborHeight) : 1;
-      const [r, g, b] = applyShade(blockColor(block), factor);
+      const slope = shading ? shadeFactor(surface, localX, localZ, y, neighborHeight) : 1;
+      const factor = shadeFactorForBlock(block, slope);
+      const depth = depths?.[column] ?? 0;
+      const biome = surface.biomes?.[column];
+      const biomeId = biome === undefined || biome === NO_BIOME ? null : biome;
+      const [r, g, b] = applyShade(surfaceBlockColor(block, depth, biomeId), factor);
       data[offset] = r;
       data[offset + 1] = g;
       data[offset + 2] = b;
