@@ -1,4 +1,6 @@
-node_modules/
 cache/
+cache-demo/
 .env
 *.log
+node_modules/
+.tmp-verify/
