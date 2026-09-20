@@ -72,16 +72,6 @@ export function setStoredMarkerKey(key) {
   }
 }
 
-/** @deprecated use getStoredMarkerKey */
-export function getStoredApiKey() {
-  return getStoredMarkerKey();
-}
-
-/** @deprecated use setStoredMarkerKey */
-export function setStoredApiKey(key) {
-  setStoredMarkerKey(key);
-}
-
 /**
  * @param {string} method
  * @param {string} path
@@ -316,11 +306,6 @@ export function promptForMarkerKey() {
   if (next === null) return getStoredMarkerKey();
   setStoredMarkerKey(next.trim());
   return getStoredMarkerKey();
-}
-
-/** @deprecated use promptForMarkerKey */
-export function promptForApiKey() {
-  return promptForMarkerKey();
 }
 
 function escapeHtml(value) {

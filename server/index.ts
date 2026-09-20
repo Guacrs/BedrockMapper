@@ -482,7 +482,15 @@ export async function startServer(config: Config, options: StartServerOptions = 
   ): Promise<boolean> {
     const markerMatch = /^\/api\/markers(?:\/([^/]+))?$/.exec(pathname);
     if (!markerMatch) return false;
-    const id = markerMatch[1] ? decodeURIComponent(markerMatch[1]) : null;
+    let id: string | null = null;
+    if (markerMatch[1]) {
+      try {
+        id = decodeURIComponent(markerMatch[1]);
+      } catch {
+        sendJson(response, 400, { error: 'malformed marker id in URL' });
+        return true;
+      }
+    }
     const method = request.method ?? 'GET';
 
     if (method === 'GET' || method === 'HEAD') {

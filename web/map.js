@@ -203,7 +203,6 @@ async function main() {
     paintMarkerEditState();
     return getStoredMarkerKey();
   };
-  window.__setMapApiKey = window.__setMapMarkerKey;
   window.__pollPlayers = pollPlayers;
   window.__terrain = terrain;
   window.__pollTerrain = pollTerrain;

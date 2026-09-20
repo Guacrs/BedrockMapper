@@ -340,6 +340,12 @@ describe(
       assert.equal((await create({ id: 'dup', name: 'Two', x: 1, z: 1, category: 'poi' })).status, 409);
     });
 
+    it('returns 400 for a malformed percent-encoded marker id', async () => {
+      const response = await fetch(`${base}/api/markers/%E0%A4%A`);
+      assert.equal(response.status, 400);
+      assert.match(((await response.json()) as { error: string }).error, /malformed marker id/);
+    });
+
     it('survives a store reload from disk after the HTTP create', async () => {
       await create({ id: 'persist-me', name: 'Keep', x: 3, z: 4, category: 'shop' });
       await started.markers.reloadFromDisk();
