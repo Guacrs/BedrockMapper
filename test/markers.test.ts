@@ -343,7 +343,7 @@ describe(
     it('returns 400 for a malformed percent-encoded marker id', async () => {
       const response = await fetch(`${base}/api/markers/%E0%A4%A`);
       assert.equal(response.status, 400);
-      assert.match(((await response.json()) as { error: string }).error, /malformed marker id/);
+      assert.match(((await response.json()) as { error: string }).error, /malformed URL encoding/);
     });
 
     it('survives a store reload from disk after the HTTP create', async () => {

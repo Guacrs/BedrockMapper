@@ -309,7 +309,13 @@ export async function startServer(config: Config, options: StartServerOptions = 
 
   async function handle(request: http.IncomingMessage, response: http.ServerResponse): Promise<void> {
     const url = new URL(request.url ?? '/', 'http://localhost');
-    const pathname = decodeURIComponent(url.pathname);
+    let pathname: string;
+    try {
+      pathname = decodeURIComponent(url.pathname);
+    } catch {
+      sendJson(response, 400, { error: 'malformed URL encoding' });
+      return;
+    }
 
     if (request.method === 'POST' && pathname === '/api/players') {
       await handlePlayerUpdate(request, response);
@@ -482,15 +488,7 @@ export async function startServer(config: Config, options: StartServerOptions = 
   ): Promise<boolean> {
     const markerMatch = /^\/api\/markers(?:\/([^/]+))?$/.exec(pathname);
     if (!markerMatch) return false;
-    let id: string | null = null;
-    if (markerMatch[1]) {
-      try {
-        id = decodeURIComponent(markerMatch[1]);
-      } catch {
-        sendJson(response, 400, { error: 'malformed marker id in URL' });
-        return true;
-      }
-    }
+    const id = markerMatch[1] ?? null;
     const method = request.method ?? 'GET';
 
     if (method === 'GET' || method === 'HEAD') {
