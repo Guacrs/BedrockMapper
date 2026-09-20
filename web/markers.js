@@ -2,7 +2,7 @@
  * Persistent shared map markers (POIs), separate from live player markers.
  *
  * Visitors always see markers from GET /api/markers. Create / edit / delete
- * need the server API key, kept in sessionStorage when an admin unlocks the map.
+ * need MARKER_API_KEY, kept in sessionStorage when an admin unlocks the map.
  */
 
 import { blockToLatLng, latLngToBlock } from './coords.js';

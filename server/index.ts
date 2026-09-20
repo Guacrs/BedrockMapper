@@ -478,7 +478,7 @@ export async function startServer(config: Config, options: StartServerOptions = 
   }
 
   /**
-   * Shared map markers. GET is public; create / update / delete need the API key.
+   * Shared map markers. GET is public; create / update / delete need MARKER_API_KEY.
    * Returns true when the path was a marker route (including 404/405 on that route).
    */
   async function handleMarkerRequest(
