@@ -39,6 +39,7 @@ describe('configuration validation', () => {
     assert.equal(config.playerDataTimeout, DEFAULTS.playerDataTimeout);
     assert.equal(config.logLevel, DEFAULTS.logLevel);
     assert.equal(config.apiKey, '');
+    assert.equal(config.markerApiKey, '');
     assert.equal(config.worldPath, path.resolve('/tmp/bedrock-world'));
   });
 
@@ -99,6 +100,7 @@ describe('configuration validation', () => {
     assert.match(warnings, /every interface/);
     assert.match(warnings, /no authentication/);
     assert.match(warnings, /API_KEY is not set/);
+    assert.match(warnings, /MARKER_API_KEY is not set/);
     assert.match(warnings, /never refreshed/);
   });
 
@@ -113,15 +115,24 @@ describe('configuration validation', () => {
   });
 
   it('warns when the API key is still the example value', () => {
-    const config = loadConfig({}, env({ API_KEY: 'change-this' }));
-    assert.match(configWarnings(config).join('\n'), /example value/);
+    const config = loadConfig({}, env({ API_KEY: 'change-this', MARKER_API_KEY: 'change-this' }));
+    const warnings = configWarnings(config).join('\n');
+    assert.match(warnings, /API_KEY is still the example value/);
+    assert.match(warnings, /MARKER_API_KEY is still the example value/);
+  });
+
+  it('warns when MARKER_API_KEY matches API_KEY', () => {
+    const config = loadConfig({}, env({ API_KEY: 'same-secret-key-12', MARKER_API_KEY: 'same-secret-key-12' }));
+    assert.match(configWarnings(config).join('\n'), /MARKER_API_KEY matches API_KEY/);
   });
 
   it('never puts the API key into the startup summary', () => {
-    const config = loadConfig({}, env({ API_KEY: 'super-secret-value' }));
+    const config = loadConfig({}, env({ API_KEY: 'super-secret-value', MARKER_API_KEY: 'marker-secret-value' }));
     const summary = describeConfig(config);
     assert.equal(summary.apiKey, 'set');
+    assert.equal(summary.markerApiKey, 'set');
     assert.equal(JSON.stringify(summary).includes('super-secret-value'), false);
+    assert.equal(JSON.stringify(summary).includes('marker-secret-value'), false);
   });
 });
 
@@ -190,6 +201,7 @@ describe('world and cache startup checks', () => {
       playerUpdateInterval: 3000,
       playerDataTimeout: 10000,
       apiKey: '',
+      markerApiKey: '',
       logLevel: 'info',
     });
     assert.ok(report.problems.length >= 1);

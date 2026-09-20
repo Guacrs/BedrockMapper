@@ -569,6 +569,7 @@ describe(
         playerUpdateInterval: 1000,
         playerDataTimeout: 10000,
         apiKey,
+        markerApiKey: '',
         logLevel: 'error',
       });
       base = `http://127.0.0.1:${started.port}`;

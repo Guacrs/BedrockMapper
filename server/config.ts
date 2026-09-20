@@ -36,6 +36,12 @@ export interface Config {
   playerDataTimeout: number;
   /** Shared secret required by POST /api/players. Empty disables the endpoint. */
   apiKey: string;
+  /**
+   * Shared secret required by marker create/update/delete. Separate from
+   * `apiKey` so a browser-held marker key cannot impersonate player updates.
+   * Empty disables marker edits.
+   */
+  markerApiKey: string;
   logLevel: LogLevel;
 }
 
@@ -184,6 +190,7 @@ export function loadConfig(
       overrides.playerDataTimeout ??
       parse.integer('PLAYER_DATA_TIMEOUT', DEFAULTS.playerDataTimeout, { min: MIN_PLAYER_TIMEOUT }),
     apiKey: overrides.apiKey ?? env.API_KEY?.trim() ?? '',
+    markerApiKey: overrides.markerApiKey ?? env.MARKER_API_KEY?.trim() ?? '',
     logLevel: overrides.logLevel ?? (logLevelRaw && isLogLevel(logLevelRaw) ? logLevelRaw : DEFAULTS.logLevel),
   };
 
@@ -206,6 +213,20 @@ export function configWarnings(config: Config): string[] {
     warnings.push(`API_KEY is still the example value "${EXAMPLE_API_KEY}"; set your own secret.`);
   } else if (config.apiKey.length < 12) {
     warnings.push('API_KEY is very short; use a long random secret.');
+  }
+
+  if (!config.markerApiKey) {
+    warnings.push(
+      'MARKER_API_KEY is not set, so creating or editing shared map markers is refused.',
+    );
+  } else if (config.markerApiKey === EXAMPLE_API_KEY) {
+    warnings.push(`MARKER_API_KEY is still the example value "${EXAMPLE_API_KEY}"; set your own secret.`);
+  } else if (config.markerApiKey.length < 12) {
+    warnings.push('MARKER_API_KEY is very short; use a long random secret.');
+  } else if (config.apiKey && config.markerApiKey === config.apiKey) {
+    warnings.push(
+      'MARKER_API_KEY matches API_KEY; use a different secret so a browser-held marker key cannot post player updates.',
+    );
   }
 
   if (config.host === '0.0.0.0' || config.host === '::') {
@@ -253,6 +274,7 @@ export function describeConfig(config: Config): Record<string, unknown> {
     refreshConcurrency: config.refreshRenderConcurrency,
     playerTimeout: config.playerDataTimeout,
     apiKey: config.apiKey ? 'set' : 'unset',
+    markerApiKey: config.markerApiKey ? 'set' : 'unset',
     logLevel: config.logLevel,
   };
 }

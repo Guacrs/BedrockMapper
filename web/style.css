@@ -79,6 +79,24 @@ body {
   color: #f85149;
 }
 
+#marker-edit {
+  pointer-events: auto;
+  cursor: pointer;
+  align-self: flex-end;
+  margin-top: 4px;
+  background: #21262d;
+  color: #9aa7b4;
+  border: 1px solid #30363d;
+  border-radius: 3px;
+  padding: 2px 8px;
+  font: inherit;
+}
+
+#marker-edit.active {
+  color: #7ee787;
+  border-color: #3fb950;
+}
+
 .player-popup-name {
   font-weight: bold;
   margin-bottom: 2px;
@@ -87,4 +105,110 @@ body {
 .leaflet-popup-content {
   margin: 8px 12px;
   font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.marker-popup-name {
+  font-weight: bold;
+  margin-bottom: 2px;
+}
+
+.marker-popup-meta {
+  color: #9aa7b4;
+  margin-bottom: 4px;
+}
+
+.marker-popup-desc {
+  margin-bottom: 6px;
+  white-space: pre-wrap;
+}
+
+.marker-popup-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.marker-popup-actions button {
+  pointer-events: auto;
+  cursor: pointer;
+  background: #21262d;
+  color: #e6edf3;
+  border: 1px solid #30363d;
+  border-radius: 3px;
+  padding: 2px 8px;
+  font: inherit;
+}
+
+#marker-form-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.marker-form {
+  width: min(360px, calc(100vw - 24px));
+  padding: 14px 16px;
+  border: 1px solid #30363d;
+  border-radius: 6px;
+  background: #0d1117;
+  color: #e6edf3;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.marker-form h2 {
+  margin: 0 0 4px;
+  font-size: 14px;
+}
+
+.marker-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.marker-form input,
+.marker-form textarea,
+.marker-form select {
+  background: #161b22;
+  color: #e6edf3;
+  border: 1px solid #30363d;
+  border-radius: 3px;
+  padding: 6px 8px;
+  font: inherit;
+}
+
+.marker-form-coords {
+  color: #7ee787;
+}
+
+.marker-form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.marker-form-actions button {
+  cursor: pointer;
+  background: #21262d;
+  color: #e6edf3;
+  border: 1px solid #30363d;
+  border-radius: 3px;
+  padding: 4px 10px;
+  font: inherit;
+}
+
+.marker-form-actions button[type='submit'] {
+  background: #238636;
+  border-color: #2ea043;
+}
+
+.marker-form-error {
+  color: #f85149;
 }

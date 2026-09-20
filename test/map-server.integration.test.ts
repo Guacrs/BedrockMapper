@@ -290,6 +290,7 @@ describe(
         playerUpdateInterval: 3000,
         playerDataTimeout: 10000,
         apiKey: API_KEY,
+        markerApiKey: '',
         logLevel: 'error',
       });
       base = `http://127.0.0.1:${started.port}`;
@@ -525,6 +526,7 @@ describe(
         playerUpdateInterval: 1000,
         playerDataTimeout: 300,
         apiKey: API_KEY,
+        markerApiKey: '',
         logLevel: 'error',
       });
       try {
@@ -574,6 +576,7 @@ describe(
         playerUpdateInterval: 3000,
         playerDataTimeout: 10000,
         apiKey: '',
+        markerApiKey: '',
         logLevel: 'error',
       });
       try {
@@ -618,6 +621,7 @@ describe(
         playerUpdateInterval: 3000,
         playerDataTimeout: 10000,
         apiKey: API_KEY,
+        markerApiKey: '',
         logLevel: 'error',
       });
       const url = `http://127.0.0.1:${extra.port}/api/health`;

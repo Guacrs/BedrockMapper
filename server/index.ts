@@ -14,6 +14,8 @@ import { cleanCache, cleanupHappened } from './cache.ts';
 import { ConfigError, configWarnings, describeConfig, loadConfig, type Config } from './config.ts';
 import { createLogger, silentLogger, type Logger } from './log.ts';
 import { MapService, type RefreshStats } from './map-service.ts';
+import { JsonMarkerStore, MarkerConflictError, MarkerNotFoundError } from './markers/store.ts';
+import { MarkerValidationError, parseMarkerCreate, parseMarkerPatch } from './markers/validate.ts';
 import { logPlayerEvent, PlayerActivity } from './players/activity.ts';
 import { PlayerStore, PlayerValidationError, parsePlayerUpdate } from './players/store.ts';
 import { checkEnvironment, formatProblems } from './startup.ts';
@@ -206,6 +208,7 @@ export interface StartedServer {
   server: http.Server;
   map: MapService;
   players: PlayerStore;
+  markers: JsonMarkerStore;
   host: string;
   port: number;
   close: () => Promise<void>;
@@ -259,6 +262,10 @@ export async function startServer(config: Config, options: StartServerOptions = 
     log,
   });
   const players = new PlayerStore(config.playerDataTimeout);
+  const markers = new JsonMarkerStore(config.cacheDir, {
+    onInvalid: (message) => log.warn('markers.invalid', { message }),
+  });
+  await markers.ready();
   const activity = new PlayerActivity(config.playerDataTimeout);
   const snapshot = map.world.snapshot;
 
@@ -302,12 +309,20 @@ export async function startServer(config: Config, options: StartServerOptions = 
 
   async function handle(request: http.IncomingMessage, response: http.ServerResponse): Promise<void> {
     const url = new URL(request.url ?? '/', 'http://localhost');
-    const pathname = decodeURIComponent(url.pathname);
+    let pathname: string;
+    try {
+      pathname = decodeURIComponent(url.pathname);
+    } catch {
+      sendJson(response, 400, { error: 'malformed URL encoding' });
+      return;
+    }
 
     if (request.method === 'POST' && pathname === '/api/players') {
       await handlePlayerUpdate(request, response);
       return;
     }
+
+    if (await handleMarkerRequest(request, response, pathname)) return;
 
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       sendText(response, 405, 'method not allowed');
@@ -462,6 +477,130 @@ export async function startServer(config: Config, options: StartServerOptions = 
     }
   }
 
+  /**
+   * Shared map markers. GET is public; create / update / delete need MARKER_API_KEY.
+   * Returns true when the path was a marker route (including 404/405 on that route).
+   */
+  async function handleMarkerRequest(
+    request: http.IncomingMessage,
+    response: http.ServerResponse,
+    pathname: string,
+  ): Promise<boolean> {
+    const markerMatch = /^\/api\/markers(?:\/([^/]+))?$/.exec(pathname);
+    if (!markerMatch) return false;
+    const id = markerMatch[1] ?? null;
+    const method = request.method ?? 'GET';
+
+    if (method === 'GET' || method === 'HEAD') {
+      if (id) {
+        const marker = await markers.get(id);
+        if (!marker) {
+          sendJson(response, 404, { error: 'marker not found' });
+          return true;
+        }
+        sendJson(response, 200, marker);
+        return true;
+      }
+      sendJson(response, 200, { markers: await markers.list() });
+      return true;
+    }
+
+    if (method === 'POST' || method === 'PATCH' || method === 'DELETE') {
+      if (!requireMarkerAuth(request, response)) return true;
+    } else {
+      sendText(response, 405, 'method not allowed');
+      return true;
+    }
+
+    if (method === 'POST') {
+      if (id) {
+        sendText(response, 405, 'method not allowed');
+        return true;
+      }
+      const body = await readJsonBody(request, response);
+      if (body === undefined) return true;
+      try {
+        const created = await markers.create(parseMarkerCreate(body));
+        sendJson(response, 201, created);
+      } catch (error) {
+        if (error instanceof MarkerValidationError) sendJson(response, 400, { error: error.message });
+        else if (error instanceof MarkerConflictError) sendJson(response, 409, { error: error.message });
+        else throw error;
+      }
+      return true;
+    }
+
+    if (!id) {
+      sendText(response, 405, 'method not allowed');
+      return true;
+    }
+
+    if (method === 'DELETE') {
+      const removed = await markers.delete(id);
+      if (!removed) {
+        sendJson(response, 404, { error: 'marker not found' });
+        return true;
+      }
+      sendJson(response, 200, { ok: true, id });
+      return true;
+    }
+
+    // PATCH
+    const body = await readJsonBody(request, response);
+    if (body === undefined) return true;
+    try {
+      const updated = await markers.update(id, parseMarkerPatch(body));
+      sendJson(response, 200, updated);
+    } catch (error) {
+      if (error instanceof MarkerValidationError) sendJson(response, 400, { error: error.message });
+      else if (error instanceof MarkerNotFoundError) sendJson(response, 404, { error: error.message });
+      else throw error;
+    }
+    return true;
+  }
+
+  function requireMarkerAuth(request: http.IncomingMessage, response: http.ServerResponse): boolean {
+    if (!config.markerApiKey) {
+      sendJson(response, 503, {
+        error: 'MARKER_API_KEY is not configured, so marker edits are refused. Set it in .env.',
+      });
+      return false;
+    }
+    const token = apiKeyFrom(request);
+    if (!token) {
+      response.setHeader('www-authenticate', 'Bearer');
+      sendJson(response, 401, {
+        error: 'missing "Authorization: Bearer <MARKER_API_KEY>" or "X-Api-Key: <MARKER_API_KEY>" header',
+      });
+      return false;
+    }
+    if (!secretsMatch(config.markerApiKey, token)) {
+      sendJson(response, 401, { error: 'invalid API key' });
+      return false;
+    }
+    return true;
+  }
+
+  async function readJsonBody(
+    request: http.IncomingMessage,
+    response: http.ServerResponse,
+  ): Promise<unknown | undefined> {
+    let raw: string;
+    try {
+      raw = await readBody(request);
+    } catch (error) {
+      if (error instanceof BodyTooLargeError) sendJson(response, 413, { error: error.message });
+      else sendJson(response, 400, { error: 'could not read request body' });
+      return undefined;
+    }
+    try {
+      return JSON.parse(raw);
+    } catch {
+      sendJson(response, 400, { error: 'body is not valid JSON' });
+      return undefined;
+    }
+  }
+
   await listen(server, config.port, config.host);
   const address = server.address();
   const port = typeof address === 'object' && address ? address.port : config.port;
@@ -520,7 +659,7 @@ export async function startServer(config: Config, options: StartServerOptions = 
     return closed;
   };
 
-  return { server, map, players, host: config.host, port, close };
+  return { server, map, players, markers, host: config.host, port, close };
 }
 
 function logStartup(log: Logger, config: Config, started: StartedServer): void {
@@ -549,6 +688,11 @@ function logStartup(log: Logger, config: Config, started: StartedServer): void {
   log.plain(
     `  players:    POST /api/players ${config.apiKey ? 'requires the API key from your .env' : 'DISABLED - set API_KEY in .env'}` +
       `, stale after ${config.playerDataTimeout} ms, browser polls every ${config.playerUpdateInterval} ms`,
+  );
+  log.plain(
+    `  markers:    GET /api/markers (public); create/update/delete ${
+      config.markerApiKey ? 'require MARKER_API_KEY' : 'DISABLED - set MARKER_API_KEY in .env'
+    }, stored in ${started.markers.filePath}`,
   );
   log.plain(
     `  terrain:    ${
