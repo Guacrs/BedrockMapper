@@ -7,13 +7,14 @@
  *   <cache>/world-snapshot/<worldId>/<sourceId>/source-fingerprint.json
  *   <cache>/tiles/source.json                         which snapshot the tiles match
  *   <cache>/tiles/<dimension>/<zoom>/<x>/<y>.png      rendered tiles
+ *   <cache>/markers.json                              persistent shared map markers
  *
  * A snapshot directory is only reusable once its fingerprint marker exists, so a
  * copy interrupted by a crash or a kill is dead weight; the same goes for the
  * `.tmp` files a tile write renames from. Neither is ever read again, so both are
  * swept away: at startup, on shutdown, and on a slow timer in between. Rendered
- * tiles are left alone - they are the expensive thing to rebuild, and they are
- * invalidated precisely by the refresh loop instead.
+ * tiles and markers.json are left alone - tiles are the expensive thing to rebuild
+ * (invalidated by the refresh loop), and markers are user-authored POI data.
  */
 
 import fs from 'node:fs/promises';

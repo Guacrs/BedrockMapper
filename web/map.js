@@ -17,6 +17,7 @@
  */
 
 import { blockToLatLng, latLngToBlock } from './coords.js';
+import { MarkerLayer, getStoredApiKey, promptForApiKey, setStoredApiKey } from './markers.js';
 import { PlayerLayer, playerStatus } from './players.js';
 import { terrainStatus, trackingStatus } from './status.js';
 import { TerrainLayer, worldSummary } from './terrain.js';
@@ -134,6 +135,31 @@ async function main() {
   const terrainInterval = info.terrainPollInterval ?? 0;
   if (terrainInterval > 0) setInterval(pollTerrain, terrainInterval);
 
+  // Shared POI markers (persistent). Independent of live player markers.
+  const markerLayer = new MarkerLayer(map, {
+    onAuthRequired: () => {
+      if (promptForApiKey()) {
+        // Re-open is left to the user (right-click again) so coordinates stay intentional.
+        alert('API key saved for this tab. Right-click the map again to add a marker.');
+      }
+    },
+  });
+  try {
+    await markerLayer.reload();
+  } catch (error) {
+    console.error('marker load failed:', error);
+  }
+
+  // Optional: ?apiKey=… unlocks admin actions for this tab, then is stripped from the URL.
+  const bootParams = new URLSearchParams(location.search);
+  if (bootParams.has('apiKey')) {
+    const fromQuery = bootParams.get('apiKey')?.trim() ?? '';
+    if (fromQuery) setStoredApiKey(fromQuery);
+    bootParams.delete('apiKey');
+    const next = `${location.pathname}${bootParams.toString() ? `?${bootParams}` : ''}${location.hash}`;
+    history.replaceState(null, '', next);
+  }
+
   // Players: poll the latest positions and reconcile the markers. Polling is
   // enough for a marker every few seconds, so there is no WebSocket.
   const playerLayer = new PlayerLayer(map, info.dimension);
@@ -161,6 +187,11 @@ async function main() {
   // Exposed for debugging and for the browser coordinate tests.
   window.__map = map;
   window.__players = playerLayer;
+  window.__markers = markerLayer;
+  window.__setMapApiKey = (key) => {
+    setStoredApiKey(key ?? '');
+    return getStoredApiKey();
+  };
   window.__pollPlayers = pollPlayers;
   window.__terrain = terrain;
   window.__pollTerrain = pollTerrain;
