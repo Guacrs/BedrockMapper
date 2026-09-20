@@ -262,7 +262,9 @@ export async function startServer(config: Config, options: StartServerOptions = 
     log,
   });
   const players = new PlayerStore(config.playerDataTimeout);
-  const markers = new JsonMarkerStore(config.cacheDir);
+  const markers = new JsonMarkerStore(config.cacheDir, {
+    onInvalid: (message) => log.warn('markers.invalid', { message }),
+  });
   await markers.ready();
   const activity = new PlayerActivity(config.playerDataTimeout);
   const snapshot = map.world.snapshot;
@@ -552,9 +554,9 @@ export async function startServer(config: Config, options: StartServerOptions = 
   }
 
   function requireMarkerAuth(request: http.IncomingMessage, response: http.ServerResponse): boolean {
-    if (!config.apiKey) {
+    if (!config.markerApiKey) {
       sendJson(response, 503, {
-        error: 'API_KEY is not configured, so marker edits are refused. Set it in .env.',
+        error: 'MARKER_API_KEY is not configured, so marker edits are refused. Set it in .env.',
       });
       return false;
     }
@@ -562,11 +564,11 @@ export async function startServer(config: Config, options: StartServerOptions = 
     if (!token) {
       response.setHeader('www-authenticate', 'Bearer');
       sendJson(response, 401, {
-        error: 'missing "Authorization: Bearer <API_KEY>" or "X-Api-Key: <API_KEY>" header',
+        error: 'missing "Authorization: Bearer <MARKER_API_KEY>" or "X-Api-Key: <MARKER_API_KEY>" header',
       });
       return false;
     }
-    if (!secretsMatch(config.apiKey, token)) {
+    if (!secretsMatch(config.markerApiKey, token)) {
       sendJson(response, 401, { error: 'invalid API key' });
       return false;
     }
@@ -683,7 +685,7 @@ function logStartup(log: Logger, config: Config, started: StartedServer): void {
   );
   log.plain(
     `  markers:    GET /api/markers (public); create/update/delete ${
-      config.apiKey ? 'require the API key' : 'DISABLED - set API_KEY in .env'
+      config.markerApiKey ? 'require MARKER_API_KEY' : 'DISABLED - set MARKER_API_KEY in .env'
     }, stored in ${started.markers.filePath}`,
   );
   log.plain(

@@ -4,6 +4,7 @@
 
 import {
   MARKER_CATEGORIES,
+  type MapMarker,
   type MarkerCategory,
   type MarkerCreateInput,
   type MarkerPatchInput,
@@ -123,4 +124,41 @@ export function parseMarkerPatch(body: unknown): MarkerPatchInput {
 
 export function isMarkerCategory(value: string): value is MarkerCategory {
   return (MARKER_CATEGORIES as readonly string[]).includes(value);
+}
+
+function requireId(value: unknown, field: string): string {
+  const id = requireString(value, field, MAX_ID_LENGTH);
+  if (!ID_PATTERN.test(id)) fail(`"${field}" may only contain letters, digits, "_" and "-"`);
+  return id;
+}
+
+function requireTimestamp(value: unknown, field: string): string {
+  if (typeof value !== 'string' || !value.trim()) fail(`"${field}" must be an ISO timestamp string`);
+  if (Number.isNaN(Date.parse(value))) fail(`"${field}" must be a valid ISO timestamp`);
+  return value.trim();
+}
+
+/**
+ * Validates one record from `markers.json`. Used on reload so a corrupt file
+ * cannot inject malformed markers into memory.
+ */
+export function parseStoredMarker(entry: unknown, index = 0): MapMarker {
+  if (typeof entry !== 'object' || entry === null || Array.isArray(entry)) {
+    fail(`markers[${index}] must be an object`);
+  }
+  const raw = entry as Record<string, unknown>;
+  const marker: MapMarker = {
+    id: requireId(raw.id, `markers[${index}].id`),
+    name: requireString(raw.name, `markers[${index}].name`, MAX_NAME_LENGTH),
+    x: requireCoordinate(raw.x, `markers[${index}].x`),
+    z: requireCoordinate(raw.z, `markers[${index}].z`),
+    category: requireCategory(raw.category, `markers[${index}].category`),
+    createdAt: requireTimestamp(raw.createdAt, `markers[${index}].createdAt`),
+    updatedAt: requireTimestamp(raw.updatedAt, `markers[${index}].updatedAt`),
+  };
+  const description = optionalString(raw.description, `markers[${index}].description`, MAX_DESCRIPTION_LENGTH);
+  if (description !== undefined) marker.description = description;
+  const color = optionalColor(raw.color, `markers[${index}].color`);
+  if (color !== undefined) marker.color = color;
+  return marker;
 }

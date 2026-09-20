@@ -7,7 +7,7 @@
 
 import { blockToLatLng, latLngToBlock } from './coords.js';
 
-const API_KEY_STORAGE = 'bedrockMapApiKey';
+const API_KEY_STORAGE = 'bedrockMapMarkerKey';
 
 /** @typedef {'base'|'village'|'portal'|'farm'|'shop'|'poi'|'warning'|'custom'} MarkerCategory */
 
@@ -55,7 +55,7 @@ export function markerColor(marker) {
   return marker.color || CATEGORY_COLORS[marker.category] || CATEGORY_COLORS.custom;
 }
 
-export function getStoredApiKey() {
+export function getStoredMarkerKey() {
   try {
     return sessionStorage.getItem(API_KEY_STORAGE) || '';
   } catch {
@@ -63,13 +63,23 @@ export function getStoredApiKey() {
   }
 }
 
-export function setStoredApiKey(key) {
+export function setStoredMarkerKey(key) {
   try {
     if (key) sessionStorage.setItem(API_KEY_STORAGE, key);
     else sessionStorage.removeItem(API_KEY_STORAGE);
   } catch {
     /* private mode */
   }
+}
+
+/** @deprecated use getStoredMarkerKey */
+export function getStoredApiKey() {
+  return getStoredMarkerKey();
+}
+
+/** @deprecated use setStoredMarkerKey */
+export function setStoredApiKey(key) {
+  setStoredMarkerKey(key);
 }
 
 /**
@@ -80,7 +90,7 @@ export function setStoredApiKey(key) {
 async function markerFetch(method, path, body) {
   /** @type {Record<string, string>} */
   const headers = {};
-  const key = getStoredApiKey();
+  const key = getStoredMarkerKey();
   if (key) headers['x-api-key'] = key;
   if (body !== undefined) headers['content-type'] = 'application/json';
   const response = await fetch(path, {
@@ -110,23 +120,21 @@ async function markerFetch(method, path, body) {
 export class MarkerLayer {
   /**
    * @param {L.Map} map
-   * @param {{ onAuthRequired?: () => void }} [options]
    */
-  constructor(map, options = {}) {
+  constructor(map) {
     this.map = map;
     this.group = L.layerGroup().addTo(map);
     /** @type {Map<string, L.CircleMarker>} */
     this.markers = new Map();
-    this.onAuthRequired = options.onAuthRequired;
     this.#bindMapEvents();
   }
 
   #bindMapEvents() {
+    // Right-click add is admin-only. Unauthenticated visitors get no prompt —
+    // unlock via the "Edit markers" control or window.__setMapMarkerKey.
     this.map.on('contextmenu', (event) => {
-      if (!getStoredApiKey()) {
-        this.onAuthRequired?.();
-        return;
-      }
+      if (!getStoredMarkerKey()) return;
+      L.DomEvent.preventDefault(event);
       const { x, z } = latLngToBlock(event.latlng);
       openMarkerForm({ x, z }, async (fields) => {
         await markerFetch('POST', '/api/markers', fields);
@@ -182,7 +190,7 @@ export class MarkerLayer {
    * @param {MapMarker} marker
    */
   #popupHtml(marker) {
-    const admin = Boolean(getStoredApiKey());
+    const admin = Boolean(getStoredMarkerKey());
     const description = marker.description
       ? `<div class="marker-popup-desc">${escapeHtml(marker.description)}</div>`
       : '';
@@ -299,15 +307,20 @@ export function closeMarkerForm() {
   document.getElementById('marker-form-overlay')?.remove();
 }
 
-export function promptForApiKey() {
-  const current = getStoredApiKey();
+export function promptForMarkerKey() {
+  const current = getStoredMarkerKey();
   const next = window.prompt(
-    'Enter the map API key to add or edit markers (stored in this browser tab only). Leave blank to clear.',
+    'Enter MARKER_API_KEY to add or edit markers (stored in this browser tab only). Leave blank to clear.',
     current,
   );
-  if (next === null) return getStoredApiKey();
-  setStoredApiKey(next.trim());
-  return getStoredApiKey();
+  if (next === null) return getStoredMarkerKey();
+  setStoredMarkerKey(next.trim());
+  return getStoredMarkerKey();
+}
+
+/** @deprecated use promptForMarkerKey */
+export function promptForApiKey() {
+  return promptForMarkerKey();
 }
 
 function escapeHtml(value) {

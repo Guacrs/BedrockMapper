@@ -10,7 +10,12 @@ import { after, before, describe, it } from 'node:test';
 import { startServer, type StartedServer } from '../server/index.ts';
 import { JsonMarkerStore, MarkerConflictError, MarkerNotFoundError, markersFilePath } from '../server/markers/store.ts';
 import { MARKER_CATEGORIES } from '../server/markers/types.ts';
-import { MarkerValidationError, parseMarkerCreate, parseMarkerPatch } from '../server/markers/validate.ts';
+import {
+  MarkerValidationError,
+  parseMarkerCreate,
+  parseMarkerPatch,
+  parseStoredMarker,
+} from '../server/markers/validate.ts';
 import { blockToLatLng, latLngToBlock } from '../web/coords.js';
 
 const fixtureWorld = '/tmp/m5-fixture-world';
@@ -60,6 +65,23 @@ describe('marker validation', () => {
     });
   });
 
+  it('validates stored records and rejects corrupt ones', () => {
+    const ok = parseStoredMarker({
+      id: 'spawn',
+      name: 'Spawn',
+      x: 1,
+      z: 2,
+      category: 'base',
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-01T00:00:00.000Z',
+    });
+    assert.equal(ok.id, 'spawn');
+    assert.throws(
+      () => parseStoredMarker({ id: 'foo', x: 'hello', category: 'whatever' }),
+      MarkerValidationError,
+    );
+  });
+
   it('lists the documented categories', () => {
     assert.deepEqual([...MARKER_CATEGORIES], [
       'base',
@@ -86,7 +108,7 @@ describe('JSON marker store', () => {
   });
 
   it('persists markers and reloads them from disk', async () => {
-    const store = new JsonMarkerStore(cacheDir, () => Date.parse('2026-01-01T00:00:00.000Z'));
+    const store = new JsonMarkerStore(cacheDir, { now: () => Date.parse('2026-01-01T00:00:00.000Z') });
     const created = await store.create({
       name: 'Farm',
       x: 32,
@@ -108,6 +130,58 @@ describe('JSON marker store', () => {
     assert.equal(listed.length, 1);
     assert.equal(listed[0]!.id, created.id);
     assert.equal(listed[0]!.description, 'wheat');
+  });
+
+  it('skips invalid records on reload instead of trusting them', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'bedrock-markers-bad-'));
+    const skipped: string[] = [];
+    try {
+      await fs.writeFile(
+        markersFilePath(dir),
+        JSON.stringify({
+          version: 1,
+          markers: [
+            {
+              id: 'good',
+              name: 'Good',
+              x: 1,
+              z: 2,
+              category: 'poi',
+              createdAt: '2026-01-01T00:00:00.000Z',
+              updatedAt: '2026-01-01T00:00:00.000Z',
+            },
+            { id: 'bad', x: 'hello', category: 'whatever' },
+          ],
+        }),
+      );
+      const store = new JsonMarkerStore(dir, { onInvalid: (message) => skipped.push(message) });
+      await store.reloadFromDisk();
+      assert.equal((await store.list()).length, 1);
+      assert.equal((await store.get('good'))?.name, 'Good');
+      assert.equal(await store.get('bad'), null);
+      assert.ok(skipped.some((line) => /markers\[1\]/.test(line)));
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('serialises concurrent writes so no update is lost', async () => {
+    const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'bedrock-markers-race-'));
+    try {
+      const store = new JsonMarkerStore(dir);
+      await Promise.all([
+        store.create({ id: 'a', name: 'A', x: 0, z: 0, category: 'poi' }),
+        store.create({ id: 'b', name: 'B', x: 1, z: 1, category: 'farm' }),
+        store.create({ id: 'c', name: 'C', x: 2, z: 2, category: 'base' }),
+      ]);
+      const listed = await store.list();
+      assert.equal(listed.length, 3);
+      const reloaded = new JsonMarkerStore(dir);
+      await reloaded.reloadFromDisk();
+      assert.equal((await reloaded.list()).length, 3);
+    } finally {
+      await fs.rm(dir, { recursive: true, force: true });
+    }
   });
 
   it('rejects duplicate ids and missing updates', async () => {
@@ -149,7 +223,8 @@ describe(
   'marker HTTP API',
   { skip: fixtureAvailable ? false : 'fixture world missing at /tmp/m5-fixture-world' },
   () => {
-    const apiKey = 'marker-test-key';
+    const playerKey = 'player-test-key-12';
+    const markerKey = 'marker-test-key-12';
     let temp: string;
     let started: StartedServer;
     let base: string;
@@ -166,7 +241,8 @@ describe(
         refreshRenderConcurrency: 2,
         playerUpdateInterval: 3000,
         playerDataTimeout: 10000,
-        apiKey,
+        apiKey: playerKey,
+        markerApiKey: markerKey,
         logLevel: 'error',
       });
       base = `http://127.0.0.1:${started.port}`;
@@ -177,7 +253,7 @@ describe(
       if (temp) await fs.rm(temp, { recursive: true, force: true });
     });
 
-    async function create(body: unknown, headers: Record<string, string> = { 'x-api-key': apiKey }) {
+    async function create(body: unknown, headers: Record<string, string> = { 'x-api-key': markerKey }) {
       return fetch(`${base}/api/markers`, {
         method: 'POST',
         headers: { 'content-type': 'application/json', ...headers },
@@ -192,8 +268,12 @@ describe(
       assert.deepEqual(body.markers, []);
     });
 
-    it('rejects create without a key, with a wrong key, and when the body is invalid', async () => {
+    it('rejects create without a key, with the player key, and with a wrong key', async () => {
       assert.equal((await create({ name: 'A', x: 0, z: 0, category: 'poi' }, {})).status, 401);
+      assert.equal(
+        (await create({ name: 'A', x: 0, z: 0, category: 'poi' }, { 'x-api-key': playerKey })).status,
+        401,
+      );
       assert.equal(
         (await create({ name: 'A', x: 0, z: 0, category: 'poi' }, { 'x-api-key': 'nope' })).status,
         401,
@@ -202,6 +282,15 @@ describe(
       assert.equal(bad.status, 400);
       const message = ((await bad.json()) as { error: string }).error;
       assert.match(message, /integer/);
+    });
+
+    it('does not accept the marker key for player updates', async () => {
+      const response = await fetch(`${base}/api/players`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-api-key': markerKey },
+        body: JSON.stringify({ players: [] }),
+      });
+      assert.equal(response.status, 401);
     });
 
     it('creates, reads, patches and deletes a marker', async () => {
@@ -230,7 +319,7 @@ describe(
 
       const patched = await fetch(`${base}/api/markers/spawn-base`, {
         method: 'PATCH',
-        headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${markerKey}` },
         body: JSON.stringify({ name: 'Spawn Base', z: -5 }),
       });
       assert.equal(patched.status, 200);
@@ -240,7 +329,7 @@ describe(
 
       const deleted = await fetch(`${base}/api/markers/spawn-base`, {
         method: 'DELETE',
-        headers: { 'x-api-key': apiKey },
+        headers: { 'x-api-key': markerKey },
       });
       assert.equal(deleted.status, 200);
       assert.equal((await fetch(`${base}/api/markers/spawn-base`)).status, 404);
@@ -262,7 +351,7 @@ describe(
 );
 
 describe(
-  'marker edits disabled without API_KEY',
+  'marker edits disabled without MARKER_API_KEY',
   { skip: fixtureAvailable ? false : 'fixture world missing at /tmp/m5-fixture-world' },
   () => {
     let temp: string;
@@ -280,7 +369,8 @@ describe(
         refreshRenderConcurrency: 2,
         playerUpdateInterval: 3000,
         playerDataTimeout: 10000,
-        apiKey: '',
+        apiKey: 'player-only-key-12',
+        markerApiKey: '',
         logLevel: 'error',
       });
     });
@@ -290,7 +380,7 @@ describe(
       if (temp) await fs.rm(temp, { recursive: true, force: true });
     });
 
-    it('returns 503 for mutating routes when API_KEY is empty', async () => {
+    it('returns 503 for mutating routes when MARKER_API_KEY is empty', async () => {
       const base = `http://127.0.0.1:${started.port}`;
       const response = await fetch(`${base}/api/markers`, {
         method: 'POST',
@@ -298,6 +388,7 @@ describe(
         body: JSON.stringify({ name: 'A', x: 0, z: 0, category: 'poi' }),
       });
       assert.equal(response.status, 503);
+      assert.match(((await response.json()) as { error: string }).error, /MARKER_API_KEY/);
       assert.equal((await fetch(`${base}/api/markers`)).status, 200);
     });
   },

@@ -79,6 +79,24 @@ body {
   color: #f85149;
 }
 
+#marker-edit {
+  pointer-events: auto;
+  cursor: pointer;
+  align-self: flex-end;
+  margin-top: 4px;
+  background: #21262d;
+  color: #9aa7b4;
+  border: 1px solid #30363d;
+  border-radius: 3px;
+  padding: 2px 8px;
+  font: inherit;
+}
+
+#marker-edit.active {
+  color: #7ee787;
+  border-color: #3fb950;
+}
+
 .player-popup-name {
   font-weight: bold;
   margin-bottom: 2px;

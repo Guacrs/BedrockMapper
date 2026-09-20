@@ -17,7 +17,7 @@
  */
 
 import { blockToLatLng, latLngToBlock } from './coords.js';
-import { MarkerLayer, getStoredApiKey, promptForApiKey, setStoredApiKey } from './markers.js';
+import { MarkerLayer, getStoredMarkerKey, promptForMarkerKey, setStoredMarkerKey } from './markers.js';
 import { PlayerLayer, playerStatus } from './players.js';
 import { terrainStatus, trackingStatus } from './status.js';
 import { TerrainLayer, worldSummary } from './terrain.js';
@@ -136,29 +136,39 @@ async function main() {
   if (terrainInterval > 0) setInterval(pollTerrain, terrainInterval);
 
   // Shared POI markers (persistent). Independent of live player markers.
-  const markerLayer = new MarkerLayer(map, {
-    onAuthRequired: () => {
-      if (promptForApiKey()) {
-        // Re-open is left to the user (right-click again) so coordinates stay intentional.
-        alert('API key saved for this tab. Right-click the map again to add a marker.');
-      }
-    },
-  });
+  const markerLayer = new MarkerLayer(map);
   try {
     await markerLayer.reload();
   } catch (error) {
     console.error('marker load failed:', error);
   }
 
-  // Optional: ?apiKey=… unlocks admin actions for this tab, then is stripped from the URL.
-  const bootParams = new URLSearchParams(location.search);
-  if (bootParams.has('apiKey')) {
-    const fromQuery = bootParams.get('apiKey')?.trim() ?? '';
-    if (fromQuery) setStoredApiKey(fromQuery);
-    bootParams.delete('apiKey');
-    const next = `${location.pathname}${bootParams.toString() ? `?${bootParams}` : ''}${location.hash}`;
-    history.replaceState(null, '', next);
+  const markerEditButton = document.getElementById('marker-edit');
+  function paintMarkerEditState() {
+    if (!markerEditButton) return;
+    const unlocked = Boolean(getStoredMarkerKey());
+    markerEditButton.textContent = unlocked ? 'Marker edit: on' : 'Edit markers';
+    markerEditButton.classList.toggle('active', unlocked);
+    markerEditButton.title = unlocked
+      ? 'Marker editing unlocked for this tab. Right-click the map to add a marker. Click to lock again.'
+      : 'Unlock marker editing with MARKER_API_KEY (session only).';
   }
+  paintMarkerEditState();
+  markerEditButton?.addEventListener('click', () => {
+    if (getStoredMarkerKey()) {
+      setStoredMarkerKey('');
+      paintMarkerEditState();
+      markerLayer.reload().catch(() => {});
+      return;
+    }
+    if (promptForMarkerKey()) {
+      paintMarkerEditState();
+      markerLayer.reload().catch(() => {});
+      alert('Marker editing unlocked for this tab. Right-click the map to add a marker.');
+    } else {
+      paintMarkerEditState();
+    }
+  });
 
   // Players: poll the latest positions and reconcile the markers. Polling is
   // enough for a marker every few seconds, so there is no WebSocket.
@@ -188,10 +198,12 @@ async function main() {
   window.__map = map;
   window.__players = playerLayer;
   window.__markers = markerLayer;
-  window.__setMapApiKey = (key) => {
-    setStoredApiKey(key ?? '');
-    return getStoredApiKey();
+  window.__setMapMarkerKey = (key) => {
+    setStoredMarkerKey(key ?? '');
+    paintMarkerEditState();
+    return getStoredMarkerKey();
   };
+  window.__setMapApiKey = window.__setMapMarkerKey;
   window.__pollPlayers = pollPlayers;
   window.__terrain = terrain;
   window.__pollTerrain = pollTerrain;

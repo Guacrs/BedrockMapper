@@ -1,0 +1,23 @@
+{
+  "format_version": 2,
+  "header": {
+    "name": "Bedrock Map Simulated Player (test only)",
+    "description": "Spawns and drives a simulated player so player tracking can be tested without a Minecraft client.",
+    "uuid": "7c6c1089-8a8e-43c7-b42e-f017be558183",
+    "version": [0, 1, 0],
+    "min_engine_version": [1, 26, 0]
+  },
+  "modules": [
+    {
+      "type": "script",
+      "language": "javascript",
+      "uuid": "31b349b7-b436-4549-a699-36a768b8ae31",
+      "version": [0, 1, 0],
+      "entry": "scripts/main.js"
+    }
+  ],
+  "dependencies": [
+    { "module_name": "@minecraft/server", "version": "2.10.0" },
+    { "module_name": "@minecraft/server-gametest", "version": "1.0.0-beta" }
+  ]
+}

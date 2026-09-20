@@ -3,16 +3,18 @@
  *
  * File layout: `<cacheDir>/markers.json`
  *
- * Writes are atomic (temp file + rename) so a crash mid-write cannot leave a
- * half-parsed document. The public surface is {@link MarkerStore} so a later
- * SQLite backend can drop in without touching routes or the browser.
+ * Writes are atomic (temp file + rename) and serialised through a promise
+ * chain so concurrent create/update/delete cannot clobber each other. Temp
+ * files use a random UUID so two writes in the same millisecond never share a
+ * path. The public surface is {@link MarkerStore} so a later SQLite backend can
+ * drop in without touching routes or the browser.
  */
 
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { MapMarker, MarkerCreateInput, MarkerPatchInput, MarkerStore } from './types.ts';
-import { MarkerValidationError } from './validate.ts';
+import { MarkerValidationError, parseStoredMarker } from './validate.ts';
 
 const STORE_VERSION = 1;
 const FILE_NAME = 'markers.json';
@@ -22,12 +24,14 @@ interface MarkerFile {
   markers: MapMarker[];
 }
 
-export function markersFilePath(cacheDir: string): string {
-  return path.join(cacheDir, FILE_NAME);
+export interface JsonMarkerStoreOptions {
+  now?: () => number;
+  /** Called when a stored record is skipped because it fails validation. */
+  onInvalid?: (message: string) => void;
 }
 
-function emptyFile(): MarkerFile {
-  return { version: STORE_VERSION, markers: [] };
+export function markersFilePath(cacheDir: string): string {
+  return path.join(cacheDir, FILE_NAME);
 }
 
 export class MarkerNotFoundError extends Error {
@@ -49,10 +53,14 @@ export class JsonMarkerStore implements MarkerStore {
   #markers = new Map<string, MapMarker>();
   #loaded = false;
   #now: () => number;
+  #onInvalid?: (message: string) => void;
+  /** Serialises mutate + persist so concurrent requests cannot lose updates. */
+  #writeChain: Promise<void> = Promise.resolve();
 
-  constructor(cacheDir: string, now: () => number = Date.now) {
+  constructor(cacheDir: string, options: JsonMarkerStoreOptions = {}) {
     this.filePath = markersFilePath(cacheDir);
-    this.#now = now;
+    this.#now = options.now ?? Date.now;
+    this.#onInvalid = options.onInvalid;
   }
 
   /** Loads from disk if needed (idempotent). */
@@ -72,63 +80,80 @@ export class JsonMarkerStore implements MarkerStore {
   }
 
   async create(input: MarkerCreateInput): Promise<MapMarker> {
-    await this.ready();
-    const id = input.id ?? randomUUID();
-    if (this.#markers.has(id)) throw new MarkerConflictError(id);
+    return this.#withLock(async () => {
+      await this.ready();
+      const id = input.id ?? randomUUID();
+      if (this.#markers.has(id)) throw new MarkerConflictError(id);
 
-    const stamp = new Date(this.#now()).toISOString();
-    const marker: MapMarker = {
-      id,
-      name: input.name,
-      x: input.x,
-      z: input.z,
-      category: input.category,
-      createdAt: stamp,
-      updatedAt: stamp,
-    };
-    if (input.description !== undefined) marker.description = input.description;
-    if (input.color !== undefined) marker.color = input.color;
+      const stamp = new Date(this.#now()).toISOString();
+      const marker: MapMarker = {
+        id,
+        name: input.name,
+        x: input.x,
+        z: input.z,
+        category: input.category,
+        createdAt: stamp,
+        updatedAt: stamp,
+      };
+      if (input.description !== undefined) marker.description = input.description;
+      if (input.color !== undefined) marker.color = input.color;
 
-    this.#markers.set(id, marker);
-    await this.#persist();
-    return { ...marker };
+      this.#markers.set(id, marker);
+      await this.#persistNow();
+      return { ...marker };
+    });
   }
 
   async update(id: string, patch: MarkerPatchInput): Promise<MapMarker> {
-    await this.ready();
-    const existing = this.#markers.get(id);
-    if (!existing) throw new MarkerNotFoundError(id);
+    return this.#withLock(async () => {
+      await this.ready();
+      const existing = this.#markers.get(id);
+      if (!existing) throw new MarkerNotFoundError(id);
 
-    const next: MapMarker = { ...existing, updatedAt: new Date(this.#now()).toISOString() };
-    if (patch.name !== undefined) next.name = patch.name;
-    if (patch.x !== undefined) next.x = patch.x;
-    if (patch.z !== undefined) next.z = patch.z;
-    if (patch.category !== undefined) next.category = patch.category;
-    if (patch.description !== undefined) {
-      if (patch.description === null) delete next.description;
-      else next.description = patch.description;
-    }
-    if (patch.color !== undefined) {
-      if (patch.color === null) delete next.color;
-      else next.color = patch.color;
-    }
+      const next: MapMarker = { ...existing, updatedAt: new Date(this.#now()).toISOString() };
+      if (patch.name !== undefined) next.name = patch.name;
+      if (patch.x !== undefined) next.x = patch.x;
+      if (patch.z !== undefined) next.z = patch.z;
+      if (patch.category !== undefined) next.category = patch.category;
+      if (patch.description !== undefined) {
+        if (patch.description === null) delete next.description;
+        else next.description = patch.description;
+      }
+      if (patch.color !== undefined) {
+        if (patch.color === null) delete next.color;
+        else next.color = patch.color;
+      }
 
-    this.#markers.set(id, next);
-    await this.#persist();
-    return { ...next };
+      this.#markers.set(id, next);
+      await this.#persistNow();
+      return { ...next };
+    });
   }
 
   async delete(id: string): Promise<boolean> {
-    await this.ready();
-    if (!this.#markers.has(id)) return false;
-    this.#markers.delete(id);
-    await this.#persist();
-    return true;
+    return this.#withLock(async () => {
+      await this.ready();
+      if (!this.#markers.has(id)) return false;
+      this.#markers.delete(id);
+      await this.#persistNow();
+      return true;
+    });
   }
 
   /** Force a re-read from disk (used by tests). */
   async reloadFromDisk(): Promise<void> {
-    await this.#reload();
+    return this.#withLock(async () => {
+      await this.#reload();
+    });
+  }
+
+  #withLock<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.#writeChain.then(fn, fn);
+    this.#writeChain = run.then(
+      () => undefined,
+      () => undefined,
+    );
+    return run;
   }
 
   async #reload(): Promise<void> {
@@ -158,20 +183,27 @@ export class JsonMarkerStore implements MarkerStore {
       throw new MarkerValidationError(`marker store at ${this.filePath} is missing a "markers" array`);
     }
 
-    for (const entry of file.markers) {
-      if (!entry || typeof entry !== 'object' || typeof entry.id !== 'string') continue;
-      this.#markers.set(entry.id, entry as MapMarker);
+    for (let index = 0; index < file.markers.length; index++) {
+      const entry = file.markers[index];
+      try {
+        const marker = parseStoredMarker(entry, index);
+        this.#markers.set(marker.id, marker);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const report = this.#onInvalid;
+        if (report) report(`skipping markers[${index}]: ${message}`);
+      }
     }
     this.#loaded = true;
   }
 
-  async #persist(): Promise<void> {
+  async #persistNow(): Promise<void> {
     await fs.mkdir(path.dirname(this.filePath), { recursive: true });
     const payload: MarkerFile = {
       version: STORE_VERSION,
       markers: [...this.#markers.values()].sort((a, b) => a.id.localeCompare(b.id)),
     };
-    const tempPath = `${this.filePath}.${process.pid}.${this.#now()}.tmp`;
+    const tempPath = `${this.filePath}.${randomUUID()}.tmp`;
     const bytes = `${JSON.stringify(payload, null, 2)}\n`;
     await fs.writeFile(tempPath, bytes, 'utf8');
     await fs.rename(tempPath, this.filePath);

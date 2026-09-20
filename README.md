@@ -56,7 +56,8 @@ sentence saying what to change; nothing is silently replaced with a default.
 | `REFRESH_RENDER_CONCURRENCY` | `2` | How many tiles a refresh redraws at once (1–16) |
 | `PLAYER_UPDATE_INTERVAL` | `3000` | How often the browser polls for player positions, in ms |
 | `PLAYER_DATA_TIMEOUT` | `10000` | After this many ms without a report, markers disappear |
-| `API_KEY` | _(empty)_ | Shared secret for `POST /api/players` and marker create/update/delete. Empty disables those writes |
+| `API_KEY` | _(empty)_ | Shared secret for `POST /api/players`. Empty disables player updates |
+| `MARKER_API_KEY` | _(empty)_ | Shared secret for marker create/update/delete. Keep separate from `API_KEY` |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn` or `error` |
 
 ### Binding and security
@@ -65,8 +66,9 @@ The default `HOST=127.0.0.1` is the safe one: only programs on the same machine 
 
 `HOST=0.0.0.0` makes the map reachable from other machines. There is **no login**. Anyone who can
 reach `PORT` can see the terrain, player names and live positions, and shared map markers. Mutating
-`/api/players` or `/api/markers` still needs `API_KEY`. Put a reverse proxy or a firewall in front of
-it if the host is reachable from the internet, and never expose those write endpoints publicly.
+`/api/players` needs `API_KEY`; mutating `/api/markers` needs `MARKER_API_KEY`. Put a reverse proxy
+or a firewall in front of it if the host is reachable from the internet, and never expose those write
+endpoints publicly.
 
 ### Cache layout
 
@@ -191,12 +193,13 @@ reports are live or stale. A failed refresh keeps the last good map on screen an
 Persistent POIs (bases, farms, villages, portals, …) are separate from live player markers.
 
 - `GET /api/markers` — public; every visitor sees the same list
-- `POST /api/markers`, `PATCH /api/markers/:id`, `DELETE /api/markers/:id` — require `API_KEY`
+- `POST /api/markers`, `PATCH /api/markers/:id`, `DELETE /api/markers/:id` — require `MARKER_API_KEY`
+  (not `API_KEY`, so a browser-held marker key cannot post fake players)
 - Stored in `MAP_CACHE/markers.json` (survives restarts; not mixed with player state)
 
-On the map: markers load automatically. Right-click to add (after unlocking with the API key via
-`?apiKey=…` once, or `window.__setMapApiKey('…')` in the browser console). Click a marker for its
-name, description and X/Z; edit/delete appear when the key is set for that tab.
+On the map: markers load automatically. Click **Edit markers** (top right) and enter `MARKER_API_KEY`
+to unlock this tab (sessionStorage only — no query-string unlock). Then right-click to add; open a
+marker popup to edit/delete. Click **Marker edit: on** again to lock.
 
 ## Updating
 
