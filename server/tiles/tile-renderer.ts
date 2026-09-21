@@ -9,12 +9,20 @@
 
 import { applyShade, CHANNELS, shadeFactorForBlock, shadeFromNeighbors, type RenderedImage } from '../renderer/chunk-image.ts';
 import { surfaceBlockColor } from '../renderer/colors.ts';
+import { mapPool } from '../util/pool.ts';
 import { columnIndex } from '../world/keys.ts';
 import { NO_SURFACE, NO_BIOME, type ChunkSurface } from '../world/surface.ts';
 import { CHUNKS_PER_TILE, TILE_SIZE, floorDiv, tileToBlock, tileToChunk } from './coords.ts';
 
 /** Looks up a chunk surface, returning null when the chunk has no block data. */
 export type SurfaceLoader = (chunkX: number, chunkZ: number) => Promise<ChunkSurface | null>;
+
+/**
+ * How many chunk surfaces one tile may decode at once. A tile touches up to
+ * 17×17 chunks including the shading border; unbounded Promise.all on that set
+ * is a common OOM path when many cold tiles render together.
+ */
+export const TILE_CHUNK_LOAD_CONCURRENCY = 8;
 
 /** Chunks a tile needs, including the one-chunk border used for shading. */
 export function chunksForTile(tileX: number, tileY: number): { x: number; z: number }[] {
@@ -53,11 +61,10 @@ export async function renderTile(
   loadSurface: SurfaceLoader,
 ): Promise<RenderedImage | null> {
   const surfaces = new Map<string, ChunkSurface | null>();
-  await Promise.all(
-    chunksForTile(tileX, tileY).map(async (chunk) => {
-      surfaces.set(`${chunk.x},${chunk.z}`, await loadSurface(chunk.x, chunk.z));
-    }),
-  );
+  const needed = chunksForTile(tileX, tileY);
+  await mapPool(needed, TILE_CHUNK_LOAD_CONCURRENCY, async (chunk) => {
+    surfaces.set(`${chunk.x},${chunk.z}`, await loadSurface(chunk.x, chunk.z));
+  });
 
   const drawn = chunksInTile(tileX, tileY);
   if (!drawn.some((chunk) => surfaces.get(`${chunk.x},${chunk.z}`))) return null;

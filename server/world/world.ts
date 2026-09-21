@@ -270,19 +270,33 @@ export class BedrockWorld {
   }
 
   /**
-   * Reads every subchunk of a chunk, ordered from the top of the world down.
+   * Reads subchunks of a chunk, ordered from the top of the world down.
    *
-   * Subchunks in a legacy (pre-palette) format are skipped and reported in
-   * `skipped` rather than being guessed at.
+   * When `indices` is provided (from a prior scan), only those layers are
+   * fetched — avoiding a get for every empty Y-slice. Subchunks in a legacy
+   * (pre-palette) format are skipped and reported in `skipped` rather than
+   * being guessed at.
    */
   async readChunkSubChunks(
     dimension: Dimension,
     x: number,
     z: number,
+    indices?: readonly number[],
   ): Promise<{ subChunks: SubChunk[]; skipped: { index: number; version: number }[] }> {
     const subChunks: SubChunk[] = [];
     const skipped: { index: number; version: number }[] = [];
-    for (let index = maxSubChunkIndex(dimension); index >= minSubChunkIndex(dimension); index--) {
+    const toRead =
+      indices !== undefined
+        ? [...indices].sort((a, b) => b - a)
+        : (() => {
+            const list: number[] = [];
+            for (let index = maxSubChunkIndex(dimension); index >= minSubChunkIndex(dimension); index--) {
+              list.push(index);
+            }
+            return list;
+          })();
+
+    for (const index of toRead) {
       try {
         const subChunk = await this.readSubChunk(dimension, x, z, index);
         if (subChunk) subChunks.push(subChunk);

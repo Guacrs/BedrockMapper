@@ -14,7 +14,7 @@ import {
   tileToBlock,
   tileToChunk,
 } from '../server/tiles/coords.ts';
-import { chunksForTile, chunksInTile, renderTile } from '../server/tiles/tile-renderer.ts';
+import { chunksForTile, chunksInTile, renderTile, TILE_CHUNK_LOAD_CONCURRENCY } from '../server/tiles/tile-renderer.ts';
 import { pixelAt, renderChunkSurface, type RenderedImage } from '../server/renderer/chunk-image.ts';
 import { blockColor } from '../server/renderer/colors.ts';
 import { blockToChunk, columnIndex } from '../server/world/keys.ts';
@@ -141,6 +141,20 @@ describe('tile composition', () => {
     assert.deepEqual(chunksInTile(0, 0)[0], { x: 0, z: 0 });
     assert.deepEqual(chunksForTile(0, 0)[0], { x: -1, z: -1 });
     assert.deepEqual(chunksInTile(-1, -1)[0], { x: -16, z: -16 });
+  });
+
+  it('loads chunk surfaces with a concurrency cap', async () => {
+    let running = 0;
+    let peak = 0;
+    await renderTile(0, 0, async (cx, cz) => {
+      running++;
+      peak = Math.max(peak, running);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      running--;
+      return syntheticSurface(cx, cz, () => stone);
+    });
+    assert.ok(peak <= TILE_CHUNK_LOAD_CONCURRENCY, `peak concurrency ${peak}`);
+    assert.equal(running, 0);
   });
 
   it('renders a full tile from many chunks', async () => {

@@ -157,9 +157,11 @@ export async function readChunkSurface(
   dimension: Dimension,
   chunkX: number,
   chunkZ: number,
+  /** Known SubChunkPrefix indices from scan; omit to probe the full Y range. */
+  subChunkIndices?: readonly number[],
 ): Promise<ChunkSurface | null> {
   const [{ subChunks, skipped }, biomes] = await Promise.all([
-    world.readChunkSubChunks(dimension, chunkX, chunkZ),
+    world.readChunkSubChunks(dimension, chunkX, chunkZ, subChunkIndices),
     world.readChunkBiomes(dimension, chunkX, chunkZ),
   ]);
   if (!subChunks.length && !skipped.length) return null;

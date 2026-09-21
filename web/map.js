@@ -85,7 +85,12 @@ async function main() {
 
   const terrain = new TerrainLayer(map, info);
 
-  if (terrain.latLngBounds) {
+  // Prefer the world centre at native zoom over fitBounds(entire extent).
+  // fitBounds on a large world (tens of thousands of chunks) requests hundreds
+  // of cold tiles at once and can OOM the Node map server.
+  if (info.center) {
+    map.setView(blockToLatLng(info.center.x, info.center.z), 0);
+  } else if (terrain.latLngBounds) {
     map.fitBounds(terrain.latLngBounds);
   } else {
     map.setView(blockToLatLng(0, 0), 0);
