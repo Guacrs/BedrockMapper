@@ -28,6 +28,7 @@ import {
 import { CHUNKS_PER_TILE } from './tiles/coords.ts';
 import { TileCache } from './tiles/tile-cache.ts';
 import { renderTile } from './tiles/tile-renderer.ts';
+import { Semaphore } from './util/pool.ts';
 import { chunkId, diffChunkDigests, type ChunkDigests } from './world/chunk-diff.ts';
 import { OVERWORLD, SUPPORTED_DIMENSIONS, type Dimension, type DimensionId } from './world/dimensions.ts';
 import {
@@ -45,6 +46,13 @@ const SURFACE_CACHE_LIMIT = 8192;
 
 /** Default how many invalidated tiles are redrawn at once during a refresh. */
 const DEFAULT_REFRESH_RENDER_CONCURRENCY = 2;
+
+/**
+ * Cap on concurrent cold-cache tile *draws* served to HTTP clients.
+ * Cache hits skip this. Without it, fitBounds over a large world can start
+ * hundreds of renders and OOM Node.
+ */
+const DEFAULT_HTTP_TILE_RENDER_CONCURRENCY = 2;
 
 export interface MapInfo {
   world: { name: string; version: string | null };
@@ -122,11 +130,18 @@ export interface MapServiceOptions {
   tileUpdateCooldownMs?: number;
   /** Parallel tile redraws during refresh. */
   refreshRenderConcurrency?: number;
+  /**
+   * Parallel cold-cache tile draws for HTTP `/tiles` requests.
+   * Defaults to the same value as refresh concurrency.
+   */
+  httpTileRenderConcurrency?: number;
   log?: Logger;
 }
 
 interface WorldState {
   chunksWithData: Set<string>;
+  /** SubChunkPrefix indices discovered during scan, keyed by chunk id. */
+  subChunkIndices: Map<string, number[]>;
   digests: ChunkDigests;
   info: MapInfo;
 }
@@ -135,9 +150,14 @@ function stateFromScan(world: BedrockWorld, scan: WorldScan, options: MapService
   const withData = scan.chunks.filter((chunk) => chunk.subChunkIndices.length > 0);
   const chunkBounds = boundsOfChunks(withData);
   const blockBounds = chunkBounds ? chunkBoundsToBlockBounds(chunkBounds) : null;
+  const subChunkIndices = new Map<string, number[]>();
+  for (const chunk of withData) {
+    subChunkIndices.set(chunkId(chunk.x, chunk.z), chunk.subChunkIndices);
+  }
 
   return {
     chunksWithData: new Set(withData.map((chunk) => chunkId(chunk.x, chunk.z))),
+    subChunkIndices,
     digests: scan.digests,
     info: {
       world: { name: world.levelInfo.name, version: world.levelInfo.lastOpenedWithVersion },
@@ -180,6 +200,7 @@ export class MapService {
   #cacheWriteFailureReported = false;
   /** tile "x,y" -> earliest time another digest-driven invalidate is allowed. */
   #tileCooldownUntil = new Map<string, number>();
+  #tileRenderSlots: Semaphore;
   #log: Logger;
 
   private constructor(
@@ -193,6 +214,14 @@ export class MapService {
     this.#world = world;
     this.tileCache = tileCache;
     this.#state = state;
+    this.#tileRenderSlots = new Semaphore(
+      Math.max(
+        1,
+        options.httpTileRenderConcurrency ??
+          options.refreshRenderConcurrency ??
+          DEFAULT_HTTP_TILE_RENDER_CONCURRENCY,
+      ),
+    );
     this.#emptyTile = encodePng({
       width: TILE_SIZE,
       height: TILE_SIZE,
@@ -283,7 +312,14 @@ export class MapService {
     if (pending) return pending;
 
     const work = (async (): Promise<ChunkSurface | null> => {
-      const surface = await readChunkSurface(this.#world, this.#dimension, chunkX, chunkZ);
+      const indices = this.#state.subChunkIndices.get(key);
+      const surface = await readChunkSurface(
+        this.#world,
+        this.#dimension,
+        chunkX,
+        chunkZ,
+        indices,
+      );
       this.#decodedChunks++;
       if (this.#surfaces.size >= SURFACE_CACHE_LIMIT) {
         // Plain FIFO eviction; panning tends to move on rather than come back.
@@ -311,28 +347,35 @@ export class MapService {
       const cached = await this.tileCache.read(dimension, zoom, x, y);
       if (cached) return { bytes: cached, cached: true, empty: false };
 
-      const image = await renderTile(x, y, (chunkX, chunkZ) => this.surface(chunkX, chunkZ));
-      if (!image) return { bytes: this.#emptyTile, cached: false, empty: true };
+      return this.#tileRenderSlots.run(async () => {
+        // Re-check after waiting for a render slot: another request may have
+        // filled the disk cache while we were queued.
+        const raced = await this.tileCache.read(dimension, zoom, x, y);
+        if (raced) return { bytes: raced, cached: true, empty: false };
 
-      const bytes = encodePng(image);
-      // A cache that cannot be written to (full disk, permissions changed under
-      // a running server) costs performance, not correctness: the tile has
-      // already been drawn, so it is served either way.
-      try {
-        await this.tileCache.write(dimension, zoom, x, y, bytes);
-        this.#cacheWriteFailureReported = false;
-      } catch (error) {
-        this.#cacheWriteFailures++;
-        if (!this.#cacheWriteFailureReported) {
-          this.#cacheWriteFailureReported = true;
-          this.#log.warn('cache.write_failed', {
-            tile: `${dimension}/${zoom}/${x}/${y}`,
-            error: message(error),
-            note: 'tiles are still being served, but every request has to redraw them',
-          });
+        const image = await renderTile(x, y, (chunkX, chunkZ) => this.surface(chunkX, chunkZ));
+        if (!image) return { bytes: this.#emptyTile, cached: false, empty: true };
+
+        const bytes = encodePng(image);
+        // A cache that cannot be written to (full disk, permissions changed under
+        // a running server) costs performance, not correctness: the tile has
+        // already been drawn, so it is served either way.
+        try {
+          await this.tileCache.write(dimension, zoom, x, y, bytes);
+          this.#cacheWriteFailureReported = false;
+        } catch (error) {
+          this.#cacheWriteFailures++;
+          if (!this.#cacheWriteFailureReported) {
+            this.#cacheWriteFailureReported = true;
+            this.#log.warn('cache.write_failed', {
+              tile: `${dimension}/${zoom}/${x}/${y}`,
+              error: message(error),
+              note: 'tiles are still being served, but every request has to redraw them',
+            });
+          }
         }
-      }
-      return { bytes, cached: false, empty: false };
+        return { bytes, cached: false, empty: false };
+      });
     })().finally(() => this.#inFlight.delete(key));
 
     this.#inFlight.set(key, work);
