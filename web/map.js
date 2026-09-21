@@ -42,8 +42,25 @@ async function main() {
     maxZoom: info.maxZoom,
     zoomControl: true,
     attributionControl: false,
-    preferCanvas: true,
+    // SVG is more reliable than Canvas on iOS Safari for circle markers /
+    // popups. Terrain tiles are still <img>, so this does not affect them.
+    preferCanvas: false,
   });
+
+  // iOS Safari often lays out the map pane before the visual viewport settles
+  // (address bar, safe areas). Without invalidateSize, tiles stay blank.
+  const refreshMapSize = () => {
+    map.invalidateSize({ pan: false });
+  };
+  requestAnimationFrame(() => {
+    refreshMapSize();
+    setTimeout(refreshMapSize, 250);
+  });
+  window.addEventListener('orientationchange', () => setTimeout(refreshMapSize, 300));
+  window.addEventListener('resize', refreshMapSize);
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', refreshMapSize);
+  }
 
   const terrain = new TerrainLayer(map, info);
 

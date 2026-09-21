@@ -11,6 +11,10 @@
  * screen (scaled / soft while zooming) and only fetches fresh ones after the
  * view settles - the same idea as BlueMap showing lower detail until you stop
  * on an area.
+ *
+ * Note: this file avoids private class fields/methods (`#name`) so the map
+ * loads on older iOS Safari WebViews that reject that syntax and then fail the
+ * whole ES-module graph.
  */
 
 import { blockToLatLng } from './coords.js';
@@ -104,53 +108,47 @@ export function tileLayerOptions(info) {
  * out from under the pointer.
  */
 export class TerrainLayer {
-  #map;
-  #dimension;
-  #layer;
-  #version;
-  #blockBounds;
-  /** @type {MapState | null} */
-  #pending = null;
-  #busy = false;
-
   /**
    * @param {any} map Leaflet map
    * @param {any} info GET /api/map/info
    */
   constructor(map, info) {
-    this.#map = map;
-    this.#dimension = info.dimension;
-    this.#version = info.version ?? 1;
-    this.#blockBounds = info.blockBounds ?? null;
-    const bounds = this.#latLngBounds();
-    this.#layer = L.tileLayer(tileUrl(this.#dimension, this.#version), {
+    this._map = map;
+    this._dimension = info.dimension;
+    this._version = info.version ?? 1;
+    this._blockBounds = info.blockBounds ?? null;
+    /** @type {MapState | null} */
+    this._pending = null;
+    this._busy = false;
+    const bounds = this._latLngBounds();
+    this._layer = L.tileLayer(tileUrl(this._dimension, this._version), {
       ...tileLayerOptions(info),
       ...(bounds ? { bounds } : {}),
     }).addTo(map);
 
     map.on('movestart zoomstart', () => {
-      this.#busy = true;
+      this._busy = true;
     });
     map.on('moveend zoomend', () => {
-      this.#busy = false;
-      this.#flushPending();
+      this._busy = false;
+      this._flushPending();
     });
   }
 
   get version() {
-    return this.#version;
+    return this._version;
   }
 
   get layer() {
-    return this.#layer;
+    return this._layer;
   }
 
   get latLngBounds() {
-    return this.#latLngBounds();
+    return this._latLngBounds();
   }
 
-  #latLngBounds() {
-    const bounds = this.#blockBounds;
+  _latLngBounds() {
+    const bounds = this._blockBounds;
     if (!bounds) return null;
     // Bounds are inclusive block coordinates; the layer needs the outer corner.
     return L.latLngBounds(
@@ -164,33 +162,33 @@ export class TerrainLayer {
    * @returns {boolean} true when the tiles were reloaded (or queued to reload)
    */
   update(state) {
-    if (!state || state.version === this.#version) return false;
-    this.#pending = state;
-    if (this.#busy) return true;
-    return this.#flushPending();
+    if (!state || state.version === this._version) return false;
+    this._pending = state;
+    if (this._busy) return true;
+    return this._flushPending();
   }
 
   /**
    * @returns {boolean}
    */
-  #flushPending() {
-    const state = this.#pending;
-    if (!state || state.version === this.#version) {
-      this.#pending = null;
+  _flushPending() {
+    const state = this._pending;
+    if (!state || state.version === this._version) {
+      this._pending = null;
       return false;
     }
-    this.#pending = null;
-    this.#version = state.version;
+    this._pending = null;
+    this._version = state.version;
 
     // A new area of the world can extend the map, so the layer's bounds have to
     // grow before Leaflet decides which tiles are worth requesting.
-    if (!boundsEqual(this.#blockBounds, state.blockBounds)) {
-      this.#blockBounds = state.blockBounds ?? null;
-      const bounds = this.#latLngBounds();
-      if (bounds) this.#layer.options.bounds = bounds;
+    if (!boundsEqual(this._blockBounds, state.blockBounds)) {
+      this._blockBounds = state.blockBounds ?? null;
+      const bounds = this._latLngBounds();
+      if (bounds) this._layer.options.bounds = bounds;
     }
 
-    this.#layer.setUrl(tileUrl(this.#dimension, this.#version));
+    this._layer.setUrl(tileUrl(this._dimension, this._version));
     return true;
   }
 }
