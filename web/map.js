@@ -47,19 +47,35 @@ async function main() {
     preferCanvas: false,
   });
 
-  // iOS Safari often lays out the map pane before the visual viewport settles
-  // (address bar, safe areas). Without invalidateSize, tiles stay blank.
+  // iOS Safari often lays out the map before the visual viewport settles
+  // (address bar / safe areas). invalidateSize fixes blank tiles — but must
+  // be debounced and size-gated: calling it on every visualViewport resize can
+  // recurse and crash the Safari tab ("A problem repeatedly occurred").
+  let lastMapSize = { w: 0, h: 0 };
+  let sizeRefreshTimer = 0;
   const refreshMapSize = () => {
+    const size = map.getSize();
+    if (size.x === lastMapSize.w && size.y === lastMapSize.h && lastMapSize.w !== 0) return;
+    lastMapSize = { w: size.x, h: size.y };
     map.invalidateSize({ pan: false });
+  };
+  const scheduleMapSizeRefresh = () => {
+    if (sizeRefreshTimer) clearTimeout(sizeRefreshTimer);
+    sizeRefreshTimer = window.setTimeout(() => {
+      sizeRefreshTimer = 0;
+      refreshMapSize();
+    }, 150);
   };
   requestAnimationFrame(() => {
     refreshMapSize();
-    setTimeout(refreshMapSize, 250);
+    scheduleMapSizeRefresh();
   });
-  window.addEventListener('orientationchange', () => setTimeout(refreshMapSize, 300));
-  window.addEventListener('resize', refreshMapSize);
+  window.addEventListener('orientationchange', scheduleMapSizeRefresh);
+  // Prefer visualViewport on iOS when present; otherwise window resize.
   if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', refreshMapSize);
+    window.visualViewport.addEventListener('resize', scheduleMapSizeRefresh);
+  } else {
+    window.addEventListener('resize', scheduleMapSizeRefresh);
   }
 
   const terrain = new TerrainLayer(map, info);
