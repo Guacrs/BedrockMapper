@@ -12,9 +12,8 @@
  * view settles - the same idea as BlueMap showing lower detail until you stop
  * on an area.
  *
- * Note: this file avoids private class fields/methods (`#name`) so the map
- * loads on older iOS Safari WebViews that reject that syntax and then fail the
- * whole ES-module graph.
+ * Note: this file avoids private class fields/methods (`#name`) — a specific
+ * Safari parse failure — rather than targeting very old iOS generally.
  */
 
 import { blockToLatLng } from './coords.js';

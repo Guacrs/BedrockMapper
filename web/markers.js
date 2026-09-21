@@ -4,9 +4,8 @@
  * Visitors always see markers from GET /api/markers. Create / edit / delete
  * need MARKER_API_KEY, kept in sessionStorage when an admin unlocks the map.
  *
- * Note: this file avoids private class fields/methods (`#name`) so the map
- * loads on older iOS Safari WebViews that reject that syntax and then fail the
- * whole ES-module graph.
+ * Note: this file avoids private class fields/methods (`#name`) — a specific
+ * Safari parse failure — rather than targeting very old iOS generally.
  */
 
 import { blockToLatLng, latLngToBlock } from './coords.js';

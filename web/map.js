@@ -51,13 +51,18 @@ async function main() {
   // (address bar / safe areas). invalidateSize fixes blank tiles — but must
   // be debounced and size-gated: calling it on every visualViewport resize can
   // recurse and crash the Safari tab ("A problem repeatedly occurred").
+  // Gate on the container's real DOM size, not map.getSize(): Leaflet caches
+  // getSize(), so a visualViewport-only change can look "unchanged" and skip
+  // the invalidate that would clear the stale cache.
   let lastMapSize = { w: 0, h: 0 };
   let sizeRefreshTimer = 0;
   const refreshMapSize = () => {
-    const size = map.getSize();
-    if (size.x === lastMapSize.w && size.y === lastMapSize.h && lastMapSize.w !== 0) return;
-    lastMapSize = { w: size.x, h: size.y };
-    map.invalidateSize({ pan: false });
+    const container = map.getContainer();
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    if (width === lastMapSize.w && height === lastMapSize.h && lastMapSize.w !== 0) return;
+    lastMapSize = { w: width, h: height };
+    map.invalidateSize({ pan: false, debounceMoveend: true });
   };
   const scheduleMapSizeRefresh = () => {
     if (sizeRefreshTimer) clearTimeout(sizeRefreshTimer);
