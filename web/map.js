@@ -42,8 +42,46 @@ async function main() {
     maxZoom: info.maxZoom,
     zoomControl: true,
     attributionControl: false,
-    preferCanvas: true,
+    // SVG is more reliable than Canvas on iOS Safari for circle markers /
+    // popups. Terrain tiles are still <img>, so this does not affect them.
+    preferCanvas: false,
   });
+
+  // iOS Safari often lays out the map before the visual viewport settles
+  // (address bar / safe areas). invalidateSize fixes blank tiles — but must
+  // be debounced and size-gated: calling it on every visualViewport resize can
+  // recurse and crash the Safari tab ("A problem repeatedly occurred").
+  // Gate on the container's real DOM size, not map.getSize(): Leaflet caches
+  // getSize(), so a visualViewport-only change can look "unchanged" and skip
+  // the invalidate that would clear the stale cache.
+  let lastMapSize = { w: 0, h: 0 };
+  let sizeRefreshTimer = 0;
+  const refreshMapSize = () => {
+    const container = map.getContainer();
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    if (width === lastMapSize.w && height === lastMapSize.h && lastMapSize.w !== 0) return;
+    lastMapSize = { w: width, h: height };
+    map.invalidateSize({ pan: false, debounceMoveend: true });
+  };
+  const scheduleMapSizeRefresh = () => {
+    if (sizeRefreshTimer) clearTimeout(sizeRefreshTimer);
+    sizeRefreshTimer = window.setTimeout(() => {
+      sizeRefreshTimer = 0;
+      refreshMapSize();
+    }, 150);
+  };
+  requestAnimationFrame(() => {
+    refreshMapSize();
+    scheduleMapSizeRefresh();
+  });
+  window.addEventListener('orientationchange', scheduleMapSizeRefresh);
+  // Prefer visualViewport on iOS when present; otherwise window resize.
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', scheduleMapSizeRefresh);
+  } else {
+    window.addEventListener('resize', scheduleMapSizeRefresh);
+  }
 
   const terrain = new TerrainLayer(map, info);
 

@@ -5,6 +5,9 @@
  * last sent. Markers are keyed so a moving player keeps its marker, a player who
  * joins gets one and a player who leaves loses it. Positions are converted with
  * the same block -> Leaflet mapping the terrain tiles use.
+ *
+ * Note: this file avoids private class fields/methods (`#name`) — a specific
+ * Safari parse failure — rather than targeting very old iOS generally.
  */
 
 import { blockToLatLng } from './coords.js';
@@ -134,24 +137,25 @@ function updateDetailsElement(element, player) {
 }
 
 export class PlayerLayer {
-  #map;
-  #dimension;
-  #layer;
-  #markers = new Map();
-
+  /**
+   * @param {any} map
+   * @param {string} dimension
+   */
   constructor(map, dimension) {
-    this.#map = map;
-    this.#dimension = dimension;
-    this.#layer = L.layerGroup().addTo(map);
+    this._map = map;
+    this._dimension = dimension;
+    this._layer = L.layerGroup().addTo(map);
+    /** @type {Map<string, any>} */
+    this._markers = new Map();
   }
 
   get size() {
-    return this.#markers.size;
+    return this._markers.size;
   }
 
   /** Marker keys currently on the map, for debugging and tests. */
   keys() {
-    return [...this.#markers.keys()];
+    return [...this._markers.keys()];
   }
 
   /**
@@ -160,7 +164,7 @@ export class PlayerLayer {
    * @param {string} key
    */
   markerFor(key) {
-    return this.#markers.get(key);
+    return this._markers.get(key);
   }
 
   /**
@@ -172,14 +176,14 @@ export class PlayerLayer {
    * @returns {PlayerReport[]} the players now shown
    */
   update(snapshot) {
-    const players = snapshot && !snapshot.stale ? visiblePlayers(snapshot.players, this.#dimension) : [];
+    const players = snapshot && !snapshot.stale ? visiblePlayers(snapshot.players, this._dimension) : [];
     const seen = new Set();
 
     for (const player of players) {
       const key = playerKey(player);
       seen.add(key);
       const position = blockToLatLng(player.x, player.z);
-      let marker = this.#markers.get(key);
+      let marker = this._markers.get(key);
 
       if (!marker) {
         marker = L.circleMarker(position, {
@@ -193,8 +197,8 @@ export class PlayerLayer {
         // Offset upwards so an open popup does not sit on top of the dot it
         // describes, which would hide the player while you read the numbers.
         marker.bindPopup(detailsElement(player), { offset: L.point(0, -8) });
-        marker.addTo(this.#layer);
-        this.#markers.set(key, marker);
+        marker.addTo(this._layer);
+        this._markers.set(key, marker);
       } else {
         marker.setLatLng(position);
         marker.setTooltipContent(player.name);
@@ -203,10 +207,10 @@ export class PlayerLayer {
       }
     }
 
-    for (const [key, marker] of this.#markers) {
+    for (const [key, marker] of this._markers) {
       if (seen.has(key)) continue;
-      this.#layer.removeLayer(marker);
-      this.#markers.delete(key);
+      this._layer.removeLayer(marker);
+      this._markers.delete(key);
     }
 
     return players;

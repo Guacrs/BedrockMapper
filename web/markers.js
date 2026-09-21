@@ -3,6 +3,9 @@
  *
  * Visitors always see markers from GET /api/markers. Create / edit / delete
  * need MARKER_API_KEY, kept in sessionStorage when an admin unlocks the map.
+ *
+ * Note: this file avoids private class fields/methods (`#name`) — a specific
+ * Safari parse failure — rather than targeting very old iOS generally.
  */
 
 import { blockToLatLng, latLngToBlock } from './coords.js';
@@ -58,7 +61,7 @@ export function markerColor(marker) {
 export function getStoredMarkerKey() {
   try {
     return sessionStorage.getItem(API_KEY_STORAGE) || '';
-  } catch {
+  } catch (_error) {
     return '';
   }
 }
@@ -67,7 +70,7 @@ export function setStoredMarkerKey(key) {
   try {
     if (key) sessionStorage.setItem(API_KEY_STORAGE, key);
     else sessionStorage.removeItem(API_KEY_STORAGE);
-  } catch {
+  } catch (_error) {
     /* private mode */
   }
 }
@@ -92,7 +95,7 @@ async function markerFetch(method, path, body) {
   let parsed = null;
   try {
     parsed = text ? JSON.parse(text) : null;
-  } catch {
+  } catch (_error) {
     parsed = { error: text || `HTTP ${response.status}` };
   }
   if (!response.ok) {
@@ -109,17 +112,17 @@ async function markerFetch(method, path, body) {
  */
 export class MarkerLayer {
   /**
-   * @param {L.Map} map
+   * @param {any} map
    */
   constructor(map) {
     this.map = map;
     this.group = L.layerGroup().addTo(map);
-    /** @type {Map<string, L.CircleMarker>} */
+    /** @type {Map<string, any>} */
     this.markers = new Map();
-    this.#bindMapEvents();
+    this._bindMapEvents();
   }
 
-  #bindMapEvents() {
+  _bindMapEvents() {
     // Right-click add is admin-only. Unauthenticated visitors get no prompt —
     // unlock via the "Edit markers" control or window.__setMapMarkerKey.
     this.map.on('contextmenu', (event) => {
@@ -152,7 +155,7 @@ export class MarkerLayer {
       if (existing) {
         existing.setLatLng(blockToLatLng(marker.x, marker.z));
         existing.setStyle({ color: markerColor(marker), fillColor: markerColor(marker) });
-        existing.setPopupContent(this.#popupHtml(marker));
+        existing.setPopupContent(this._popupHtml(marker));
         existing._mapMarker = marker;
       } else {
         const circle = L.circleMarker(blockToLatLng(marker.x, marker.z), {
@@ -163,8 +166,8 @@ export class MarkerLayer {
           weight: 2,
         });
         circle._mapMarker = marker;
-        circle.bindPopup(() => this.#popupHtml(circle._mapMarker), { maxWidth: 280 });
-        circle.on('popupopen', () => this.#wirePopupActions(circle));
+        circle.bindPopup(() => this._popupHtml(circle._mapMarker), { maxWidth: 280 });
+        circle.on('popupopen', () => this._wirePopupActions(circle));
         circle.addTo(this.group);
         this.markers.set(marker.id, circle);
       }
@@ -179,7 +182,7 @@ export class MarkerLayer {
   /**
    * @param {MapMarker} marker
    */
-  #popupHtml(marker) {
+  _popupHtml(marker) {
     const admin = Boolean(getStoredMarkerKey());
     const description = marker.description
       ? `<div class="marker-popup-desc">${escapeHtml(marker.description)}</div>`
@@ -199,9 +202,9 @@ export class MarkerLayer {
   }
 
   /**
-   * @param {L.CircleMarker} circle
+   * @param {any} circle
    */
-  #wirePopupActions(circle) {
+  _wirePopupActions(circle) {
     const root = circle.getPopup()?.getElement();
     if (!root) return;
     const marker = circle._mapMarker;
@@ -213,7 +216,7 @@ export class MarkerLayer {
       });
     });
     root.querySelector('[data-marker-delete]')?.addEventListener('click', async () => {
-      if (!confirm(`Delete marker “${marker.name}”?`)) return;
+      if (!confirm(`Delete marker "${marker.name}"?`)) return;
       try {
         await markerFetch('DELETE', `/api/markers/${encodeURIComponent(marker.id)}`);
         await this.reload();
@@ -310,12 +313,16 @@ export function promptForMarkerKey() {
 
 function escapeHtml(value) {
   return String(value)
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;');
+    .split('&')
+    .join('&amp;')
+    .split('<')
+    .join('&lt;')
+    .split('>')
+    .join('&gt;')
+    .split('"')
+    .join('&quot;');
 }
 
 function escapeAttr(value) {
-  return escapeHtml(value).replaceAll("'", '&#39;');
+  return escapeHtml(value).split("'").join('&#39;');
 }
