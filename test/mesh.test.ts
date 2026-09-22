@@ -221,7 +221,7 @@ describe('mesh cache', () => {
     assert.equal(cache.stats.hits, 1);
   });
 
-  it('invalidateAround drops the chunk and neighbours that sample it', () => {
+  it('invalidateAround drops the chunk and face-adjacent neighbours', () => {
     const cache = new MeshCache();
     const stub = (cx: number, cz: number): MeshChunk => ({
       chunkX: cx,
@@ -231,18 +231,23 @@ describe('mesh cache', () => {
       colors: [],
       indices: [],
     });
+    // Voxel face culling: self + four orthogonal neighbours.
     cache.set('overworld', 5, 5, stub(5, 5));
-    cache.set('overworld', 4, 5, stub(4, 5));
-    cache.set('overworld', 5, 4, stub(5, 4));
-    cache.set('overworld', 4, 4, stub(4, 4));
-    cache.set('overworld', 6, 6, stub(6, 6));
+    cache.set('overworld', 4, 5, stub(4, 5)); // west
+    cache.set('overworld', 6, 5, stub(6, 5)); // east
+    cache.set('overworld', 5, 4, stub(5, 4)); // north
+    cache.set('overworld', 5, 6, stub(5, 6)); // south
+    cache.set('overworld', 4, 4, stub(4, 4)); // diagonal — not needed
+    cache.set('overworld', 7, 7, stub(7, 7));
 
     const removed = cache.invalidateAround('overworld', 5, 5);
-    assert.equal(removed, 4);
+    assert.equal(removed, 5);
     assert.equal(cache.get('overworld', 5, 5), undefined);
     assert.equal(cache.get('overworld', 4, 5), undefined);
+    assert.equal(cache.get('overworld', 6, 5), undefined);
     assert.equal(cache.get('overworld', 5, 4), undefined);
-    assert.equal(cache.get('overworld', 4, 4), undefined);
-    assert.ok(cache.get('overworld', 6, 6));
+    assert.equal(cache.get('overworld', 5, 6), undefined);
+    assert.ok(cache.get('overworld', 4, 4));
+    assert.ok(cache.get('overworld', 7, 7));
   });
 });

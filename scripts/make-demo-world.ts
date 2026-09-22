@@ -43,6 +43,40 @@ function surfaceBlock(worldX: number, worldZ: number, y: number): string {
   return 'minecraft:grass_block';
 }
 
+/**
+ * Vertical structures for validating voxel meshing (tower, wall, steps, tree).
+ * Returns an override block name, or null to keep the terrain column.
+ */
+function structureBlock(worldX: number, worldY: number, worldZ: number): string | null {
+  // Stone tower near (32, 70, 32)
+  if (worldX >= 30 && worldX <= 33 && worldZ >= 30 && worldZ <= 33 && worldY >= 64 && worldY <= 82) {
+    return 'minecraft:stone';
+  }
+  // Cobble wall along z=20, x=10..25
+  if (worldZ === 20 && worldX >= 10 && worldX <= 25 && worldY >= 66 && worldY <= 72) {
+    return 'minecraft:cobblestone';
+  }
+  // Stepped cliff at x=55
+  if (worldX >= 54 && worldX <= 58 && worldZ >= 40 && worldZ <= 48) {
+    const step = worldX - 54;
+    if (worldY >= 64 && worldY <= 68 + step * 2) return 'minecraft:stone';
+  }
+  // Tiny oak-like tree at (45, ground, 12)
+  if (worldX === 45 && worldZ === 12 && worldY >= 68 && worldY <= 72) return 'minecraft:oak_log';
+  if (
+    worldY >= 72 &&
+    worldY <= 74 &&
+    worldX >= 44 &&
+    worldX <= 46 &&
+    worldZ >= 11 &&
+    worldZ <= 13 &&
+    !(worldX === 45 && worldZ === 12 && worldY < 73)
+  ) {
+    return 'minecraft:oak_leaves';
+  }
+  return null;
+}
+
 function buildSubChunk(subIndex: number, chunkX: number, chunkZ: number): Buffer | null {
   const baseY = subIndex * 16;
   const indices = new Array(4096).fill(0); // air
@@ -55,6 +89,9 @@ function buildSubChunk(subIndex: number, chunkX: number, chunkZ: number): Buffer
     paletteEntry('minecraft:water'),
     paletteEntry('minecraft:sand'),
     paletteEntry('minecraft:podzol'),
+    paletteEntry('minecraft:cobblestone'),
+    paletteEntry('minecraft:oak_log'),
+    paletteEntry('minecraft:oak_leaves'),
   ];
   const idOf: Record<string, number> = {
     'minecraft:air': 0,
@@ -64,6 +101,9 @@ function buildSubChunk(subIndex: number, chunkX: number, chunkZ: number): Buffer
     'minecraft:water': 4,
     'minecraft:sand': 5,
     'minecraft:podzol': 6,
+    'minecraft:cobblestone': 7,
+    'minecraft:oak_log': 8,
+    'minecraft:oak_leaves': 9,
   };
 
   for (let lx = 0; lx < 16; lx++) {
@@ -74,9 +114,16 @@ function buildSubChunk(subIndex: number, chunkX: number, chunkZ: number): Buffer
       for (let ly = 0; ly < 16; ly++) {
         const y = baseY + ly;
         let block = 'minecraft:air';
-        if (y < top - 3) block = 'minecraft:stone';
-        else if (y < top) block = 'minecraft:dirt';
-        else if (y === top) block = surfaceBlock(worldX, worldZ, y);
+        const structure = structureBlock(worldX, y, worldZ);
+        if (structure) {
+          block = structure;
+        } else if (y < top - 3) {
+          block = 'minecraft:stone';
+        } else if (y < top) {
+          block = 'minecraft:dirt';
+        } else if (y === top) {
+          block = surfaceBlock(worldX, worldZ, y);
+        }
         if (block !== 'minecraft:air') anySolid = true;
         indices[blockIndex(lx, ly, lz)] = idOf[block] ?? 0;
       }

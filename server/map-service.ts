@@ -15,7 +15,8 @@
 import { silentLogger, type Logger } from './log.ts';
 import { encodePng } from './renderer/chunk-image.ts';
 import { MeshCache } from './renderer/3d/mesh-cache.ts';
-import { buildTerrainMesh } from './renderer/3d/mesh-builder.ts';
+import { ChunkBlocks } from './renderer/3d/chunk-blocks.ts';
+import { buildVoxelMesh } from './renderer/3d/voxel-mesh-builder.ts';
 import { type MeshChunk } from './renderer/3d/mesh-types.ts';
 import {
   NATIVE_ZOOM,
@@ -189,6 +190,8 @@ export class MapService {
   #dimension: Dimension = OVERWORLD;
   #surfaces = new Map<string, ChunkSurface | null>();
   #surfacesInFlight = new Map<string, Promise<ChunkSurface | null>>();
+  #chunkBlocks = new Map<string, ChunkBlocks | null>();
+  #chunkBlocksInFlight = new Map<string, Promise<ChunkBlocks | null>>();
   #inFlight = new Map<string, Promise<TileResult>>();
   #emptyTile: Uint8Array;
   #decodedChunks = 0;
@@ -387,9 +390,44 @@ export class MapService {
   }
 
   /**
-   * Terrain mesh for one Minecraft chunk. Colours come from the same surface
-   * colour pipeline as 2D tiles (without slope shading). Returns null when the
-   * chunk has no block data in the scanned world.
+   * Decoded block volume for voxel meshing. Same LevelDB path as surfaces;
+   * memoised so neighbouring mesh builds share neighbour decodes.
+   */
+  async chunkBlocks(chunkX: number, chunkZ: number): Promise<ChunkBlocks | null> {
+    const key = chunkId(chunkX, chunkZ);
+    if (this.#chunkBlocks.has(key)) return this.#chunkBlocks.get(key)!;
+    if (!this.hasChunkData(chunkX, chunkZ)) {
+      this.#chunkBlocks.set(key, null);
+      return null;
+    }
+
+    const pending = this.#chunkBlocksInFlight.get(key);
+    if (pending) return pending;
+
+    const work = (async (): Promise<ChunkBlocks | null> => {
+      const indices = this.#state.subChunkIndices.get(key);
+      const { subChunks } = await this.#world.readChunkSubChunks(
+        this.#dimension,
+        chunkX,
+        chunkZ,
+        indices,
+      );
+      const volume = ChunkBlocks.fromSubChunks(chunkX, chunkZ, subChunks);
+      this.#chunkBlocks.set(key, volume);
+      return volume;
+    })().finally(() => this.#chunkBlocksInFlight.delete(key));
+
+    this.#chunkBlocksInFlight.set(key, work);
+    return work;
+  }
+
+  /**
+   * Terrain mesh for one Minecraft chunk: exposed faces of full cubes, coloured
+   * with `blockColor`. Neighbour volumes are loaded for boundary face culling.
+   * Returns null when the chunk has no block data in the scanned world.
+   *
+   * The heightmap builder (`buildTerrainMesh` in mesh-builder.ts) remains in
+   * the tree for comparison/debugging but is no longer the `/api/mesh` path.
    */
   async mesh(dimension: DimensionId, chunkX: number, chunkZ: number): Promise<MeshChunk | null> {
     if (dimension !== this.#dimension.id) throw new Error(`Dimension not rendered: ${dimension}`);
@@ -401,14 +439,15 @@ export class MapService {
     const cached = this.#meshCache.get(dimension, chunkX, chunkZ);
     if (cached) return cached;
 
-    const [self, east, south, southEast] = await Promise.all([
-      this.surface(chunkX, chunkZ),
-      this.surface(chunkX + 1, chunkZ),
-      this.surface(chunkX, chunkZ + 1),
-      this.surface(chunkX + 1, chunkZ + 1),
+    const [self, west, east, north, south] = await Promise.all([
+      this.chunkBlocks(chunkX, chunkZ),
+      this.chunkBlocks(chunkX - 1, chunkZ),
+      this.chunkBlocks(chunkX + 1, chunkZ),
+      this.chunkBlocks(chunkX, chunkZ - 1),
+      this.chunkBlocks(chunkX, chunkZ + 1),
     ]);
 
-    const mesh = buildTerrainMesh(chunkX, chunkZ, { self, east, south, southEast });
+    const mesh = buildVoxelMesh(chunkX, chunkZ, { self, west, east, north, south });
     this.#meshCache.set(dimension, chunkX, chunkZ, mesh);
     return mesh;
   }
@@ -529,7 +568,11 @@ export class MapService {
     stats.removedChunks = diff.removed.length;
 
     // Let work already reading the old snapshot finish before it is closed.
-    await Promise.allSettled([...this.#inFlight.values(), ...this.#surfacesInFlight.values()]);
+    await Promise.allSettled([
+      ...this.#inFlight.values(),
+      ...this.#surfacesInFlight.values(),
+      ...this.#chunkBlocksInFlight.values(),
+    ]);
 
     const previous = this.#world;
     const previousBounds = this.#state.info.chunkBounds;
@@ -538,6 +581,7 @@ export class MapService {
 
     for (const chunk of diff.all) {
       this.#surfaces.delete(chunkId(chunk.x, chunk.z));
+      this.#chunkBlocks.delete(chunkId(chunk.x, chunk.z));
       this.#meshCache.invalidateAround(this.#dimension.id, chunk.x, chunk.z);
     }
 
@@ -660,7 +704,11 @@ export class MapService {
 
   async close(): Promise<void> {
     if (this.#refreshing) await this.#refreshing.catch(() => {});
-    await Promise.allSettled([...this.#inFlight.values(), ...this.#surfacesInFlight.values()]);
+    await Promise.allSettled([
+      ...this.#inFlight.values(),
+      ...this.#surfacesInFlight.values(),
+      ...this.#chunkBlocksInFlight.values(),
+    ]);
     await this.#world.close();
   }
 }

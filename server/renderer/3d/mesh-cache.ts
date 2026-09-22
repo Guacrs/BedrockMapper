@@ -2,10 +2,23 @@
  * In-memory mesh cache keyed by dimension + chunk coordinates.
  *
  * Invalidated when the world refresh reports that a chunk (or a neighbour that
- * contributed edge heights) changed. No disk persistence in this first PR.
+ * affects its exposed faces) changed. No disk persistence yet.
  */
 
 import { meshChunkKey, type MeshChunk } from './mesh-types.ts';
+
+/**
+ * Chunks whose voxel meshes can change when `(chunkX, chunkZ)` changes:
+ * the chunk itself plus the four face-adjacent neighbours (they cull against
+ * this chunk's border blocks).
+ */
+export const VOXEL_MESH_INVALIDATION_OFFSETS = [
+  [0, 0],
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+] as const;
 
 export class MeshCache {
   #entries = new Map<string, MeshChunk>();
@@ -28,17 +41,12 @@ export class MeshCache {
   }
 
   /**
-   * Drop the mesh for a changed chunk and every neighbour mesh that may have
-   * sampled its heights for the shared eastern/southern edge.
+   * Drop the mesh for a changed chunk and every neighbour mesh whose boundary
+   * face visibility may depend on it.
    */
   invalidateAround(dimension: string, chunkX: number, chunkZ: number): number {
     let removed = 0;
-    for (const [dx, dz] of [
-      [0, 0],
-      [-1, 0],
-      [0, -1],
-      [-1, -1],
-    ] as const) {
+    for (const [dx, dz] of VOXEL_MESH_INVALIDATION_OFFSETS) {
       if (this.delete(dimension, chunkX + dx, chunkZ + dz)) removed++;
     }
     return removed;
