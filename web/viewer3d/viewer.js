@@ -174,7 +174,11 @@ export class TerrainViewer3D {
         });
         URL.revokeObjectURL(url);
         texture.magFilter = THREE.NearestFilter;
-        texture.minFilter = THREE.NearestMipmapNearestFilter;
+        texture.minFilter = THREE.NearestFilter;
+        texture.generateMipmaps = false;
+        // Atlas UVs are authored in top-left image space (v increases downward).
+        // Keep flipY false so those UVs match the uploaded texels without inversion.
+        texture.flipY = false;
         texture.colorSpace = THREE.SRGBColorSpace;
         texture.needsUpdate = true;
         this._atlasTexture = texture;

@@ -97,9 +97,8 @@ export function faceCornerUvs(
   face: 'up' | 'down' | 'north' | 'south' | 'east' | 'west',
 ): readonly (readonly [number, number])[] {
   const { u0, v0, u1, v1 } = rect;
-  // v0 = top of tile in atlas (image y increases downward in file space, but
-  // Three.js UV v increases upward — we store atlas frames in top-left image
-  // space and flip v here so textures are upright on cubes).
+  // v0 = top of tile in atlas image space (y increases downward in the PNG).
+  // Three.js textures are loaded with flipY=false so these UVs map upright.
   const top = v0;
   const bot = v1;
   switch (face) {

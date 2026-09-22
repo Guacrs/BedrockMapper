@@ -23,6 +23,7 @@ import {
 import { type MeshChunk } from './mesh-types.ts';
 import { faceCornerUvs, loadAtlasMetadata, uvRectForKey } from './textures/atlas.ts';
 import { fullCubeFaceTexture, type CubeFace } from './textures/models.ts';
+import { isOverlayCompositedTextureKey } from './textures/overlay.ts';
 
 interface FaceDef {
   id: CubeFace;
@@ -134,9 +135,18 @@ const FACES: readonly FaceDef[] = [
   },
 ];
 
-function vertexRgb(blockName: string, hasTexture: boolean): [number, number, number] {
+function vertexRgb(
+  blockName: string,
+  hasTexture: boolean,
+  textureKey: string | null,
+): [number, number, number] {
   const resolved = resolveBlockColor(blockName);
-  if (hasTexture && resolved.tint === 'none') {
+  // Overlay-composited atlas frames already bake tint into opaque pixels
+  // (dirt stays dirt; mask pixels carry overlay_color). Do not multiply again.
+  if (
+    hasTexture &&
+    (resolved.tint === 'none' || (textureKey != null && isOverlayCompositedTextureKey(textureKey)))
+  ) {
     return [1, 1, 1];
   }
   const [cr, cg, cb] = hasTexture ? resolved.rgb : blockColor(blockName);
@@ -191,7 +201,7 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
             const rect =
               atlas && textureKey ? uvRectForKey(atlas, textureKey) : null;
             const hasTexture = rect != null;
-            const [r, g, b] = vertexRgb(name!, hasTexture);
+            const [r, g, b] = vertexRgb(name!, hasTexture, textureKey);
             const cornerUvs = rect
               ? faceCornerUvs(rect, face.id)
               : ([

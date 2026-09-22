@@ -17,6 +17,15 @@ import { decode as decodePng, encode as encodePng } from 'fast-png';
 
 import type { BlockAppearance, BlockAppearanceDatabase } from '../renderer/3d/textures/appearance.ts';
 import type { AtlasFrame, AtlasMetadata } from '../renderer/3d/textures/atlas.ts';
+import { resolveBlockColor } from '../renderer/colors.ts';
+import { loadBlockColorDatabase } from '../renderer/block-palette.ts';
+import {
+  applyOverlayColor,
+  overlayCompositedTextureKey,
+  overlayColorToHex,
+  parseOverlayColor,
+  type Rgb as OverlayRgb,
+} from '../renderer/3d/textures/overlay.ts';
 import {
   ATLAS_JSON_PATH,
   ATLAS_PNG_PATH,
@@ -89,22 +98,45 @@ function readVersion(root: string): string {
   return 'unknown';
 }
 
-type TerrainTextures = string | string[] | { path?: string; overlay_color?: string } | Array<string | { path?: string }>;
+type TerrainTextureRef = string | { path?: string; overlay_color?: string };
+type TerrainTextures = TerrainTextureRef | TerrainTextureRef[];
 
 interface TerrainEntry {
   textures?: TerrainTextures;
 }
 
-function firstTexturePath(textures: TerrainTextures | undefined): string | null {
+interface ResolvedTextureRef {
+  /** Resource path without extension, e.g. textures/blocks/grass_side */
+  path: string;
+  /** Present when terrain_texture requests overlay_color compositing. */
+  overlayColor?: string;
+}
+
+/**
+ * Pick the first usable texture reference from a terrain_texture `textures` value.
+ * Preserves overlay_color when the entry is an object (lost by path-only helpers).
+ */
+export function firstTextureRef(textures: TerrainTextures | undefined): ResolvedTextureRef | null {
   if (textures == null) return null;
-  if (typeof textures === 'string') return textures;
+  if (typeof textures === 'string') return { path: textures };
   if (Array.isArray(textures)) {
     if (textures.length === 0) return null;
     const first = textures[0]!;
-    if (typeof first === 'string') return first;
-    return first.path ?? null;
+    if (typeof first === 'string') return { path: first };
+    if (first.path) {
+      return {
+        path: first.path,
+        overlayColor: first.overlay_color,
+      };
+    }
+    return null;
   }
-  if (typeof textures === 'object') return textures.path ?? null;
+  if (typeof textures === 'object' && textures.path) {
+    return {
+      path: textures.path,
+      overlayColor: textures.overlay_color,
+    };
+  }
   return null;
 }
 
@@ -150,18 +182,59 @@ function loadRgba(absBase: string): RgbaImage | null {
   return null;
 }
 
+/**
+ * Resolve a blocks.json texture alias to an atlas key, loading (and optionally
+ * overlay-compositing) the image into `images`.
+ *
+ * `overlayColorOverride` replaces terrain_texture's overlay_color when the
+ * consuming block uses a biome tint method (Bedrock applies the grass colormap
+ * with the same alpha-mask blend at runtime; offline we bake plains neutral).
+ */
 function resolveAliasToKey(
   alias: string,
   textureData: Record<string, TerrainEntry>,
   resourcePackRoot: string,
+  images: Map<string, RgbaImage>,
+  overlayColorOverride?: OverlayRgb | null,
 ): string | null {
   const entry = textureData[alias];
   if (!entry) return null;
-  const resourcePath = firstTexturePath(entry.textures);
-  if (!resourcePath) return null;
-  const absBase = path.join(resourcePackRoot, resourcePath);
-  if (!loadRgba(absBase)) return null;
-  return toTextureKey(resourcePath);
+  const ref = firstTextureRef(entry.textures);
+  if (!ref) return null;
+  const absBase = path.join(resourcePackRoot, ref.path);
+  const source = loadRgba(absBase);
+  if (!source) return null;
+
+  const baseKey = toTextureKey(ref.path);
+  if (ref.overlayColor) {
+    const overlay = overlayColorOverride ?? parseOverlayColor(ref.overlayColor);
+    const key = overlayCompositedTextureKey(baseKey, overlayColorToHex(overlay));
+    if (!images.has(key)) {
+      images.set(key, applyOverlayColor(source, overlay));
+    }
+    return key;
+  }
+
+  if (!images.has(baseKey)) {
+    images.set(baseKey, source);
+  }
+  return baseKey;
+}
+
+/**
+ * If any runtime id for this blocks.json entry uses a biome tint method,
+ * return that method's plains/neutral tint so overlay masks bake the same
+ * green the mesher applies to grayscale tops via vertex colour.
+ */
+function biomeOverlayTintOverride(runtimeIds: Iterable<string>): OverlayRgb | null {
+  const db = loadBlockColorDatabase();
+  for (const id of runtimeIds) {
+    const tint = resolveBlockColor(id).tint;
+    if (tint === 'none') continue;
+    const hex = db.neutralTints?.[tint];
+    if (hex) return parseOverlayColor(hex);
+  }
+  return null;
 }
 
 type RawFaceTextures = string | Record<string, string>;
@@ -170,9 +243,17 @@ function normalizeAppearance(
   textures: RawFaceTextures,
   textureData: Record<string, TerrainEntry>,
   resourcePackRoot: string,
+  images: Map<string, RgbaImage>,
+  overlayColorOverride?: OverlayRgb | null,
 ): BlockAppearance | null {
   if (typeof textures === 'string') {
-    const key = resolveAliasToKey(textures, textureData, resourcePackRoot);
+    const key = resolveAliasToKey(
+      textures,
+      textureData,
+      resourcePackRoot,
+      images,
+      overlayColorOverride,
+    );
     if (!key) return null;
     return { all: key };
   }
@@ -184,21 +265,45 @@ function normalizeAppearance(
 
   // Require at least one resolvable face; prefer compact all/up/down/side form.
   if (upAlias && downAlias && sideAlias && upAlias === downAlias && downAlias === sideAlias) {
-    const key = resolveAliasToKey(upAlias, textureData, resourcePackRoot);
+    const key = resolveAliasToKey(
+      upAlias,
+      textureData,
+      resourcePackRoot,
+      images,
+      overlayColorOverride,
+    );
     return key ? { all: key } : null;
   }
 
   const appearance: BlockAppearance = {};
   if (upAlias) {
-    const key = resolveAliasToKey(upAlias, textureData, resourcePackRoot);
+    const key = resolveAliasToKey(
+      upAlias,
+      textureData,
+      resourcePackRoot,
+      images,
+      overlayColorOverride,
+    );
     if (key) appearance.up = key;
   }
   if (downAlias) {
-    const key = resolveAliasToKey(downAlias, textureData, resourcePackRoot);
+    const key = resolveAliasToKey(
+      downAlias,
+      textureData,
+      resourcePackRoot,
+      images,
+      overlayColorOverride,
+    );
     if (key) appearance.down = key;
   }
   if (sideAlias) {
-    const key = resolveAliasToKey(sideAlias, textureData, resourcePackRoot);
+    const key = resolveAliasToKey(
+      sideAlias,
+      textureData,
+      resourcePackRoot,
+      images,
+      overlayColorOverride,
+    );
     if (key) appearance.side = key;
   }
 
@@ -281,7 +386,7 @@ export function buildTextureAtlas(samplesPath?: string): {
   const version = readVersion(root);
 
   const blocks: Record<string, BlockAppearance> = {};
-  const neededKeys = new Set<string>();
+  const images = new Map<string, RgbaImage>();
 
   const blockKeys = Object.keys(blocksJson)
     .filter((k) => k !== 'format_version')
@@ -290,8 +395,6 @@ export function buildTextureAtlas(samplesPath?: string): {
   for (const shortName of blockKeys) {
     const def = blocksJson[shortName];
     if (!def?.textures) continue;
-    const appearance = normalizeAppearance(def.textures, textureData, resourcePack);
-    if (!appearance) continue;
 
     const runtimeIds = new Set<string>([`minecraft:${shortName}`]);
     for (const extra of EXTRA_IDS_BY_BLOCKS_JSON_KEY[shortName] ?? []) runtimeIds.add(extra);
@@ -300,25 +403,22 @@ export function buildTextureAtlas(samplesPath?: string): {
       if (key === shortName) runtimeIds.add(id);
     }
 
+    const overlayOverride = biomeOverlayTintOverride(runtimeIds);
+    const appearance = normalizeAppearance(
+      def.textures,
+      textureData,
+      resourcePack,
+      images,
+      overlayOverride,
+    );
+    if (!appearance) continue;
+
     for (const id of [...runtimeIds].sort()) {
       blocks[id] = appearance;
     }
-    for (const key of [appearance.all, appearance.up, appearance.down, appearance.side]) {
-      if (key) neededKeys.add(key);
-    }
   }
 
-  const sortedKeys = [...neededKeys].sort();
-  const images = new Map<string, RgbaImage>();
-  for (const key of sortedKeys) {
-    const absBase = path.join(resourcePack, 'textures', key);
-    const image = loadRgba(absBase);
-    if (!image) {
-      throw new Error(`Texture key ${key} was referenced but could not be loaded from disk`);
-    }
-    images.set(key, image);
-  }
-
+  const sortedKeys = [...images.keys()].sort();
   const tileSize = 16;
   const packed = packAtlas(sortedKeys, images, tileSize);
   const source = `Mojang/bedrock-samples resource_pack (${version})`;
