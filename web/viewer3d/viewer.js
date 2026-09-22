@@ -58,7 +58,17 @@ export class TerrainViewer3D {
     const width = Math.max(1, container.clientWidth);
     const height = Math.max(1, container.clientHeight);
     this.camera = new THREE.PerspectiveCamera(60, width / height, 0.5, 4000);
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    try {
+      this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    } catch (error) {
+      const message = document.createElement('div');
+      message.className = 'view3d-error';
+      message.textContent =
+        'WebGL is not available in this browser/session, so the 3D view cannot start. ' +
+        'Use a desktop browser with WebGL (Chrome/Firefox/Safari) or check chrome://gpu.';
+      container.appendChild(message);
+      throw error;
+    }
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(width, height);
     this.renderer.domElement.style.display = 'block';
