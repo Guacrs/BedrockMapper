@@ -305,12 +305,71 @@ describe(
       const page = await fetch(`${base}/`);
       assert.equal(page.status, 200);
       assert.match(page.headers.get('content-type') ?? '', /text\/html/);
-      assert.match(await page.text(), /<div id="map">/);
+      const html = await page.text();
+      assert.match(html, /<div id="map">/);
+      assert.match(html, /id="view3d"/);
+      assert.match(html, /id="mode-3d"/);
 
-      for (const asset of ['/map.js', '/style.css', '/vendor/leaflet/leaflet.js', '/vendor/leaflet/leaflet.css']) {
+      for (const asset of [
+        '/map.js',
+        '/style.css',
+        '/vendor/leaflet/leaflet.js',
+        '/vendor/leaflet/leaflet.css',
+        '/vendor/three/build/three.module.js',
+        '/viewer3d/viewer.js',
+      ]) {
         const response = await fetch(`${base}${asset}`);
         assert.equal(response.status, 200, `${asset} should be served`);
       }
+    });
+
+    it('serves terrain mesh JSON for a chunk with block data', async () => {
+      const bounds = started.map.info.chunkBounds;
+      assert.ok(bounds);
+      let chunkX = bounds!.minX;
+      let chunkZ = bounds!.minZ;
+      outer: for (let z = bounds!.minZ; z <= bounds!.maxZ; z++) {
+        for (let x = bounds!.minX; x <= bounds!.maxX; x++) {
+          if (started.map.hasChunkData(x, z)) {
+            chunkX = x;
+            chunkZ = z;
+            break outer;
+          }
+        }
+      }
+
+      const url = `${base}/api/mesh/overworld/${chunkX}/${chunkZ}`;
+      const first = await fetch(url);
+      assert.equal(first.status, 200);
+      const body = (await first.json()) as {
+        dimension: string;
+        chunkX: number;
+        chunkZ: number;
+        positions: number[];
+        normals: number[];
+        colors: number[];
+        indices: number[];
+      };
+      assert.equal(body.dimension, 'overworld');
+      assert.equal(body.chunkX, chunkX);
+      assert.equal(body.chunkZ, chunkZ);
+      assert.equal(body.positions.length % 3, 0);
+      assert.equal(body.normals.length, body.positions.length);
+      assert.equal(body.colors.length, body.positions.length);
+      assert.equal(body.indices.length % 3, 0);
+
+      const before = started.map.meshCacheStats;
+      const second = await fetch(url);
+      assert.equal(second.status, 200);
+      const after = started.map.meshCacheStats;
+      assert.ok(after.hits > before.hits, 'second mesh request should hit the cache');
+    });
+
+    it('returns 404 for mesh of an unknown or empty chunk', async () => {
+      const missing = await fetch(`${base}/api/mesh/overworld/999999/999999`);
+      assert.equal(missing.status, 404);
+      const badDim = await fetch(`${base}/api/mesh/nether/0/0`);
+      assert.equal(badDim.status, 404);
     });
 
     it('serves map info describing the real world', async () => {

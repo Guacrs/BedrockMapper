@@ -27,6 +27,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(here, '..');
 const WEB_ROOT = path.join(projectRoot, 'web');
 const LEAFLET_ROOT = path.join(projectRoot, 'node_modules', 'leaflet', 'dist');
+const THREE_ROOT = path.join(projectRoot, 'node_modules', 'three');
 
 const CONTENT_TYPES: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -38,6 +39,7 @@ const CONTENT_TYPES: Record<string, string> = {
 };
 
 const TILE_PATH = /^\/tiles\/([a-z]+)\/(-?\d+)\/(-?\d+)\/(-?\d+)\.png$/;
+const MESH_PATH = /^\/api\/mesh\/([a-z]+)\/(-?\d+)\/(-?\d+)$/;
 
 function sendJson(response: http.ServerResponse, status: number, body: unknown): void {
   const bytes = Buffer.from(JSON.stringify(body));
@@ -383,6 +385,38 @@ export async function startServer(config: Config, options: StartServerOptions = 
       return;
     }
 
+    const meshPath = MESH_PATH.exec(pathname);
+    if (meshPath) {
+      const [, dimensionId, chunkXRaw, chunkZRaw] = meshPath;
+      try {
+        dimensionById(dimensionId!);
+      } catch {
+        sendJson(response, 404, { error: 'unknown dimension' });
+        return;
+      }
+      const chunkX = Number(chunkXRaw);
+      const chunkZ = Number(chunkZRaw);
+      if (!Number.isInteger(chunkX) || !Number.isInteger(chunkZ)) {
+        sendJson(response, 400, { error: 'chunk coordinates must be integers' });
+        return;
+      }
+      try {
+        const mesh = await map.mesh(dimensionId as never, chunkX, chunkZ);
+        if (!mesh) {
+          sendJson(response, 404, { error: 'chunk not found', dimension: dimensionId, chunkX, chunkZ });
+          return;
+        }
+        sendJson(response, 200, { dimension: dimensionId, ...mesh });
+      } catch (error) {
+        log.warn('mesh.failed', {
+          chunk: `${dimensionId}/${chunkX}/${chunkZ}`,
+          error: message(error),
+        });
+        sendJson(response, 500, { error: 'mesh generation failed' });
+      }
+      return;
+    }
+
     const tile = TILE_PATH.exec(pathname);
     if (tile) {
       const [, dimensionId, zoom, x, y] = tile;
@@ -413,6 +447,12 @@ export async function startServer(config: Config, options: StartServerOptions = 
 
     if (pathname.startsWith('/vendor/leaflet/')) {
       if (await sendFile(response, LEAFLET_ROOT, pathname.slice('/vendor/leaflet/'.length))) return;
+      sendText(response, 404, 'not found');
+      return;
+    }
+
+    if (pathname.startsWith('/vendor/three/')) {
+      if (await sendFile(response, THREE_ROOT, pathname.slice('/vendor/three/'.length))) return;
       sendText(response, 404, 'not found');
       return;
     }

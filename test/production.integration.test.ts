@@ -62,8 +62,16 @@ describe(
       assert.equal(page.status, 200);
       const html = await page.text();
       assert.match(html, /id="map"/);
+      assert.match(html, /id="view3d"/);
+      assert.match(html, /id="mode-3d"/);
       assert.match(html, /id="terrain-status"/);
-      for (const asset of ['/map.js', '/status.js', '/style.css', '/vendor/leaflet/leaflet.js']) {
+      for (const asset of [
+        '/map.js',
+        '/status.js',
+        '/style.css',
+        '/vendor/leaflet/leaflet.js',
+        '/vendor/three/build/three.module.js',
+      ]) {
         assert.equal((await fetch(`${base}${asset}`)).status, 200, asset);
       }
     });

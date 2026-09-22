@@ -12,10 +12,23 @@
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
     <link rel="stylesheet" href="/style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "/vendor/three/build/three.module.js",
+          "three/addons/": "/vendor/three/examples/jsm/"
+        }
+      }
+    </script>
   </head>
   <body>
     <div id="map"></div>
+    <div id="view3d" hidden></div>
     <div id="status">
+      <div id="view-mode" role="group" aria-label="Map view mode">
+        <button type="button" id="mode-2d" class="mode-btn active" aria-pressed="true">2D</button>
+        <button type="button" id="mode-3d" class="mode-btn" aria-pressed="false">3D</button>
+      </div>
       <span id="terrain-status">Terrain: …</span>
       <span id="player-status">Players: …</span>
       <button type="button" id="marker-edit">Edit markers</button>

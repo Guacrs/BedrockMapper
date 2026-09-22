@@ -25,7 +25,8 @@
     "fast-png": "^8.0.0",
     "leaflet": "^1.9.4",
     "mcbe-leveldb": "^1.23.0",
-    "prismarine-nbt": "^2.8.0"
+    "prismarine-nbt": "^2.8.0",
+    "three": "^0.170.0"
   },
   "devDependencies": {
     "@types/node": "^24.3.0",

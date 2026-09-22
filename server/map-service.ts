@@ -14,6 +14,9 @@
 
 import { silentLogger, type Logger } from './log.ts';
 import { encodePng } from './renderer/chunk-image.ts';
+import { MeshCache } from './renderer/3d/mesh-cache.ts';
+import { buildTerrainMesh } from './renderer/3d/mesh-builder.ts';
+import { type MeshChunk } from './renderer/3d/mesh-types.ts';
 import {
   NATIVE_ZOOM,
   TILE_SIZE,
@@ -201,6 +204,7 @@ export class MapService {
   /** tile "x,y" -> earliest time another digest-driven invalidate is allowed. */
   #tileCooldownUntil = new Map<string, number>();
   #tileRenderSlots: Semaphore;
+  #meshCache = new MeshCache();
   #log: Logger;
 
   private constructor(
@@ -383,6 +387,37 @@ export class MapService {
   }
 
   /**
+   * Terrain mesh for one Minecraft chunk. Colours come from the same surface
+   * colour pipeline as 2D tiles (without slope shading). Returns null when the
+   * chunk has no block data in the scanned world.
+   */
+  async mesh(dimension: DimensionId, chunkX: number, chunkZ: number): Promise<MeshChunk | null> {
+    if (dimension !== this.#dimension.id) throw new Error(`Dimension not rendered: ${dimension}`);
+    if (!Number.isInteger(chunkX) || !Number.isInteger(chunkZ)) {
+      throw new Error('chunk coordinates must be integers');
+    }
+    if (!this.hasChunkData(chunkX, chunkZ)) return null;
+
+    const cached = this.#meshCache.get(dimension, chunkX, chunkZ);
+    if (cached) return cached;
+
+    const [self, east, south, southEast] = await Promise.all([
+      this.surface(chunkX, chunkZ),
+      this.surface(chunkX + 1, chunkZ),
+      this.surface(chunkX, chunkZ + 1),
+      this.surface(chunkX + 1, chunkZ + 1),
+    ]);
+
+    const mesh = buildTerrainMesh(chunkX, chunkZ, { self, east, south, southEast });
+    this.#meshCache.set(dimension, chunkX, chunkZ, mesh);
+    return mesh;
+  }
+
+  get meshCacheStats(): { size: number; hits: number; misses: number } {
+    return this.#meshCache.stats;
+  }
+
+  /**
    * Brings the map up to date with the live world.
    *
    * Cheap when nothing changed: one readdir plus a stat per database file. When
@@ -501,7 +536,10 @@ export class MapService {
     this.#world = next;
     this.#state = stateFromScan(next, scan, this.#options);
 
-    for (const chunk of diff.all) this.#surfaces.delete(chunkId(chunk.x, chunk.z));
+    for (const chunk of diff.all) {
+      this.#surfaces.delete(chunkId(chunk.x, chunk.z));
+      this.#meshCache.invalidateAround(this.#dimension.id, chunk.x, chunk.z);
+    }
 
     await this.tileCache.setSourceId(next.snapshot.sourceId);
     await previous.close().catch(() => {});

@@ -3,8 +3,9 @@
 A lightweight top-down web map for an **official Mojang Minecraft Bedrock Dedicated Server**.
 It reads the live world through a snapshot of its LevelDB and shows online players as markers.
 
-It is not a BlueMap clone: no 3D, no isometric view, no Minecraft textures, no accounts. One process,
-one Overworld map, procedural colours.
+It is not a BlueMap clone. The default view is a 2D Leaflet map. An **experimental** Three.js
+surface-terrain 3D mode is available from the same page (no Minecraft textures, no caves, no
+entities yet). One process, one Overworld map, colours from the shared BedrockMapper palette.
 
 Verified against **Bedrock Dedicated Server 1.26.51.1**.
 
@@ -188,6 +189,29 @@ addresses.
 The map page shows a small status in the top right: when the terrain last updated, and whether player
 reports are live or stale. A failed refresh keeps the last good map on screen and says so.
 
+Use the **2D / 3D** toggle (top right) to switch views. 2D is the existing Leaflet map. 3D is an
+experimental surface mesh viewer (Three.js) that streams Minecraft chunks around the camera.
+
+Append `?debug3d=1` to show loaded chunk count, camera Minecraft coordinates and FPS in 3D mode.
+
+### Experimental 3D mode
+
+3D reuses the same world snapshot, surface scan and `surfaceBlockColor` pipeline as 2D tiles.
+Elevation comes from each column's surface Y; vertex colours include biome tint and water depth, but
+**not** the 2D slope shade (Three.js lighting shades via normals instead).
+
+| Item | Detail |
+| --- | --- |
+| Toggle | **2D** / **3D** buttons on the map page |
+| API | `GET /api/mesh/:dimension/:chunkX/:chunkZ` → JSON mesh (`positions`, `normals`, `colors`, `indices`) |
+| Streaming | Loads ~`(2r+1)²` chunks around the camera (`r = 4`); unloads beyond radius 6 |
+| Cache | In-memory mesh cache; invalidated when world refresh digests change |
+| Coordinates | Minecraft X/Y/Z map 1:1 to Three.js X/Y/Z |
+
+**Current limitations (intentional for this first PR):** no texture packs, no full block models,
+no caves/underground, no water transparency, no 3D players/markers yet, no LOD. Large worlds still
+rely on the cold-tile concurrency caps from the 2D path when you switch back to Leaflet.
+
 ## Shared map markers
 
 Persistent POIs (bases, farms, villages, portals, …) are separate from live player markers.
@@ -263,7 +287,9 @@ npm run typecheck
 ## Known limitations
 
 - Overworld only. The Nether and the End are not rendered.
-- One rendered zoom level (1 pixel per block). Zooming out scales tiles in the browser.
+- One rendered zoom level for 2D (1 pixel per block). Zooming out scales tiles in the browser.
+- Experimental 3D is a **surface heightmap only** — not a BlueMap-complete viewer (no textures,
+  caves, entities, markers-in-3D, or LOD yet).
 - Terrain is as fresh as `WORLD_REFRESH_INTERVAL` **and** as fresh as BDS's own saving.
   Tiles that just redrew also respect `TILE_UPDATE_COOLDOWN` so busy areas are not
   redrawn on every save. The browser only fetches new tiles after pan/zoom settles.

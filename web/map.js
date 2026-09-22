@@ -14,6 +14,9 @@
  * is replaced with an identity one to keep lat pointing the same way as Z.
  * Negative coordinates need no special handling: floor division is used
  * everywhere, on the server and here.
+ *
+ * An experimental 3D surface viewer (Three.js) shares the same page via the
+ * 2D / 3D toggle; Leaflet is never replaced.
  */
 
 import { blockToLatLng, latLngToBlock } from './coords.js';
@@ -32,9 +35,14 @@ const viewLabel = document.getElementById('view');
 const playersLabel = document.getElementById('players');
 const terrainStatusLabel = document.getElementById('terrain-status');
 const playerStatusLabel = document.getElementById('player-status');
+const mapEl = document.getElementById('map');
+const view3dEl = document.getElementById('view3d');
+const mode2dBtn = document.getElementById('mode-2d');
+const mode3dBtn = document.getElementById('mode-3d');
 
 async function main() {
   const info = await fetch('/api/map/info').then((response) => response.json());
+  const debug3d = new URLSearchParams(window.location.search).has('debug3d');
 
   const map = L.map('map', {
     crs: MinecraftCRS,
@@ -97,6 +105,56 @@ async function main() {
   }
 
   worldLabel.textContent = worldSummary(info.world, info);
+
+  /** @type {import('./viewer3d/viewer.js').TerrainViewer3D | null} */
+  let viewer3d = null;
+  let viewMode = '2d';
+  let switching = false;
+
+  async function setViewMode(mode) {
+    if (mode !== '2d' && mode !== '3d') return;
+    if (switching) return;
+    switching = true;
+    try {
+      viewMode = mode;
+      const is3d = mode === '3d';
+
+      if (mapEl) mapEl.hidden = is3d;
+      if (view3dEl) view3dEl.hidden = !is3d;
+      mode2dBtn?.classList.toggle('active', !is3d);
+      mode3dBtn?.classList.toggle('active', is3d);
+      mode2dBtn?.setAttribute('aria-pressed', String(!is3d));
+      mode3dBtn?.setAttribute('aria-pressed', String(is3d));
+
+      if (is3d) {
+        if (!viewer3d && view3dEl) {
+          const { TerrainViewer3D } = await import('./viewer3d/viewer.js');
+          viewer3d = new TerrainViewer3D(view3dEl, {
+            dimension: info.dimension,
+            center: info.center,
+            debug: debug3d,
+          });
+          viewer3d.start();
+          window.__viewer3d = viewer3d;
+        } else {
+          viewer3d?.resume();
+          viewer3d?.resize();
+        }
+      } else {
+        viewer3d?.pause();
+        scheduleMapSizeRefresh();
+      }
+    } finally {
+      switching = false;
+    }
+  }
+
+  mode2dBtn?.addEventListener('click', () => {
+    void setViewMode('2d');
+  });
+  mode3dBtn?.addEventListener('click', () => {
+    void setViewMode('3d');
+  });
 
   function paintStatus(line, element) {
     if (!element) return;
@@ -249,9 +307,11 @@ async function main() {
   window.__pollPlayers = pollPlayers;
   window.__terrain = terrain;
   window.__pollTerrain = pollTerrain;
+  window.__setViewMode = setViewMode;
   window.__status = () => ({
     terrain: terrainStatusLabel?.textContent ?? '',
     players: playerStatusLabel?.textContent ?? '',
+    viewMode,
   });
 
   await pollPlayers();
