@@ -250,4 +250,23 @@ describe('mesh cache', () => {
     assert.ok(cache.get('overworld', 4, 4));
     assert.ok(cache.get('overworld', 7, 7));
   });
+
+  it('evicts the oldest mesh when the cache is full', () => {
+    const cache = new MeshCache(2);
+    const stub = (cx: number): MeshChunk => ({
+      chunkX: cx,
+      chunkZ: 0,
+      positions: [0, 0, 0],
+      normals: [0, 1, 0],
+      colors: [1, 0, 0],
+      indices: [],
+    });
+    cache.set('overworld', 0, 0, stub(0));
+    cache.set('overworld', 1, 0, stub(1));
+    cache.set('overworld', 2, 0, stub(2));
+    assert.equal(cache.size, 2);
+    assert.equal(cache.get('overworld', 0, 0), undefined);
+    assert.ok(cache.get('overworld', 1, 0));
+    assert.ok(cache.get('overworld', 2, 0));
+  });
 });

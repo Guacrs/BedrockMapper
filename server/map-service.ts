@@ -48,6 +48,9 @@ import { BedrockWorld, type WorldScan } from './world/world.ts';
 /** Upper bound on cached chunk surfaces (~1 KB each). */
 const SURFACE_CACHE_LIMIT = 8192;
 
+/** Decoded block volumes for voxel meshing — larger than a surface. */
+const CHUNK_BLOCK_CACHE_LIMIT = 512;
+
 /** Default how many invalidated tiles are redrawn at once during a refresh. */
 const DEFAULT_REFRESH_RENDER_CONCURRENCY = 2;
 
@@ -77,8 +80,13 @@ export interface MapInfo {
 
 /** What the browser polls for: has the terrain changed, and how does it look now. */
 export interface MapState {
-  /** Incremented whenever terrain changed; part of the tile URL. */
+  /** Incremented whenever 2D terrain tiles changed; part of the tile URL. */
   version: number;
+  /**
+   * Incremented whenever any chunk digest changed (including underground /
+   * structure edits that may not alter top-down tiles). Drives 3D mesh reload.
+   */
+  meshVersion: number;
   /** When the terrain last changed, or null if it has not since startup. */
   terrainUpdatedAt: string | null;
   chunkCount: number;
@@ -110,6 +118,7 @@ export interface RefreshStats {
   tilesChanged: number;
   totalMs: number;
   version: number;
+  meshVersion: number;
   /** Set when the refresh failed; the previous snapshot is still being served. */
   error: string | null;
 }
@@ -196,6 +205,7 @@ export class MapService {
   #emptyTile: Uint8Array;
   #decodedChunks = 0;
   #version = 1;
+  #meshVersion = 1;
   #terrainUpdatedAt: string | null = null;
   #refreshing: Promise<RefreshStats> | null = null;
   #lastRefresh: RefreshStats | null = null;
@@ -259,10 +269,15 @@ export class MapService {
     return this.#version;
   }
 
+  get meshVersion(): number {
+    return this.#meshVersion;
+  }
+
   get state(): MapState {
     const info = this.#state.info;
     return {
       version: this.#version,
+      meshVersion: this.#meshVersion,
       terrainUpdatedAt: this.#terrainUpdatedAt,
       chunkCount: info.chunkCount,
       chunkBounds: info.chunkBounds,
@@ -395,11 +410,14 @@ export class MapService {
    */
   async chunkBlocks(chunkX: number, chunkZ: number): Promise<ChunkBlocks | null> {
     const key = chunkId(chunkX, chunkZ);
-    if (this.#chunkBlocks.has(key)) return this.#chunkBlocks.get(key)!;
-    if (!this.hasChunkData(chunkX, chunkZ)) {
-      this.#chunkBlocks.set(key, null);
-      return null;
+    if (this.#chunkBlocks.has(key)) {
+      // Refresh insertion order so recently used volumes survive FIFO eviction.
+      const hit = this.#chunkBlocks.get(key)!;
+      this.#chunkBlocks.delete(key);
+      this.#chunkBlocks.set(key, hit);
+      return hit;
     }
+    if (!this.hasChunkData(chunkX, chunkZ)) return null;
 
     const pending = this.#chunkBlocksInFlight.get(key);
     if (pending) return pending;
@@ -413,6 +431,12 @@ export class MapService {
         indices,
       );
       const volume = ChunkBlocks.fromSubChunks(chunkX, chunkZ, subChunks);
+      if (this.#chunkBlocks.has(key)) this.#chunkBlocks.delete(key);
+      while (this.#chunkBlocks.size >= CHUNK_BLOCK_CACHE_LIMIT) {
+        const oldest = this.#chunkBlocks.keys().next().value;
+        if (oldest === undefined) break;
+        this.#chunkBlocks.delete(oldest);
+      }
       this.#chunkBlocks.set(key, volume);
       return volume;
     })().finally(() => this.#chunkBlocksInFlight.delete(key));
@@ -495,6 +519,7 @@ export class MapService {
       tilesChanged: 0,
       totalMs: 0,
       version: this.#version,
+      meshVersion: this.#meshVersion,
       error: null,
     };
     this.#refreshCount++;
@@ -502,6 +527,7 @@ export class MapService {
     const finish = (): RefreshStats => {
       stats.totalMs = performance.now() - startedAt;
       stats.version = this.#version;
+      stats.meshVersion = this.#meshVersion;
       this.#lastRefresh = stats;
       return stats;
     };
@@ -583,6 +609,12 @@ export class MapService {
       this.#surfaces.delete(chunkId(chunk.x, chunk.z));
       this.#chunkBlocks.delete(chunkId(chunk.x, chunk.z));
       this.#meshCache.invalidateAround(this.#dimension.id, chunk.x, chunk.z);
+    }
+
+    // Voxel meshes can change from underground / structure edits that never
+    // alter a top-down tile. Bump meshVersion whenever any chunk digest moved.
+    if (diff.all.length > 0) {
+      this.#meshVersion++;
     }
 
     await this.tileCache.setSourceId(next.snapshot.sourceId);

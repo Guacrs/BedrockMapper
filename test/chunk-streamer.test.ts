@@ -85,4 +85,29 @@ describe('ChunkStreamer retry cooldown', () => {
 
     streamer.dispose();
   });
+
+  it('forgetLoaded clears loaded tracking without a permanent blacklist', async () => {
+    let attempts = 0;
+    const streamer = new ChunkStreamer({
+      viewDistance: 0,
+      unloadDistance: 1,
+      loadChunk: async () => {
+        attempts++;
+        return true;
+      },
+      unloadChunk: () => {},
+    });
+
+    await streamer.update({ x: 0, y: 64, z: 0 });
+    assert.equal(attempts, 1);
+    assert.equal(streamer.loadedChunks.has('0,0'), true);
+
+    streamer.forgetLoaded();
+    assert.equal(streamer.loadedChunks.size, 0);
+
+    await streamer.update({ x: 0, y: 64, z: 0 });
+    assert.equal(attempts, 2);
+
+    streamer.dispose();
+  });
 });

@@ -28,6 +28,7 @@ function stats(overrides: Partial<RefreshStats> = {}): RefreshStats {
     tilesChanged: 0,
     totalMs: 60,
     version: 1,
+    meshVersion: 1,
     error: null,
     ...overrides,
   };

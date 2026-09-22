@@ -29,6 +29,7 @@ import { blockToLatLng } from './coords.js';
 /**
  * @typedef {object} MapState
  * @property {number} version
+ * @property {number} [meshVersion]
  * @property {string | null} terrainUpdatedAt
  * @property {number} chunkCount
  * @property {Bounds | null} chunkBounds

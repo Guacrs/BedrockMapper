@@ -133,6 +133,7 @@ async function main() {
             dimension: info.dimension,
             center: info.center,
             debug: debug3d,
+            meshVersion: info.meshVersion ?? 1,
           });
           viewer3d.start();
           window.__viewer3d = viewer3d;
@@ -169,6 +170,7 @@ async function main() {
     refreshError: null,
     consecutiveRefreshFailures: 0,
   };
+  let lastMeshVersion = info.meshVersion ?? 1;
   let lastPlayerSnapshot = null;
   let terrainUnreachable = false;
   let tileErrors = 0;
@@ -223,6 +225,14 @@ async function main() {
       if (tileErrors) tileErrors = 0;
       lastTerrainState = state;
       if (terrain.update(state)) worldLabel.textContent = worldSummary(info.world, state);
+      if (
+        viewer3d &&
+        typeof state.meshVersion === 'number' &&
+        state.meshVersion !== lastMeshVersion
+      ) {
+        lastMeshVersion = state.meshVersion;
+        viewer3d.reloadMeshes(state.meshVersion);
+      }
       refreshStatus();
       return state;
     } catch (error) {

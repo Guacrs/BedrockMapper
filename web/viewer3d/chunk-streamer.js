@@ -148,6 +148,7 @@ export class ChunkStreamer {
       const [cx, cz] = key.split(',').map(Number);
       const work = this._loadChunk(cx, cz)
         .then((result) => {
+          if (result === 'stale') return result;
           if (result !== false) {
             this.loadedChunks.add(key);
             this._retryAfter.delete(key);
@@ -179,6 +180,15 @@ export class ChunkStreamer {
     }
     this.loadedChunks.clear();
     this.loadingChunks.clear();
+    this._retryAfter.clear();
+  }
+
+  /**
+   * Forget which chunks are considered loaded so the next `update()` will
+   * request them again. Does not unload Three.js objects — the viewer does that.
+   */
+  forgetLoaded() {
+    this.loadedChunks.clear();
     this._retryAfter.clear();
   }
 }

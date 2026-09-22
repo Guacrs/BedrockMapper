@@ -51,6 +51,9 @@ export class TerrainViewer3D {
     this._fps = 0;
     this._frames = 0;
     this._fpsWindowStart = 0;
+    /** Bumped on meshVersion changes so in-flight loads can abort cleanly. */
+    this._meshEpoch = 0;
+    this._meshVersion = options.meshVersion ?? 1;
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x10151c);
@@ -193,13 +196,16 @@ export class TerrainViewer3D {
   async _loadChunk(chunkX, chunkZ) {
     const key = chunkKey(chunkX, chunkZ);
     if (this._meshes.has(key)) return true;
+    const epoch = this._meshEpoch;
 
     const response = await fetch(`/api/mesh/${this.dimension}/${chunkX}/${chunkZ}`);
+    if (epoch !== this._meshEpoch || this._disposed) return 'stale';
     if (response.status === 404) return false;
     if (!response.ok) throw new Error(`mesh HTTP ${response.status}`);
     const mesh = await response.json();
+    if (epoch !== this._meshEpoch || this._disposed) return 'stale';
     if (!mesh?.positions?.length || !mesh?.indices?.length) return false;
-    if (this._disposed || this._meshes.has(key)) return false;
+    if (this._meshes.has(key)) return true;
 
     const geometry = meshToGeometry(mesh);
     const object = new THREE.Mesh(geometry, this.material);
@@ -252,6 +258,27 @@ export class TerrainViewer3D {
     this.controls.target.set(x, y, z);
     this.camera.position.set(x + 64, y + 80, z + 64);
     this.controls.update();
+    void this.streamer.update(this._focus);
+  }
+
+  /**
+   * Drop every loaded chunk mesh and fetch them again.
+   * Called when `/api/map/state` reports a new `meshVersion`.
+   *
+   * @param {number} [meshVersion]
+   */
+  reloadMeshes(meshVersion) {
+    if (this._disposed) return;
+    if (meshVersion !== undefined) {
+      if (meshVersion === this._meshVersion) return;
+      this._meshVersion = meshVersion;
+    }
+    this._meshEpoch++;
+    for (const key of [...this._meshes.keys()]) {
+      const [cx, cz] = key.split(',').map(Number);
+      this._unloadChunk(cx, cz);
+    }
+    this.streamer.forgetLoaded();
     void this.streamer.update(this._focus);
   }
 

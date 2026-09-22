@@ -2,7 +2,8 @@
  * In-memory mesh cache keyed by dimension + chunk coordinates.
  *
  * Invalidated when the world refresh reports that a chunk (or a neighbour that
- * affects its exposed faces) changed. No disk persistence yet.
+ * affects its exposed faces) changed. Bounded with FIFO eviction so exploring
+ * a large world cannot grow the Node heap without limit.
  */
 
 import { meshChunkKey, type MeshChunk } from './mesh-types.ts';
@@ -20,20 +21,42 @@ export const VOXEL_MESH_INVALIDATION_OFFSETS = [
   [0, -1],
 ] as const;
 
+/** Default cap on retained chunk meshes (one mesh can be large). */
+export const DEFAULT_MESH_CACHE_LIMIT = 512;
+
 export class MeshCache {
   #entries = new Map<string, MeshChunk>();
   #hits = 0;
   #misses = 0;
+  #limit: number;
+
+  constructor(limit: number = DEFAULT_MESH_CACHE_LIMIT) {
+    this.#limit = Math.max(1, limit);
+  }
 
   get(dimension: string, chunkX: number, chunkZ: number): MeshChunk | undefined {
-    const hit = this.#entries.get(meshChunkKey(dimension, chunkX, chunkZ));
-    if (hit) this.#hits++;
-    else this.#misses++;
+    const key = meshChunkKey(dimension, chunkX, chunkZ);
+    const hit = this.#entries.get(key);
+    if (hit) {
+      // Refresh insertion order so recently used entries survive FIFO eviction.
+      this.#entries.delete(key);
+      this.#entries.set(key, hit);
+      this.#hits++;
+    } else {
+      this.#misses++;
+    }
     return hit;
   }
 
   set(dimension: string, chunkX: number, chunkZ: number, mesh: MeshChunk): void {
-    this.#entries.set(meshChunkKey(dimension, chunkX, chunkZ), mesh);
+    const key = meshChunkKey(dimension, chunkX, chunkZ);
+    if (this.#entries.has(key)) this.#entries.delete(key);
+    while (this.#entries.size >= this.#limit) {
+      const oldest = this.#entries.keys().next().value;
+      if (oldest === undefined) break;
+      this.#entries.delete(oldest);
+    }
+    this.#entries.set(key, mesh);
   }
 
   delete(dimension: string, chunkX: number, chunkZ: number): boolean {
@@ -60,7 +83,11 @@ export class MeshCache {
     return this.#entries.size;
   }
 
-  get stats(): { size: number; hits: number; misses: number } {
-    return { size: this.#entries.size, hits: this.#hits, misses: this.#misses };
+  get limit(): number {
+    return this.#limit;
+  }
+
+  get stats(): { size: number; hits: number; misses: number; limit: number } {
+    return { size: this.#entries.size, hits: this.#hits, misses: this.#misses, limit: this.#limit };
   }
 }

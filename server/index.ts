@@ -358,6 +358,7 @@ export async function startServer(config: Config, options: StartServerOptions = 
       sendJson(response, 200, {
         ...map.info,
         version: map.version,
+        meshVersion: map.meshVersion,
         worldRefreshInterval: config.worldRefreshInterval,
         terrainPollInterval: terrainPollInterval(config.worldRefreshInterval),
         playerPollInterval: config.playerUpdateInterval,
