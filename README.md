@@ -208,7 +208,7 @@ normals.
 | Toggle | **2D** / **3D** buttons on the map page |
 | API | `GET /api/mesh/:dimension/:chunkX/:chunkZ` → JSON mesh (`positions`, `normals`, `colors`, `indices`) |
 | Streaming | Loads ~`(2r+1)²` chunks around the camera (`r = 4`); unloads beyond radius 6 |
-| Cache | In-memory mesh + block-volume caches (FIFO capped); invalidated for the chunk **and** its four face neighbours when digests change |
+| Cache | In-memory mesh + block-volume caches (LRU, capped at 512); invalidated for the chunk **and** its four face neighbours when digests change |
 | Live 3D refresh | `meshVersion` in `/api/map/state` bumps on any chunk digest change; the viewer reloads visible meshes |
 | Coordinates | Minecraft X/Y/Z map 1:1 to Three.js X/Y/Z |
 

@@ -2,8 +2,8 @@
  * In-memory mesh cache keyed by dimension + chunk coordinates.
  *
  * Invalidated when the world refresh reports that a chunk (or a neighbour that
- * affects its exposed faces) changed. Bounded with FIFO eviction so exploring
- * a large world cannot grow the Node heap without limit.
+ * affects its exposed faces) changed. Bounded with LRU eviction (touch on get)
+ * so exploring a large world cannot grow the Node heap without limit.
  */
 
 import { meshChunkKey, type MeshChunk } from './mesh-types.ts';
@@ -38,7 +38,7 @@ export class MeshCache {
     const key = meshChunkKey(dimension, chunkX, chunkZ);
     const hit = this.#entries.get(key);
     if (hit) {
-      // Refresh insertion order so recently used entries survive FIFO eviction.
+      // LRU: refresh insertion order so recently used entries survive eviction.
       this.#entries.delete(key);
       this.#entries.set(key, hit);
       this.#hits++;

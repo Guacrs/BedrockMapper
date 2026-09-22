@@ -48,7 +48,7 @@ import { BedrockWorld, type WorldScan } from './world/world.ts';
 /** Upper bound on cached chunk surfaces (~1 KB each). */
 const SURFACE_CACHE_LIMIT = 8192;
 
-/** Decoded block volumes for voxel meshing — larger than a surface. */
+/** Decoded block volumes for voxel meshing — LRU-capped (touch on get). */
 const CHUNK_BLOCK_CACHE_LIMIT = 512;
 
 /** Default how many invalidated tiles are redrawn at once during a refresh. */
@@ -411,7 +411,7 @@ export class MapService {
   async chunkBlocks(chunkX: number, chunkZ: number): Promise<ChunkBlocks | null> {
     const key = chunkId(chunkX, chunkZ);
     if (this.#chunkBlocks.has(key)) {
-      // Refresh insertion order so recently used volumes survive FIFO eviction.
+      // LRU: move to the newest Map insertion slot so hot neighbour volumes stay.
       const hit = this.#chunkBlocks.get(key)!;
       this.#chunkBlocks.delete(key);
       this.#chunkBlocks.set(key, hit);

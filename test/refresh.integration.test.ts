@@ -281,6 +281,7 @@ describe(
       const tile = chunkToTile(chunk.x, chunk.z);
       const before = await readTile(tile);
       const version = map.version;
+      const meshVersion = map.meshVersion;
 
       // Deep underground: a running server rewrites chunks like this constantly.
       const removed = await writer((handle) => handle.removeBottomSubChunk(chunk));
@@ -292,6 +293,7 @@ describe(
       assert.ok(stats.tilesRegenerated >= 1, 'so its tile is drawn again from the new snapshot');
       assert.equal(stats.tilesChanged, 0, 'but the tile came out identical');
       assert.equal(map.version, version, 'so no browser is asked to re-fetch it');
+      assert.equal(map.meshVersion, meshVersion + 1, 'but 3D must still reload meshes');
       assert.deepEqual(await readTile(tile), before);
     });
 

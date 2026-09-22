@@ -16,7 +16,7 @@ import {
   UNLOAD_DISTANCE_CHUNKS,
   VIEW_DISTANCE_CHUNKS,
 } from './chunk-streamer.js';
-
+import { isMeshResponseCurrent } from './mesh-epoch.js';
 /**
  * @param {object} mesh
  * @returns {THREE.BufferGeometry}
@@ -199,11 +199,11 @@ export class TerrainViewer3D {
     const epoch = this._meshEpoch;
 
     const response = await fetch(`/api/mesh/${this.dimension}/${chunkX}/${chunkZ}`);
-    if (epoch !== this._meshEpoch || this._disposed) return 'stale';
+    if (!isMeshResponseCurrent(epoch, this._meshEpoch, this._disposed)) return 'stale';
     if (response.status === 404) return false;
     if (!response.ok) throw new Error(`mesh HTTP ${response.status}`);
     const mesh = await response.json();
-    if (epoch !== this._meshEpoch || this._disposed) return 'stale';
+    if (!isMeshResponseCurrent(epoch, this._meshEpoch, this._disposed)) return 'stale';
     if (!mesh?.positions?.length || !mesh?.indices?.length) return false;
     if (this._meshes.has(key)) return true;
 
