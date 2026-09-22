@@ -190,27 +190,39 @@ The map page shows a small status in the top right: when the terrain last update
 reports are live or stale. A failed refresh keeps the last good map on screen and says so.
 
 Use the **2D / 3D** toggle (top right) to switch views. 2D is the existing Leaflet map. 3D is an
-experimental surface mesh viewer (Three.js) that streams Minecraft chunks around the camera.
+experimental Three.js viewer that streams Minecraft chunks around the camera as **full-cube
+block meshes** (exposed faces only).
 
 Append `?debug3d=1` to show loaded chunk count, camera Minecraft coordinates and FPS in 3D mode.
 
 ### Experimental 3D mode
 
-3D reuses the same world snapshot, surface scan and `surfaceBlockColor` pipeline as 2D tiles.
-Elevation comes from each column's surface Y; vertex colours include biome tint and water depth, but
-**not** the 2D slope shade (Three.js lighting shades via normals instead).
+3D reuses the same world snapshot and subchunk decode path as 2D tiles. Each chunk mesh is built
+from renderable full cubes (`isRenderableCube` — invisible blocks skipped; everything else is a
+cube for now, including water/leaves/partial blocks). Colours come from `blockColor` (same palette
+as 2D, without surface water-depth / biome multiply on every face). Three.js lighting shades via
+normals.
 
 | Item | Detail |
 | --- | --- |
 | Toggle | **2D** / **3D** buttons on the map page |
 | API | `GET /api/mesh/:dimension/:chunkX/:chunkZ` → JSON mesh (`positions`, `normals`, `colors`, `indices`) |
 | Streaming | Loads ~`(2r+1)²` chunks around the camera (`r = 4`); unloads beyond radius 6 |
-| Cache | In-memory mesh cache; invalidated when world refresh digests change |
+| Cache | In-memory mesh cache; invalidated for the chunk **and** its four face neighbours when digests change |
 | Coordinates | Minecraft X/Y/Z map 1:1 to Three.js X/Y/Z |
 
-**Current limitations (intentional for this first PR):** no texture packs, no full block models,
-no caves/underground, no water transparency, no 3D players/markers yet, no LOD. Large worlds still
-rely on the cold-tile concurrency caps from the 2D path when you switch back to Leaflet.
+**Current limitations (intentional):** no texture packs, no stairs/slabs/fences models, no water
+transparency, no greedy meshing, no LOD, no 3D players/markers. The older heightmap builder remains
+in `server/renderer/3d/mesh-builder.ts` for reference but is not used by `/api/mesh`.
+
+Demo without BDS:
+
+```bash
+node --experimental-strip-types scripts/make-demo-world.ts
+WORLD_PATH=./demo-world MAP_CACHE=./cache npm start
+```
+
+The demo world includes a small tower, wall, stepped cliff and tree so vertical geometry is obvious.
 
 ## Shared map markers
 
@@ -288,8 +300,8 @@ npm run typecheck
 
 - Overworld only. The Nether and the End are not rendered.
 - One rendered zoom level for 2D (1 pixel per block). Zooming out scales tiles in the browser.
-- Experimental 3D is a **surface heightmap only** — not a BlueMap-complete viewer (no textures,
-  caves, entities, markers-in-3D, or LOD yet).
+- Experimental 3D renders **full-cube exposed faces** (not a BlueMap-complete viewer — no textures,
+  special block models, water transparency, LOD, or 3D overlays yet).
 - Terrain is as fresh as `WORLD_REFRESH_INTERVAL` **and** as fresh as BDS's own saving.
   Tiles that just redrew also respect `TILE_UPDATE_COOLDOWN` so busy areas are not
   redrawn on every save. The browser only fetches new tiles after pan/zoom settles.
