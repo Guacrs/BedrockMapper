@@ -147,6 +147,21 @@ describe('terrain mesh builder', () => {
     assert.ok(Math.abs(mesh.colors[2]! - expected[2] / 255) < 1e-6);
   });
 
+  it('produces upward normals for a flat surface', () => {
+    const mesh = buildTerrainMesh(0, 0, {
+      self: flatSurface(0, 0, 70),
+      east: flatSurface(1, 0, 70),
+      south: flatSurface(0, 1, 70),
+      southEast: flatSurface(1, 1, 70),
+    });
+    assert.ok(mesh.normals.length >= 3);
+    for (let i = 0; i < mesh.normals.length; i += 3) {
+      assert.ok(Math.abs(mesh.normals[i]!) < 1e-6, `nx≈0 at vertex ${i / 3}`);
+      assert.ok(mesh.normals[i + 1]! > 0.99, `ny≈1 at vertex ${i / 3}`);
+      assert.ok(Math.abs(mesh.normals[i + 2]!) < 1e-6, `nz≈0 at vertex ${i / 3}`);
+    }
+  });
+
   it('matches neighbour edge heights so adjacent chunks do not crack', () => {
     const west = rampSurface(0, 0);
     const east = rampSurface(1, 0);
