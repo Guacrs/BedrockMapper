@@ -168,6 +168,16 @@ describe('voxel mesh builder', () => {
     assert.equal(isEmptyMesh(mesh), true);
   });
 
+  it('emits UVs for every vertex (zeroes when no atlas is built)', () => {
+    const self = volumeFromFill(0, 0, (x, y, z) =>
+      x === 0 && y === 70 && z === 0 ? 'minecraft:stone' : null,
+    );
+    const mesh = buildVoxelMesh(0, 0, emptyNeighborhood(self));
+    assertMeshInvariants(mesh);
+    assert.equal(mesh.uvs.length, (mesh.positions.length / 3) * 2);
+    assert.equal(countFaces(mesh), 6);
+  });
+
   it('uses blockColor from the existing palette pipeline', () => {
     const self = volumeFromFill(0, 0, (x, y, z) =>
       x === 1 && y === 70 && z === 1 ? 'minecraft:gold_block' : null,
@@ -175,9 +185,17 @@ describe('voxel mesh builder', () => {
     const mesh = buildVoxelMesh(0, 0, emptyNeighborhood(self));
     const expected = blockColor('minecraft:gold_block');
     assert.ok(mesh.colors.length >= 3);
-    assert.ok(Math.abs(mesh.colors[0]! - expected[0] / 255) < 1e-6);
-    assert.ok(Math.abs(mesh.colors[1]! - expected[1] / 255) < 1e-6);
-    assert.ok(Math.abs(mesh.colors[2]! - expected[2] / 255) < 1e-6);
+    // Untinted textured blocks use white vertex colours; without an atlas the
+    // face keeps the map-colour RGB.
+    const r = mesh.colors[0]!;
+    const g = mesh.colors[1]!;
+    const b = mesh.colors[2]!;
+    const white = r === 1 && g === 1 && b === 1;
+    const mapColor =
+      Math.abs(r - expected[0] / 255) < 1e-6 &&
+      Math.abs(g - expected[1] / 255) < 1e-6 &&
+      Math.abs(b - expected[2] / 255) < 1e-6;
+    assert.ok(white || mapColor, `unexpected vertex colour ${r},${g},${b}`);
   });
 
   it('gives the top face an upward normal', () => {
@@ -201,6 +219,7 @@ describe('voxel mesh cache invalidation', () => {
       positions: [0, 0, 0, 1, 0, 0, 0, 1, 0],
       normals: [0, 1, 0, 0, 1, 0, 0, 1, 0],
       colors: [1, 0, 0, 1, 0, 0, 1, 0, 0],
+      uvs: [0, 0, 1, 0, 0, 1],
       indices: [0, 1, 2],
     });
 

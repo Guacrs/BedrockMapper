@@ -159,5 +159,7 @@ export function buildTerrainMesh(
     normals[i * 3 + 2] = nz;
   }
 
-  return { chunkX, chunkZ, positions, normals, colors, indices };
+  // Legacy heightmap path — unused by /api/mesh; still satisfies MeshChunk.uvs.
+  const uvs = new Array((positions.length / 3) * 2).fill(0);
+  return { chunkX, chunkZ, positions, normals, colors, uvs, indices };
 }

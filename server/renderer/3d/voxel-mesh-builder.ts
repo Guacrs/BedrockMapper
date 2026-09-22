@@ -4,12 +4,15 @@
  * Emits only exposed faces of renderable cubes (see `isRenderableCube`).
  * Internal faces between solid neighbours are culled. Chunk-boundary faces
  * consult west/east/north/south neighbour volumes — missing neighbours are
- * treated as air. No greedy meshing, textures, or special block models yet.
+ * treated as air. No greedy meshing or special block models yet.
+ *
+ * Appearance (atlas UVs) comes from the optional texture pipeline; unknown
+ * blocks keep the existing vertex-colour fallback.
  *
  * Coordinates: Minecraft X east, Y up, Z south (same as Three.js mapping).
  */
 
-import { blockColor } from '../colors.ts';
+import { blockColor, resolveBlockColor } from '../colors.ts';
 import { isRenderableCube } from '../../world/blocks.ts';
 import { CHUNK_SIZE } from '../../world/keys.ts';
 import {
@@ -18,8 +21,11 @@ import {
   type VoxelNeighborhood,
 } from './chunk-blocks.ts';
 import { type MeshChunk } from './mesh-types.ts';
+import { faceCornerUvs, loadAtlasMetadata, uvRectForKey } from './textures/atlas.ts';
+import { fullCubeFaceTexture, type CubeFace } from './textures/models.ts';
 
 interface FaceDef {
+  id: CubeFace;
   /** Neighbour offset checked for occlusion. */
   dx: number;
   dy: number;
@@ -37,7 +43,7 @@ interface FaceDef {
  */
 const FACES: readonly FaceDef[] = [
   {
-    // +Y top
+    id: 'up',
     dx: 0,
     dy: 1,
     dz: 0,
@@ -52,7 +58,7 @@ const FACES: readonly FaceDef[] = [
     ],
   },
   {
-    // -Y bottom
+    id: 'down',
     dx: 0,
     dy: -1,
     dz: 0,
@@ -67,7 +73,7 @@ const FACES: readonly FaceDef[] = [
     ],
   },
   {
-    // +Z south
+    id: 'south',
     dx: 0,
     dy: 0,
     dz: 1,
@@ -82,7 +88,7 @@ const FACES: readonly FaceDef[] = [
     ],
   },
   {
-    // -Z north
+    id: 'north',
     dx: 0,
     dy: 0,
     dz: -1,
@@ -97,7 +103,7 @@ const FACES: readonly FaceDef[] = [
     ],
   },
   {
-    // +X east
+    id: 'east',
     dx: 1,
     dy: 0,
     dz: 0,
@@ -112,7 +118,7 @@ const FACES: readonly FaceDef[] = [
     ],
   },
   {
-    // -X west
+    id: 'west',
     dx: -1,
     dy: 0,
     dz: 0,
@@ -128,6 +134,15 @@ const FACES: readonly FaceDef[] = [
   },
 ];
 
+function vertexRgb(blockName: string, hasTexture: boolean): [number, number, number] {
+  const resolved = resolveBlockColor(blockName);
+  if (hasTexture && resolved.tint === 'none') {
+    return [1, 1, 1];
+  }
+  const [cr, cg, cb] = hasTexture ? resolved.rgb : blockColor(blockName);
+  return [cr / 255, cg / 255, cb / 255];
+}
+
 /**
  * Build an indexed cube-face mesh for one chunk. Empty when there is nothing
  * solid to draw.
@@ -136,13 +151,15 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
   const positions: number[] = [];
   const normals: number[] = [];
   const colors: number[] = [];
+  const uvs: number[] = [];
   const indices: number[] = [];
 
   const self = neighborhood.self;
   if (!self) {
-    return { chunkX, chunkZ, positions, normals, colors, indices };
+    return { chunkX, chunkZ, positions, normals, colors, uvs, indices };
   }
 
+  const atlas = loadAtlasMetadata();
   const originX = chunkX * CHUNK_SIZE;
   const originZ = chunkZ * CHUNK_SIZE;
 
@@ -157,10 +174,6 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
 
           const worldX = originX + lx;
           const worldZ = originZ + lz;
-          const [cr, cg, cb] = blockColor(name!);
-          const r = cr / 255;
-          const g = cg / 255;
-          const b = cb / 255;
 
           for (const face of FACES) {
             if (
@@ -174,11 +187,28 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
               continue;
             }
 
+            const textureKey = fullCubeFaceTexture(name!, face.id);
+            const rect =
+              atlas && textureKey ? uvRectForKey(atlas, textureKey) : null;
+            const hasTexture = rect != null;
+            const [r, g, b] = vertexRgb(name!, hasTexture);
+            const cornerUvs = rect
+              ? faceCornerUvs(rect, face.id)
+              : ([
+                  [0, 0],
+                  [0, 0],
+                  [0, 0],
+                  [0, 0],
+                ] as const);
+
             const base = positions.length / 3;
-            for (const [cx, cy, cz] of face.corners) {
+            for (let i = 0; i < 4; i++) {
+              const [cx, cy, cz] = face.corners[i]!;
+              const [u, v] = cornerUvs[i]!;
               positions.push(worldX + cx, worldY + cy, worldZ + cz);
               normals.push(face.nx, face.ny, face.nz);
               colors.push(r, g, b);
+              uvs.push(u, v);
             }
             indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
           }
@@ -187,7 +217,7 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
     }
   }
 
-  return { chunkX, chunkZ, positions, normals, colors, indices };
+  return { chunkX, chunkZ, positions, normals, colors, uvs, indices };
 }
 
 /** Exported for tests — face count helpers. */

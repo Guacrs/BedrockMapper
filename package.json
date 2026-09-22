@@ -18,7 +18,8 @@
     "fake-players": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/fake-players.ts",
     "block-colors:generate": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/generate-block-colors.ts",
     "block-colors:report": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/report-block-colors.ts",
-    "block-colors:world": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/world-block-colors.ts"
+    "block-colors:world": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/world-block-colors.ts",
+    "textures:build": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/build-texture-atlas.ts"
   },
   "dependencies": {
     "@8crafter/leveldb-zlib": "^1.6.0",

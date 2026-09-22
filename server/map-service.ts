@@ -76,6 +76,11 @@ export interface MapInfo {
   blockBounds: Bounds | null;
   tileBounds: Bounds | null;
   center: { x: number; z: number } | null;
+  /**
+   * Same counter as `MapState.meshVersion`: bumps when any chunk digest changes.
+   * Independent of the 2D tile `version` served on `/api/map/info`.
+   */
+  meshVersion: number;
 }
 
 /** What the browser polls for: has the terrain changed, and how does it look now. */
@@ -156,7 +161,8 @@ interface WorldState {
   /** SubChunkPrefix indices discovered during scan, keyed by chunk id. */
   subChunkIndices: Map<string, number[]>;
   digests: ChunkDigests;
-  info: MapInfo;
+  /** Scan-derived map description; `meshVersion` is owned by MapService. */
+  info: Omit<MapInfo, 'meshVersion'>;
 }
 
 function stateFromScan(world: BedrockWorld, scan: WorldScan, options: MapServiceOptions): WorldState {
@@ -262,7 +268,10 @@ export class MapService {
   }
 
   get info(): MapInfo {
-    return this.#state.info;
+    return {
+      ...this.#state.info,
+      meshVersion: this.#meshVersion,
+    };
   }
 
   get version(): number {

@@ -199,22 +199,46 @@ Append `?debug3d=1` to show loaded chunk count, camera Minecraft coordinates and
 
 3D reuses the same world snapshot and subchunk decode path as 2D tiles. Each chunk mesh is built
 from renderable full cubes (`isRenderableCube` — invisible blocks skipped; everything else is a
-cube for now, including water/leaves/partial blocks). Colours come from `blockColor` (same palette
-as 2D, without surface water-depth / biome multiply on every face). Three.js lighting shades via
-normals.
+cube for now, including water/leaves/partial blocks). When a texture atlas has been built, faces
+sample Minecraft block textures; otherwise the viewer falls back to `blockColor` vertex colours
+(same map-colour palette as 2D, without surface water-depth / biome multiply on every face).
+Three.js lighting shades via normals.
 
 | Item | Detail |
 | --- | --- |
 | Toggle | **2D** / **3D** buttons on the map page |
-| API | `GET /api/mesh/:dimension/:chunkX/:chunkZ` → JSON mesh (`positions`, `normals`, `colors`, `indices`) |
+| API | `GET /api/mesh/:dimension/:chunkX/:chunkZ` → JSON mesh (`positions`, `normals`, `colors`, `uvs`, `indices`) |
+| Textures | Optional atlas: `GET /api/textures/atlas.png` + `atlas.json` (see below) |
 | Streaming | Loads ~`(2r+1)²` chunks around the camera (`r = 4`); unloads beyond radius 6 |
 | Cache | In-memory mesh + block-volume caches (LRU, capped at 512); invalidated for the chunk **and** its four face neighbours when digests change |
 | Live 3D refresh | `meshVersion` in `/api/map/state` bumps on any chunk digest change; the viewer reloads visible meshes |
 | Coordinates | Minecraft X/Y/Z map 1:1 to Three.js X/Y/Z |
 
-**Current limitations (intentional):** no texture packs, no stairs/slabs/fences models, no water
-transparency, no greedy meshing, no LOD, no 3D players/markers. The older heightmap builder remains
-in `server/renderer/3d/mesh-builder.ts` for reference but is not used by `/api/mesh`.
+#### Optional Minecraft textures
+
+Block textures are **not** committed to this repository. They are generated locally from
+[Mojang/bedrock-samples](https://github.com/Mojang/bedrock-samples) (see that repo’s `LICENSE.md`:
+files are subject to the [Minecraft EULA](https://www.minecraft.net/en-us/eula)).
+
+Use the **full** samples release (the min zip omits `resource_pack/textures/blocks/*.png`):
+
+```bash
+VANILLA_SAMPLES=/path/to/bedrock-samples npm run textures:build
+```
+
+This writes gitignored files under `data/textures/`:
+
+- `block-appearance.json` — normalized `minecraft:block` → up/down/side texture keys
+- `atlas.json` / `atlas.png` — deterministic texture atlas + UV frames
+
+The server starts without these files. The 2D map is unaffected. The 3D viewer keeps working
+with vertex colours until the atlas is built; after a build, restart (or rely on the atlas HTTP
+endpoints) and reload the page.
+
+**Current limitations (intentional):** no stairs/slabs/fences models, no water transparency, no
+greedy meshing, no LOD, no 3D players/markers, no animated textures, no custom resource packs at
+runtime. The older heightmap builder remains in `server/renderer/3d/mesh-builder.ts` for reference
+but is not used by `/api/mesh`.
 
 Demo without BDS:
 
@@ -301,8 +325,9 @@ npm run typecheck
 
 - Overworld only. The Nether and the End are not rendered.
 - One rendered zoom level for 2D (1 pixel per block). Zooming out scales tiles in the browser.
-- Experimental 3D renders **full-cube exposed faces** (not a BlueMap-complete viewer — no textures,
-  special block models, water transparency, LOD, or 3D overlays yet).
+- Experimental 3D renders **full-cube exposed faces** (optional Minecraft texture atlas;
+  otherwise vertex colours — not a BlueMap-complete viewer — no special block models, water
+  transparency, LOD, or 3D overlays yet).
 - Terrain is as fresh as `WORLD_REFRESH_INTERVAL` **and** as fresh as BDS's own saving.
   Tiles that just redrew also respect `TILE_UPDATE_COOLDOWN` so busy areas are not
   redrawn on every save. The browser only fetches new tiles after pan/zoom settles.

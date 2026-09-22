@@ -3,3 +3,8 @@ cache/
 .env
 demo-world/
 *.log
+
+# Generated Minecraft texture atlas (from Mojang/bedrock-samples — do not commit).
+data/textures/atlas.png
+data/textures/atlas.json
+data/textures/block-appearance.json

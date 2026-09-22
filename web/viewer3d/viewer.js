@@ -1,8 +1,10 @@
 /**
- * Experimental Three.js surface-terrain viewer.
+ * Experimental Three.js voxel terrain viewer.
  *
  * Consumes GET /api/mesh/:dimension/:chunkX/:chunkZ and streams chunks around
- * the camera. One Mesh per Minecraft chunk, shared material, vertex colours.
+ * the camera. One Mesh per Minecraft chunk, shared material. When a texture
+ * atlas is available (`/api/textures/atlas.*`), faces are textured; otherwise
+ * the viewer keeps the vertex-colour fallback.
  *
  * Extension points for later PRs: players3d / markers3d can place objects using
  * minecraftToThree() without changing the terrain coordinate system.
@@ -17,6 +19,7 @@ import {
   VIEW_DISTANCE_CHUNKS,
 } from './chunk-streamer.js';
 import { isMeshResponseCurrent } from './mesh-epoch.js';
+
 /**
  * @param {object} mesh
  * @returns {THREE.BufferGeometry}
@@ -26,6 +29,9 @@ export function meshToGeometry(mesh) {
   geometry.setAttribute('position', new THREE.Float32BufferAttribute(mesh.positions, 3));
   geometry.setAttribute('normal', new THREE.Float32BufferAttribute(mesh.normals, 3));
   geometry.setAttribute('color', new THREE.Float32BufferAttribute(mesh.colors, 3));
+  if (mesh.uvs?.length) {
+    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(mesh.uvs, 2));
+  }
   geometry.setIndex(mesh.indices);
   geometry.computeBoundingSphere();
   return geometry;
@@ -38,6 +44,7 @@ export class TerrainViewer3D {
    *   dimension?: string,
    *   center?: { x: number, z: number } | null,
    *   debug?: boolean,
+   *   meshVersion?: number,
    * }} [options]
    */
   constructor(container, options = {}) {
@@ -54,6 +61,9 @@ export class TerrainViewer3D {
     /** Bumped on meshVersion changes so in-flight loads can abort cleanly. */
     this._meshEpoch = 0;
     this._meshVersion = options.meshVersion ?? 1;
+    /** @type {THREE.Texture | null} */
+    this._atlasTexture = null;
+    this._atlasLoad = null;
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x10151c);
@@ -83,7 +93,7 @@ export class TerrainViewer3D {
     this.terrainGroup.name = 'terrain';
     this.scene.add(this.terrainGroup);
 
-    // Shared material — vertex colours carry BedrockMapper surface colours.
+    // Shared material — vertex colours tint textures (or paint alone when no atlas).
     this.material = new THREE.MeshStandardMaterial({
       vertexColors: true,
       roughness: 0.92,
@@ -143,11 +153,50 @@ export class TerrainViewer3D {
     }
   }
 
+  /**
+   * Load atlas once per viewer. Missing/failed atlas keeps vertex-colour mode.
+   * @returns {Promise<boolean>}
+   */
+  async _ensureAtlas() {
+    if (this._atlasTexture) return true;
+    if (this._atlasLoad) return this._atlasLoad;
+    this._atlasLoad = (async () => {
+      try {
+        const metaRes = await fetch('/api/textures/atlas.json');
+        if (!metaRes.ok) return false;
+        const pngRes = await fetch('/api/textures/atlas.png');
+        if (!pngRes.ok) return false;
+        const blob = await pngRes.blob();
+        const url = URL.createObjectURL(blob);
+        const texture = await new Promise((resolve, reject) => {
+          const loader = new THREE.TextureLoader();
+          loader.load(url, resolve, undefined, reject);
+        });
+        URL.revokeObjectURL(url);
+        texture.magFilter = THREE.NearestFilter;
+        texture.minFilter = THREE.NearestMipmapNearestFilter;
+        texture.colorSpace = THREE.SRGBColorSpace;
+        texture.needsUpdate = true;
+        this._atlasTexture = texture;
+        this.material.map = texture;
+        this.material.needsUpdate = true;
+        return true;
+      } catch (error) {
+        console.warn('[3d] texture atlas unavailable; using vertex colours', error);
+        return false;
+      }
+    })();
+    return this._atlasLoad;
+  }
+
   /** Start the render loop and initial chunk stream. */
   start() {
     if (this._disposed) return;
     this._running = true;
     this.resize();
+    void this._ensureAtlas().then(() => {
+      if (!this._disposed && this._running) void this.streamer.update(this._focus);
+    });
     void this.streamer.update(this._focus);
     this._lastFrame = performance.now();
     this._fpsWindowStart = this._lastFrame;
@@ -291,7 +340,10 @@ export class TerrainViewer3D {
       const [cx, cz] = key.split(',').map(Number);
       this._unloadChunk(cx, cz);
     }
+    this.material.map = null;
     this.material.dispose();
+    this._atlasTexture?.dispose();
+    this._atlasTexture = null;
     this.controls.dispose();
     this.renderer.dispose();
     if (this.renderer.domElement.parentNode === this.container) {

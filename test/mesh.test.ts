@@ -89,6 +89,7 @@ describe('mesh types', () => {
       positions: [0, 1, 0, 1, 1, 0, 0, 1, 1],
       normals: [0, 1, 0, 0, 1, 0, 0, 1, 0],
       colors: [1, 0, 0, 0, 1, 0, 0, 0, 1],
+      uvs: [0, 0, 1, 0, 0, 1],
       indices: [0, 1, 2],
     };
     assertMeshInvariants(ok);
@@ -229,6 +230,7 @@ describe('mesh cache', () => {
       positions: [],
       normals: [],
       colors: [],
+      uvs: [],
       indices: [],
     });
     // Voxel face culling: self + four orthogonal neighbours.
@@ -259,6 +261,7 @@ describe('mesh cache', () => {
       positions: [0, 0, 0],
       normals: [0, 1, 0],
       colors: [1, 0, 0],
+      uvs: [0, 0],
       indices: [],
     });
     cache.set('overworld', 0, 0, stub(0));
