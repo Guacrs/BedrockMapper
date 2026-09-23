@@ -309,6 +309,9 @@ describe(
       assert.match(html, /<div id="map">/);
       assert.match(html, /id="view3d"/);
       assert.match(html, /id="mode-3d"/);
+      assert.match(html, /map\.js\?v=/);
+      assert.equal(page.headers.get('cache-control'), 'no-cache');
+      assert.equal(page.headers.get('cdn-cache-control'), 'no-store');
 
       for (const asset of [
         '/map.js',
@@ -320,6 +323,13 @@ describe(
       ]) {
         const response = await fetch(`${base}${asset}`);
         assert.equal(response.status, 200, `${asset} should be served`);
+        if (asset.startsWith('/vendor/')) {
+          assert.match(response.headers.get('cache-control') ?? '', /max-age=86400/);
+          assert.equal(response.headers.get('cdn-cache-control'), null);
+        } else {
+          assert.equal(response.headers.get('cache-control'), 'no-cache', `${asset} cache-control`);
+          assert.equal(response.headers.get('cdn-cache-control'), 'no-store', `${asset} cdn-cache-control`);
+        }
       }
     });
 
@@ -365,11 +375,14 @@ describe(
       assert.ok(after.hits > before.hits, 'second mesh request should hit the cache');
     });
 
-    it('returns 204 for mesh of an empty chunk and 404 for unknown dimension', async () => {
+    it('returns 204 for mesh of an empty chunk and 404 for unknown/unrendered dimension', async () => {
       const missing = await fetch(`${base}/api/mesh/overworld/999999/999999`);
       assert.equal(missing.status, 204);
+      assert.equal(await missing.text(), '');
       const badDim = await fetch(`${base}/api/mesh/not-a-dimension/0/0`);
       assert.equal(badDim.status, 404);
+      const unrendered = await fetch(`${base}/api/mesh/nether/0/0`);
+      assert.equal(unrendered.status, 404);
     });
 
     it('serves map info describing the real world', async () => {
@@ -381,6 +394,8 @@ describe(
       assert.ok(info.chunkCount > 0);
       assert.ok(info.blockBounds);
       assert.equal(typeof info.textureAtlas, 'boolean');
+      const { atlasFilesExist } = await import('../server/renderer/3d/textures/paths.ts');
+      assert.equal(info.textureAtlas, atlasFilesExist());
       assert.match(info.world.version ?? '', /^\d+\.\d+/);
     });
 

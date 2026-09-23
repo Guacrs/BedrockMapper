@@ -264,12 +264,14 @@ export class TerrainViewer3D {
     // response.ok, and Response.json() then throws on the empty body.
     const raw = await response.text();
     if (!isMeshResponseCurrent(epoch, this._meshEpoch, this._disposed)) return 'stale';
+    // Empty body on an otherwise-OK response: treat as no mesh (defensive).
     if (!raw.trim()) return false;
     let mesh;
     try {
       mesh = JSON.parse(raw);
-    } catch {
-      return false;
+    } catch (error) {
+      // Non-empty but invalid JSON is a real failure — do not silently discard.
+      throw new Error(`mesh JSON parse failed: ${error instanceof Error ? error.message : error}`);
     }
     if (!mesh?.positions?.length || !mesh?.indices?.length) return false;
     if (this._meshes.has(key)) return true;
