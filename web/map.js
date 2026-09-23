@@ -127,11 +127,15 @@ async function main() {
       mode3dBtn?.setAttribute('aria-pressed', String(is3d));
 
       if (is3d) {
+        // Use the current 2D viewport, not map-info centre. info.center is only
+        // the midpoint of chunkBounds and can sit in an empty hole on sparse
+        // worlds — which produced walls of /api/mesh 404s and a blank 3D view.
+        const viewCenter = latLngToBlock(map.getCenter());
         if (!viewer3d && view3dEl) {
           const { TerrainViewer3D } = await import('./viewer3d/viewer.js');
           viewer3d = new TerrainViewer3D(view3dEl, {
             dimension: info.dimension,
-            center: info.center,
+            center: { x: viewCenter.x, z: viewCenter.z },
             debug: debug3d,
             meshVersion: info.meshVersion ?? 1,
           });
@@ -140,6 +144,7 @@ async function main() {
         } else {
           viewer3d?.resume();
           viewer3d?.resize();
+          viewer3d?.focusXZ(viewCenter.x, viewCenter.z);
         }
       } else {
         viewer3d?.pause();
