@@ -23,13 +23,23 @@
 - Occlusion **Option A**: drop a face only when fully covered; partial cover keeps the whole face
 - `MeshChunk` layout unchanged; PR17 appearance/atlas untouched
 
-### Deferred (not in PR20)
+### PR21 implemented
 
-- Stairs / `weirdo_direction` mapping (still unproven — do not guess)
-- Fence / pane connection families
-- Doors, trapdoors, torches, plants
-- `.geo.json` parsing
-- Face splitting (Option B)
+- Straight `*_stairs` only (4× `weirdo_direction` × bottom/upside-down)
+- **`weirdo_direction` mapping** (documented in `families/stair.ts`):
+  - `0=east (+X)`, `1=west (−X)`, `2=south (+Z)`, `3=north (−Z)`
+  - Evidence: Minecraft Wiki Stairs/BS (Bedrock table); cairn-lang-formats cites the same listing; Bedrock `/fill` recipes use +X/−X/+Z/−Z
+  - Sample JSON only lists ints 0–3 — labels are **not** in mojang-blocks.json
+- Geometry: base east bottom stair (lower slab + east upper step) → `rotateModelY` → optional `flipModelY`
+- Unsupported `minecraft:corner` ≠ `none` → **full-cube fallback** (no silent wrong straight stair)
+- UVs: unit-cell density crop on partial box faces (shared helper with slabs)
+- Occlusion: unchanged PR20 Option A
+
+### Deferred (still)
+
+- Inner/outer corner stairs
+- Fence / pane / door / torch / geo.json
+- Exact stair–stair polygon clipping
 
 ---
 
@@ -53,7 +63,7 @@ MeshChunk { positions, normals, colors, uvs, indices }
 Three.js
 ```
 
-**PR20 geometry:** full cubes + single slabs. Stairs/fences/etc. still use the full-cube fallback.
+**PR20–21 geometry:** full cubes + single slabs + straight stairs. Fences/panes/etc. still use the full-cube fallback. Corner stairs fall back to full cube.
 
 ---
 
