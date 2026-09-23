@@ -138,7 +138,7 @@ async function main() {
             center: { x: viewCenter.x, z: viewCenter.z },
             debug: debug3d,
             meshVersion: info.meshVersion ?? 1,
-            textureAtlas: Object.hasOwn(info, 'textureAtlas') ? Boolean(info.textureAtlas) : true,
+            textureAtlas: Boolean(info.textureAtlas),
           });
           viewer3d.start();
           window.__viewer3d = viewer3d;

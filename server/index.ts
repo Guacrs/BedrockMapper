@@ -70,6 +70,7 @@ async function sendFile(
   response: http.ServerResponse,
   root: string,
   relativePath: string,
+  cacheControl = 'no-cache',
 ): Promise<boolean> {
   const target = path.resolve(root, `.${path.posix.normalize(`/${relativePath}`)}`);
   if (target !== root && !target.startsWith(root + path.sep)) return false;
@@ -77,11 +78,19 @@ async function sendFile(
   const bytes = await fs.readFile(target).catch(() => null);
   if (!bytes) return false;
 
-  response.writeHead(200, {
+  // CDN-Cache-Control stops Cloudflare from overriding no-cache with a long
+  // max-age (which left browsers on stale map.js while /api/mesh already
+  // returned 204 — empty-body JSON parse errors in the 3D viewer).
+  const headers: Record<string, string | number> = {
     'content-type': CONTENT_TYPES[path.extname(target)] ?? 'application/octet-stream',
     'content-length': bytes.length,
-    'cache-control': 'no-cache',
-  });
+    'cache-control': cacheControl,
+  };
+  if (cacheControl.includes('no-cache') || cacheControl.includes('no-store')) {
+    headers['cdn-cache-control'] = 'no-store';
+  }
+
+  response.writeHead(200, headers);
   response.end(bytes);
   return true;
 }
@@ -486,18 +495,22 @@ export async function startServer(config: Config, options: StartServerOptions = 
     }
 
     if (pathname.startsWith('/vendor/leaflet/')) {
-      if (await sendFile(response, LEAFLET_ROOT, pathname.slice('/vendor/leaflet/'.length))) return;
+      if (await sendFile(response, LEAFLET_ROOT, pathname.slice('/vendor/leaflet/'.length), 'public, max-age=86400')) {
+        return;
+      }
       sendText(response, 404, 'not found');
       return;
     }
 
     if (pathname.startsWith('/vendor/three/')) {
-      if (await sendFile(response, THREE_ROOT, pathname.slice('/vendor/three/'.length))) return;
+      if (await sendFile(response, THREE_ROOT, pathname.slice('/vendor/three/'.length), 'public, max-age=86400')) {
+        return;
+      }
       sendText(response, 404, 'not found');
       return;
     }
 
-    if (await sendFile(response, WEB_ROOT, pathname === '/' ? 'index.html' : pathname)) return;
+    if (await sendFile(response, WEB_ROOT, pathname === '/' ? 'index.html' : pathname, 'no-cache')) return;
     sendText(response, 404, 'not found');
   }
 

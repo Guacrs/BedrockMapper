@@ -52,8 +52,8 @@ export class TerrainViewer3D {
     this.container = container;
     this.dimension = options.dimension ?? 'overworld';
     this.debug = Boolean(options.debug);
-    /** When false, skip /api/textures/* so a missing atlas does not 404 in the console. */
-    this._wantAtlas = options.textureAtlas !== false;
+    /** Only fetch atlas when map info explicitly says it is present. */
+    this._wantAtlas = options.textureAtlas === true;
     this._disposed = false;
     this._running = false;
     this._raf = 0;
@@ -260,8 +260,17 @@ export class TerrainViewer3D {
     // 204 = known-empty hole in a sparse world; 404 kept for unknown dimension etc.
     if (response.status === 204 || response.status === 404) return false;
     if (!response.ok) throw new Error(`mesh HTTP ${response.status}`);
-    const mesh = await response.json();
+    // Parse via text first: a 204 can slip through a stale cached viewer as
+    // response.ok, and Response.json() then throws on the empty body.
+    const raw = await response.text();
     if (!isMeshResponseCurrent(epoch, this._meshEpoch, this._disposed)) return 'stale';
+    if (!raw.trim()) return false;
+    let mesh;
+    try {
+      mesh = JSON.parse(raw);
+    } catch {
+      return false;
+    }
     if (!mesh?.positions?.length || !mesh?.indices?.length) return false;
     if (this._meshes.has(key)) return true;
 
