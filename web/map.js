@@ -135,7 +135,7 @@ async function main() {
         // worlds — which produced walls of empty /api/mesh responses and a blank 3D view.
         const viewCenter = latLngToBlock(map.getCenter());
         if (!viewer3d && view3dEl) {
-          const { TerrainViewer3D } = await import('./viewer3d/viewer.js');
+          const { TerrainViewer3D } = await import(`./viewer3d/viewer.js?v=${ASSET_VERSION}`);
           viewer3d = new TerrainViewer3D(view3dEl, {
             dimension: info.dimension,
             center: { x: viewCenter.x, z: viewCenter.z },
