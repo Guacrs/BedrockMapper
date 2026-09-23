@@ -20,6 +20,7 @@ import { logPlayerEvent, PlayerActivity } from './players/activity.ts';
 import { PlayerStore, PlayerValidationError, parsePlayerUpdate } from './players/store.ts';
 import { checkEnvironment, formatProblems } from './startup.ts';
 import { hashFallbackNames, summarizeDatabase } from './renderer/block-palette.ts';
+import { atlasFilesExist } from './renderer/3d/textures/paths.ts';
 import { NATIVE_ZOOM } from './tiles/coords.ts';
 import { dimensionById } from './world/dimensions.ts';
 
@@ -361,6 +362,8 @@ export async function startServer(config: Config, options: StartServerOptions = 
         ...map.info,
         version: map.version,
         meshVersion: map.meshVersion,
+        // Optional Minecraft atlas (gitignored); viewer skips /api/textures/* when false.
+        textureAtlas: atlasFilesExist(),
         worldRefreshInterval: config.worldRefreshInterval,
         terrainPollInterval: terrainPollInterval(config.worldRefreshInterval),
         playerPollInterval: config.playerUpdateInterval,
@@ -432,7 +435,10 @@ export async function startServer(config: Config, options: StartServerOptions = 
       try {
         const mesh = await map.mesh(dimensionId as never, chunkX, chunkZ);
         if (!mesh) {
-          sendJson(response, 404, { error: 'chunk not found', dimension: dimensionId, chunkX, chunkZ });
+          // Sparse worlds have holes inside the stream radius. 204 (not 404) so
+          // browsers do not paint expected empty chunks as console errors.
+          response.writeHead(204);
+          response.end();
           return;
         }
         sendJson(response, 200, { dimension: dimensionId, ...mesh });
@@ -800,7 +806,11 @@ export async function main(options: MainOptions = {}): Promise<StartedServer> {
     throw error;
   }
 
-  const report = await checkEnvironment(config, { webRoot: WEB_ROOT, leafletRoot: LEAFLET_ROOT });
+  const report = await checkEnvironment(config, {
+    webRoot: WEB_ROOT,
+    leafletRoot: LEAFLET_ROOT,
+    threeRoot: THREE_ROOT,
+  });
   if (report.problems.length) {
     console.error(formatProblems(report.problems));
     throw new ConfigError(report.problems);

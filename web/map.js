@@ -129,7 +129,7 @@ async function main() {
       if (is3d) {
         // Use the current 2D viewport, not map-info centre. info.center is only
         // the midpoint of chunkBounds and can sit in an empty hole on sparse
-        // worlds — which produced walls of /api/mesh 404s and a blank 3D view.
+        // worlds — which produced walls of empty /api/mesh responses and a blank 3D view.
         const viewCenter = latLngToBlock(map.getCenter());
         if (!viewer3d && view3dEl) {
           const { TerrainViewer3D } = await import('./viewer3d/viewer.js');
@@ -138,6 +138,7 @@ async function main() {
             center: { x: viewCenter.x, z: viewCenter.z },
             debug: debug3d,
             meshVersion: info.meshVersion ?? 1,
+            textureAtlas: Object.hasOwn(info, 'textureAtlas') ? Boolean(info.textureAtlas) : true,
           });
           viewer3d.start();
           window.__viewer3d = viewer3d;

@@ -45,12 +45,15 @@ export class TerrainViewer3D {
    *   center?: { x: number, z: number } | null,
    *   debug?: boolean,
    *   meshVersion?: number,
+   *   textureAtlas?: boolean,
    * }} [options]
    */
   constructor(container, options = {}) {
     this.container = container;
     this.dimension = options.dimension ?? 'overworld';
     this.debug = Boolean(options.debug);
+    /** When false, skip /api/textures/* so a missing atlas does not 404 in the console. */
+    this._wantAtlas = options.textureAtlas !== false;
     this._disposed = false;
     this._running = false;
     this._raf = 0;
@@ -158,6 +161,7 @@ export class TerrainViewer3D {
    * @returns {Promise<boolean>}
    */
   async _ensureAtlas() {
+    if (!this._wantAtlas) return false;
     if (this._atlasTexture) return true;
     if (this._atlasLoad) return this._atlasLoad;
     this._atlasLoad = (async () => {
@@ -253,7 +257,8 @@ export class TerrainViewer3D {
 
     const response = await fetch(`/api/mesh/${this.dimension}/${chunkX}/${chunkZ}`);
     if (!isMeshResponseCurrent(epoch, this._meshEpoch, this._disposed)) return 'stale';
-    if (response.status === 404) return false;
+    // 204 = known-empty hole in a sparse world; 404 kept for unknown dimension etc.
+    if (response.status === 204 || response.status === 404) return false;
     if (!response.ok) throw new Error(`mesh HTTP ${response.status}`);
     const mesh = await response.json();
     if (!isMeshResponseCurrent(epoch, this._meshEpoch, this._disposed)) return 'stale';
@@ -298,11 +303,12 @@ export class TerrainViewer3D {
     if (!this._debugEl) return;
     const t = this.controls.target;
     const p = this.camera.position;
+    const paint = this._atlasTexture ? 'atlas' : 'colours';
     this._debugEl.textContent =
       `chunks ${this.streamer.loadedChunks.size}  ` +
       `cam ${p.x.toFixed(0)},${p.y.toFixed(0)},${p.z.toFixed(0)}  ` +
       `look ${t.x.toFixed(0)},${t.y.toFixed(0)},${t.z.toFixed(0)}  ` +
-      `${this._fps.toFixed(0)} fps`;
+      `${this._fps.toFixed(0)} fps  ${paint}`;
   }
 
   /** Place the orbit target near a Minecraft X/Z (e.g. world centre). */

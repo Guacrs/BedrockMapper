@@ -21,7 +21,7 @@ export const UNLOAD_DISTANCE_CHUNKS = 6;
 /** Debounce camera-driven streaming updates (ms). */
 export const STREAM_UPDATE_MS = 200;
 
-/** Wait before re-requesting a chunk that returned 404 / empty mesh. */
+/** Wait before re-requesting a chunk that returned 204 / empty mesh. */
 export const CHUNK_UNAVAILABLE_RETRY_MS = 10_000;
 
 /** Wait before re-requesting a chunk after a network / HTTP error. */
@@ -154,7 +154,7 @@ export class ChunkStreamer {
             this._retryAfter.delete(key);
             return result;
           }
-          // 404 / empty mesh — try again later (chunk may appear after a save).
+          // 204 / empty mesh — try again later (chunk may appear after a save).
           this._scheduleRetry(key, this._unavailableRetryMs);
           return false;
         })
