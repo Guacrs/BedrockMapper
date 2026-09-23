@@ -25,6 +25,9 @@ import { PlayerLayer, playerStatus } from './players.js';
 import { terrainStatus, trackingStatus } from './status.js';
 import { TerrainLayer, worldSummary } from './terrain.js';
 
+/** Bump when shipping client fixes that must beat sticky browser/CDN caches. */
+const ASSET_VERSION = '20260923c';
+
 const MinecraftCRS = L.extend({}, L.CRS.Simple, {
   transformation: new L.Transformation(1, 0, 1, 0),
 });
@@ -129,15 +132,16 @@ async function main() {
       if (is3d) {
         // Use the current 2D viewport, not map-info centre. info.center is only
         // the midpoint of chunkBounds and can sit in an empty hole on sparse
-        // worlds — which produced walls of /api/mesh 404s and a blank 3D view.
+        // worlds — which produced walls of empty /api/mesh responses and a blank 3D view.
         const viewCenter = latLngToBlock(map.getCenter());
         if (!viewer3d && view3dEl) {
-          const { TerrainViewer3D } = await import('./viewer3d/viewer.js');
+          const { TerrainViewer3D } = await import(`./viewer3d/viewer.js?v=${ASSET_VERSION}`);
           viewer3d = new TerrainViewer3D(view3dEl, {
             dimension: info.dimension,
             center: { x: viewCenter.x, z: viewCenter.z },
             debug: debug3d,
             meshVersion: info.meshVersion ?? 1,
+            textureAtlas: Boolean(info.textureAtlas),
           });
           viewer3d.start();
           window.__viewer3d = viewer3d;

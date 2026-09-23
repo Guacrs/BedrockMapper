@@ -20,6 +20,7 @@ import { logPlayerEvent, PlayerActivity } from './players/activity.ts';
 import { PlayerStore, PlayerValidationError, parsePlayerUpdate } from './players/store.ts';
 import { checkEnvironment, formatProblems } from './startup.ts';
 import { hashFallbackNames, summarizeDatabase } from './renderer/block-palette.ts';
+import { atlasFilesExist } from './renderer/3d/textures/paths.ts';
 import { NATIVE_ZOOM } from './tiles/coords.ts';
 import { dimensionById } from './world/dimensions.ts';
 
@@ -69,6 +70,7 @@ async function sendFile(
   response: http.ServerResponse,
   root: string,
   relativePath: string,
+  cacheControl = 'no-cache',
 ): Promise<boolean> {
   const target = path.resolve(root, `.${path.posix.normalize(`/${relativePath}`)}`);
   if (target !== root && !target.startsWith(root + path.sep)) return false;
@@ -76,11 +78,19 @@ async function sendFile(
   const bytes = await fs.readFile(target).catch(() => null);
   if (!bytes) return false;
 
-  response.writeHead(200, {
+  // CDN-Cache-Control stops Cloudflare from overriding no-cache with a long
+  // max-age (which left browsers on stale map.js while /api/mesh already
+  // returned 204 — empty-body JSON parse errors in the 3D viewer).
+  const headers: Record<string, string | number> = {
     'content-type': CONTENT_TYPES[path.extname(target)] ?? 'application/octet-stream',
     'content-length': bytes.length,
-    'cache-control': 'no-cache',
-  });
+    'cache-control': cacheControl,
+  };
+  if (cacheControl.includes('no-cache') || cacheControl.includes('no-store')) {
+    headers['cdn-cache-control'] = 'no-store';
+  }
+
+  response.writeHead(200, headers);
   response.end(bytes);
   return true;
 }
@@ -361,6 +371,8 @@ export async function startServer(config: Config, options: StartServerOptions = 
         ...map.info,
         version: map.version,
         meshVersion: map.meshVersion,
+        // Optional Minecraft atlas (gitignored); viewer skips /api/textures/* when false.
+        textureAtlas: atlasFilesExist(),
         worldRefreshInterval: config.worldRefreshInterval,
         terrainPollInterval: terrainPollInterval(config.worldRefreshInterval),
         playerPollInterval: config.playerUpdateInterval,
@@ -432,14 +444,22 @@ export async function startServer(config: Config, options: StartServerOptions = 
       try {
         const mesh = await map.mesh(dimensionId as never, chunkX, chunkZ);
         if (!mesh) {
-          sendJson(response, 404, { error: 'chunk not found', dimension: dimensionId, chunkX, chunkZ });
+          // Sparse worlds have holes inside the stream radius. 204 (not 404) so
+          // browsers do not paint expected empty chunks as console errors.
+          response.writeHead(204);
+          response.end();
           return;
         }
         sendJson(response, 200, { dimension: dimensionId, ...mesh });
       } catch (error) {
+        const detail = message(error);
+        if (detail.startsWith('Dimension not rendered')) {
+          sendJson(response, 404, { error: 'dimension not rendered', dimension: dimensionId });
+          return;
+        }
         log.warn('mesh.failed', {
           chunk: `${dimensionId}/${chunkX}/${chunkZ}`,
-          error: message(error),
+          error: detail,
         });
         sendJson(response, 500, { error: 'mesh generation failed' });
       }
@@ -475,18 +495,22 @@ export async function startServer(config: Config, options: StartServerOptions = 
     }
 
     if (pathname.startsWith('/vendor/leaflet/')) {
-      if (await sendFile(response, LEAFLET_ROOT, pathname.slice('/vendor/leaflet/'.length))) return;
+      if (await sendFile(response, LEAFLET_ROOT, pathname.slice('/vendor/leaflet/'.length), 'public, max-age=86400')) {
+        return;
+      }
       sendText(response, 404, 'not found');
       return;
     }
 
     if (pathname.startsWith('/vendor/three/')) {
-      if (await sendFile(response, THREE_ROOT, pathname.slice('/vendor/three/'.length))) return;
+      if (await sendFile(response, THREE_ROOT, pathname.slice('/vendor/three/'.length), 'public, max-age=86400')) {
+        return;
+      }
       sendText(response, 404, 'not found');
       return;
     }
 
-    if (await sendFile(response, WEB_ROOT, pathname === '/' ? 'index.html' : pathname)) return;
+    if (await sendFile(response, WEB_ROOT, pathname === '/' ? 'index.html' : pathname, 'no-cache')) return;
     sendText(response, 404, 'not found');
   }
 
@@ -800,7 +824,11 @@ export async function main(options: MainOptions = {}): Promise<StartedServer> {
     throw error;
   }
 
-  const report = await checkEnvironment(config, { webRoot: WEB_ROOT, leafletRoot: LEAFLET_ROOT });
+  const report = await checkEnvironment(config, {
+    webRoot: WEB_ROOT,
+    leafletRoot: LEAFLET_ROOT,
+    threeRoot: THREE_ROOT,
+  });
   if (report.problems.length) {
     console.error(formatProblems(report.problems));
     throw new ConfigError(report.problems);

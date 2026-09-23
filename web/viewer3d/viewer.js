@@ -45,12 +45,15 @@ export class TerrainViewer3D {
    *   center?: { x: number, z: number } | null,
    *   debug?: boolean,
    *   meshVersion?: number,
+   *   textureAtlas?: boolean,
    * }} [options]
    */
   constructor(container, options = {}) {
     this.container = container;
     this.dimension = options.dimension ?? 'overworld';
     this.debug = Boolean(options.debug);
+    /** Only fetch atlas when map info explicitly says it is present. */
+    this._wantAtlas = options.textureAtlas === true;
     this._disposed = false;
     this._running = false;
     this._raf = 0;
@@ -158,6 +161,7 @@ export class TerrainViewer3D {
    * @returns {Promise<boolean>}
    */
   async _ensureAtlas() {
+    if (!this._wantAtlas) return false;
     if (this._atlasTexture) return true;
     if (this._atlasLoad) return this._atlasLoad;
     this._atlasLoad = (async () => {
@@ -253,10 +257,22 @@ export class TerrainViewer3D {
 
     const response = await fetch(`/api/mesh/${this.dimension}/${chunkX}/${chunkZ}`);
     if (!isMeshResponseCurrent(epoch, this._meshEpoch, this._disposed)) return 'stale';
-    if (response.status === 404) return false;
+    // 204 = known-empty hole in a sparse world; 404 kept for unknown dimension etc.
+    if (response.status === 204 || response.status === 404) return false;
     if (!response.ok) throw new Error(`mesh HTTP ${response.status}`);
-    const mesh = await response.json();
+    // Parse via text first: a 204 can slip through a stale cached viewer as
+    // response.ok, and Response.json() then throws on the empty body.
+    const raw = await response.text();
     if (!isMeshResponseCurrent(epoch, this._meshEpoch, this._disposed)) return 'stale';
+    // Empty body on an otherwise-OK response: treat as no mesh (defensive).
+    if (!raw.trim()) return false;
+    let mesh;
+    try {
+      mesh = JSON.parse(raw);
+    } catch (error) {
+      // Non-empty but invalid JSON is a real failure — do not silently discard.
+      throw new Error(`mesh JSON parse failed: ${error instanceof Error ? error.message : error}`);
+    }
     if (!mesh?.positions?.length || !mesh?.indices?.length) return false;
     if (this._meshes.has(key)) return true;
 
@@ -298,11 +314,12 @@ export class TerrainViewer3D {
     if (!this._debugEl) return;
     const t = this.controls.target;
     const p = this.camera.position;
+    const paint = this._atlasTexture ? 'atlas' : 'colours';
     this._debugEl.textContent =
       `chunks ${this.streamer.loadedChunks.size}  ` +
       `cam ${p.x.toFixed(0)},${p.y.toFixed(0)},${p.z.toFixed(0)}  ` +
       `look ${t.x.toFixed(0)},${t.y.toFixed(0)},${t.z.toFixed(0)}  ` +
-      `${this._fps.toFixed(0)} fps`;
+      `${this._fps.toFixed(0)} fps  ${paint}`;
   }
 
   /** Place the orbit target near a Minecraft X/Z (e.g. world centre). */

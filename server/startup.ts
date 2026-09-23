@@ -134,16 +134,30 @@ export async function checkCache(cacheDir: string, worldPath: string): Promise<E
   return { problems, warnings };
 }
 
-/** The HTML/JS/CSS and the Leaflet files the production server serves as-is. */
-export async function checkStaticAssets(webRoot: string, leafletRoot: string): Promise<EnvironmentReport> {
+/** The HTML/JS/CSS and the vendor files the production server serves as-is. */
+export async function checkStaticAssets(
+  webRoot: string,
+  leafletRoot: string,
+  threeRoot?: string,
+): Promise<EnvironmentReport> {
   const problems: string[] = [];
-  const required = [
+  const required: Array<readonly [string, string, string]> = [
     [webRoot, 'index.html', 'the map page'],
     [webRoot, 'map.js', 'the map script'],
     [webRoot, 'style.css', 'the map stylesheet'],
     [leafletRoot, 'leaflet.js', 'Leaflet (run npm install)'],
     [leafletRoot, 'leaflet.css', 'Leaflet CSS (run npm install)'],
-  ] as const;
+  ];
+  if (threeRoot) {
+    required.push(
+      [threeRoot, path.join('build', 'three.module.js'), 'Three.js (run npm install)'],
+      [
+        threeRoot,
+        path.join('examples', 'jsm', 'controls', 'OrbitControls.js'),
+        'Three.js OrbitControls (run npm install)',
+      ],
+    );
+  }
   for (const [root, name, what] of required) {
     if (!(await statOrNull(path.join(root, name)))) {
       problems.push(`Missing ${what}: ${path.join(root, name)}`);
@@ -155,12 +169,14 @@ export async function checkStaticAssets(webRoot: string, leafletRoot: string): P
 /** Every startup check, in one report. */
 export async function checkEnvironment(
   config: Config,
-  assets?: { webRoot: string; leafletRoot: string },
+  assets?: { webRoot: string; leafletRoot: string; threeRoot?: string },
 ): Promise<EnvironmentReport> {
   const reports = [
     await checkWorld(config.worldPath),
     await checkCache(config.cacheDir, config.worldPath),
-    ...(assets ? [await checkStaticAssets(assets.webRoot, assets.leafletRoot)] : []),
+    ...(assets
+      ? [await checkStaticAssets(assets.webRoot, assets.leafletRoot, assets.threeRoot)]
+      : []),
   ];
   return {
     problems: reports.flatMap((report) => report.problems),
