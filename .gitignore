@@ -8,3 +8,4 @@ demo-world/
 data/textures/atlas.png
 data/textures/atlas.json
 data/textures/block-appearance.json
+cache-3d-smoke/
