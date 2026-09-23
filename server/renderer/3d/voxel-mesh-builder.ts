@@ -1,10 +1,10 @@
 /**
  * Experimental voxel mesh for one Minecraft chunk.
  *
- * PR20–22: palette BlockRefs resolve to box models (full cube, slab, stair,
- * fence). Fences use a contextual ConnectionMask from VoxelNeighborhood —
- * neighbour rails are never stored on BlockRef. Exposed faces are culled with
- * conservative box occlusion (Option A). UVs come from the PR17 atlas.
+ * PR20–23: palette BlockRefs resolve to box models (full cube, slab, stair,
+ * fence, pane). Contextual families use ConnectionMask from VoxelNeighborhood —
+ * neighbour arms/rails are never stored on BlockRef. Exposed faces are culled
+ * with conservative box occlusion (Option A). UVs come from the PR17 atlas.
  *
  * Coordinates: Minecraft X east, Y up, Z south (same as Three.js mapping).
  */
@@ -19,11 +19,11 @@ import {
 import { type MeshChunk } from './mesh-types.ts';
 import type { ConnectionMask } from './models/connection.ts';
 import {
-  connectionMaskFromNeighbours,
-  isFenceName,
-} from './models/families/fence.ts';
+  connectionMaskAtWorld,
+  isContextualConnectedName,
+} from './models/contextual.ts';
 import { isFaceFullyOccluded } from './models/occlude.ts';
-import { neighbourIsFullCubeForFence, resolveBlockModel } from './models/resolve.ts';
+import { resolveBlockModel } from './models/resolve.ts';
 import type { BlockModel, BlockRef, FaceId, ModelBox } from './models/types.ts';
 import { loadAtlasMetadata, type AtlasUvRect, uvRectForKey } from './textures/atlas.ts';
 import type { CubeFace } from './textures/models.ts';
@@ -250,9 +250,9 @@ function vertexRgb(
 }
 
 /**
- * Resolve the model at a world cell. Non-fence models are cached by BlockRef
- * identity (palette-stable). Fence models are cached by name+mask string
- * because the same palette entry can produce different rails per cell.
+ * Resolve the model at a world cell. Intrinsic models are cached by BlockRef
+ * identity (palette-stable). Contextual connected models (fence/pane) are
+ * cached by name+mask because the same palette entry can differ per cell.
  */
 function modelAtWorld(
   neighborhood: VoxelNeighborhood,
@@ -260,18 +260,18 @@ function modelAtWorld(
   worldY: number,
   worldZ: number,
   intrinsicCache: Map<BlockRef, BlockModel | null>,
-  fenceCache: Map<string, BlockModel | null>,
+  contextualCache: Map<string, BlockModel | null>,
 ): BlockModel | null {
   const ref = blockRefAtWorld(neighborhood, worldX, worldY, worldZ);
   if (!ref) return null;
 
-  if (isFenceName(ref.name)) {
-    const mask = fenceConnectionMaskAt(neighborhood, worldX, worldY, worldZ, ref.name);
+  if (isContextualConnectedName(ref.name)) {
+    const mask = connectionMaskAtWorld(neighborhood, worldX, worldY, worldZ, ref.name);
     const key = `${ref.name}|${mask.north ? 1 : 0}${mask.east ? 1 : 0}${mask.south ? 1 : 0}${mask.west ? 1 : 0}`;
-    let model = fenceCache.get(key);
+    let model = contextualCache.get(key);
     if (model === undefined) {
       model = resolveBlockModel(ref, mask);
-      fenceCache.set(key, model);
+      contextualCache.set(key, model);
     }
     return model;
   }
@@ -284,7 +284,7 @@ function modelAtWorld(
   return model;
 }
 
-/** Cardinal fence connections at a world cell (missing neighbours → false). */
+/** @deprecated Prefer connectionMaskAtWorld — kept for PR22 fence tests. */
 export function fenceConnectionMaskAt(
   neighborhood: VoxelNeighborhood,
   worldX: number,
@@ -292,20 +292,7 @@ export function fenceConnectionMaskAt(
   worldZ: number,
   selfName: string,
 ): ConnectionMask {
-  const north = blockRefAtWorld(neighborhood, worldX, worldY, worldZ - 1);
-  const east = blockRefAtWorld(neighborhood, worldX + 1, worldY, worldZ);
-  const south = blockRefAtWorld(neighborhood, worldX, worldY, worldZ + 1);
-  const west = blockRefAtWorld(neighborhood, worldX - 1, worldY, worldZ);
-  return connectionMaskFromNeighbours(
-    selfName,
-    { north, east, south, west },
-    {
-      north: neighbourIsFullCubeForFence(north),
-      east: neighbourIsFullCubeForFence(east),
-      south: neighbourIsFullCubeForFence(south),
-      west: neighbourIsFullCubeForFence(west),
-    },
-  );
+  return connectionMaskAtWorld(neighborhood, worldX, worldY, worldZ, selfName);
 }
 
 function neighbourModel(
@@ -315,7 +302,7 @@ function neighbourModel(
   worldZ: number,
   face: FaceDef,
   intrinsicCache: Map<BlockRef, BlockModel | null>,
-  fenceCache: Map<string, BlockModel | null>,
+  contextualCache: Map<string, BlockModel | null>,
 ): BlockModel | null {
   return modelAtWorld(
     neighborhood,
@@ -323,7 +310,7 @@ function neighbourModel(
     worldY + face.dy,
     worldZ + face.dz,
     intrinsicCache,
-    fenceCache,
+    contextualCache,
   );
 }
 
@@ -347,7 +334,7 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
   const originX = chunkX * CHUNK_SIZE;
   const originZ = chunkZ * CHUNK_SIZE;
   const intrinsicCache = new Map<BlockRef, BlockModel | null>();
-  const fenceCache = new Map<string, BlockModel | null>();
+  const contextualCache = new Map<string, BlockModel | null>();
 
   for (const subIndex of self.subchunkIndices) {
     const baseY = subIndex * CHUNK_SIZE;
@@ -366,7 +353,7 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
             worldY,
             worldZ,
             intrinsicCache,
-            fenceCache,
+            contextualCache,
           );
           if (!model) continue;
 
@@ -381,7 +368,7 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
                 worldZ,
                 face,
                 intrinsicCache,
-                fenceCache,
+                contextualCache,
               );
               if (isFaceFullyOccluded(box, face.id, neighbour)) continue;
 

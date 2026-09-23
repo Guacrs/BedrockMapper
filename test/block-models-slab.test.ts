@@ -230,14 +230,14 @@ describe('slab models + meshing', () => {
 
   it('unknown renderable blocks fall back to full cube', () => {
     resetBlockModelCache();
-    // Panes are not modelled yet (PR23) — must stay visible as full cubes.
+    // Doors are not modelled yet (PR24) — must stay visible as full cubes.
     const model = resolveBlockModel({
-      name: 'minecraft:glass_pane',
+      name: 'minecraft:wooden_door',
       states: {
-        'minecraft:connection_north': true,
-        'minecraft:connection_south': false,
-        'minecraft:connection_east': false,
-        'minecraft:connection_west': false,
+        'minecraft:cardinal_direction': 'north',
+        open_bit: false,
+        upper_block_bit: false,
+        door_hinge_bit: false,
       },
     } as BlockRef)!;
     assert.equal(model.isFullCube, true);
