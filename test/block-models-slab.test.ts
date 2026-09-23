@@ -230,9 +230,15 @@ describe('slab models + meshing', () => {
 
   it('unknown renderable blocks fall back to full cube', () => {
     resetBlockModelCache();
+    // Fences are not modelled yet — must stay visible as full cubes.
     const model = resolveBlockModel({
-      name: 'minecraft:oak_stairs',
-      states: { weirdo_direction: 1 },
+      name: 'minecraft:oak_fence',
+      states: {
+        'minecraft:connection_north': true,
+        'minecraft:connection_south': false,
+        'minecraft:connection_east': false,
+        'minecraft:connection_west': false,
+      },
     } as BlockRef)!;
     assert.equal(model.isFullCube, true);
   });

@@ -19,7 +19,7 @@ import { type MeshChunk } from './mesh-types.ts';
 import { isFaceFullyOccluded } from './models/occlude.ts';
 import { resolveBlockModel } from './models/resolve.ts';
 import type { BlockModel, BlockRef, FaceId, ModelBox } from './models/types.ts';
-import { faceCornerUvs, loadAtlasMetadata, type AtlasUvRect, uvRectForKey } from './textures/atlas.ts';
+import { loadAtlasMetadata, type AtlasUvRect, uvRectForKey } from './textures/atlas.ts';
 import type { CubeFace } from './textures/models.ts';
 import { isOverlayCompositedTextureKey } from './textures/overlay.ts';
 
@@ -157,64 +157,73 @@ function cornerWorld(
 }
 
 /**
- * UV corners for a face. Vertical side faces of non-unit-height boxes crop the
- * atlas tile (Minecraft slab convention): bottom slab → lower half of the side
- * texture; top slab → upper half. Stretching the full tile onto a half face is
- * avoided.
+ * UV corners for a box face using **unit-cell** texture density.
+ *
+ * Each corner samples the atlas tile at the face's local (x,y,z) within the
+ * block (0..1), matching Minecraft's partial-block mapping: a half-height side
+ * uses half the tile vertically; a half-width stair riser uses half horizontally.
+ * Stretching a full tile onto a small face is avoided.
  */
 export function faceCornerUvsForBox(
   rect: AtlasUvRect,
   face: CubeFace,
   box: ModelBox,
 ): readonly (readonly [number, number])[] {
-  const full = faceCornerUvs(rect, face);
-  if (face === 'up' || face === 'down') return full;
-
-  const y0 = box.min[1];
-  const y1 = box.max[1];
-  // Unit-height sides keep the full tile.
-  if (Math.abs(y0) < 1e-6 && Math.abs(y1 - 1) < 1e-6) return full;
-
   const { u0, v0, u1, v1 } = rect;
   const top = v0;
   const bot = v1;
-  // Atlas v increases downward; y=1 is top of block → near `top` (v0).
+  const uAt = (t: number) => u0 + t * (u1 - u0);
+  // Atlas v increases downward; block y=1 → top of texture (v0).
   const vAt = (y: number) => top + (1 - y) * (bot - top);
-  const vHi = vAt(y1); // smaller v (toward top of texture) for higher Y
-  const vLo = vAt(y0);
+
+  const [x0, y0, z0] = box.min;
+  const [x1, y1, z1] = box.max;
 
   switch (face) {
+    case 'up':
+      // corners (x,z): (x0,z0),(x0,z1),(x1,z1),(x1,z0) — z→V like faceCornerUvs
+      return [
+        [uAt(x0), top + z0 * (bot - top)],
+        [uAt(x0), top + z1 * (bot - top)],
+        [uAt(x1), top + z1 * (bot - top)],
+        [uAt(x1), top + z0 * (bot - top)],
+      ];
+    case 'down':
+      return [
+        [uAt(x0), top + (1 - z0) * (bot - top)],
+        [uAt(x1), top + (1 - z0) * (bot - top)],
+        [uAt(x1), top + (1 - z1) * (bot - top)],
+        [uAt(x0), top + (1 - z1) * (bot - top)],
+      ];
     case 'south':
       return [
-        [u0, vLo],
-        [u1, vLo],
-        [u1, vHi],
-        [u0, vHi],
+        [uAt(x0), vAt(y0)],
+        [uAt(x1), vAt(y0)],
+        [uAt(x1), vAt(y1)],
+        [uAt(x0), vAt(y1)],
       ];
     case 'north':
       return [
-        [u1, vLo],
-        [u1, vHi],
-        [u0, vHi],
-        [u0, vLo],
+        [uAt(x1), vAt(y0)],
+        [uAt(x1), vAt(y1)],
+        [uAt(x0), vAt(y1)],
+        [uAt(x0), vAt(y0)],
       ];
     case 'east':
-      // corners param (a,b) = (y,z); a=0 → y0, a=1 → y1
+      // Match prior east winding: (y,z) order with U←z, V←y
       return [
-        [u0, vLo],
-        [u0, vHi],
-        [u1, vHi],
-        [u1, vLo],
+        [uAt(z0), vAt(y0)],
+        [uAt(z0), vAt(y1)],
+        [uAt(z1), vAt(y1)],
+        [uAt(z1), vAt(y0)],
       ];
     case 'west':
       return [
-        [u1, vLo],
-        [u0, vLo],
-        [u0, vHi],
-        [u1, vHi],
+        [uAt(z1), vAt(y0)],
+        [uAt(z0), vAt(y0)],
+        [uAt(z0), vAt(y1)],
+        [uAt(z1), vAt(y1)],
       ];
-    default:
-      return full;
   }
 }
 

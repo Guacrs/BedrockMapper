@@ -8,6 +8,7 @@
 import { isInvisible } from '../../../world/blocks.ts';
 import { fullCubeModel } from './families/full-cube.ts';
 import { isDoubleSlabName, isSingleSlabName, slabModel } from './families/slab.ts';
+import { isStairName, tryBuildStraightStair } from './families/stair.ts';
 import type { BlockModel, BlockRef } from './types.ts';
 import { EMPTY_BLOCK_REF } from './types.ts';
 
@@ -17,6 +18,15 @@ function cacheKey(ref: BlockRef): string {
   if (isSingleSlabName(ref.name)) {
     const half = ref.states['minecraft:vertical_half'] === 'top' ? 'top' : 'bottom';
     return `slab:${half}:${ref.name}`;
+  }
+  if (isStairName(ref.name)) {
+    const corner = ref.states['minecraft:corner'];
+    if (corner !== undefined && corner !== 'none') {
+      return `full_cube:fallback_corner:${ref.name}`;
+    }
+    const weirdo = ref.states['weirdo_direction'];
+    const up = ref.states['upside_down_bit'] === true ? 'top' : 'bottom';
+    return `stair:${String(weirdo)}:${up}:${ref.name}`;
   }
   return `full_cube:${ref.name}`;
 }
@@ -33,10 +43,12 @@ export function resolveBlockModel(ref: BlockRef): BlockModel | null {
   if (isSingleSlabName(ref.name)) {
     model = slabModel(ref);
   } else if (isDoubleSlabName(ref.name)) {
-    // Distinct vanilla ids render as full cubes (states ignored for geometry).
     model = fullCubeModel(ref.name);
+  } else if (isStairName(ref.name)) {
+    const built = tryBuildStraightStair(ref);
+    model = built.ok ? built.model : fullCubeModel(ref.name);
   } else {
-    // Unsupported partials (stairs, fences, …) stay full cubes — conservative.
+    // Unsupported partials (fences, panes, …) stay full cubes — conservative.
     model = fullCubeModel(ref.name);
   }
 
