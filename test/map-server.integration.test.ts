@@ -368,12 +368,14 @@ describe(
     it('returns 204 for mesh of an empty chunk and 404 for unknown dimension', async () => {
       const missing = await fetch(`${base}/api/mesh/overworld/999999/999999`);
       assert.equal(missing.status, 204);
-      const badDim = await fetch(`${base}/api/mesh/nether/0/0`);
+      const badDim = await fetch(`${base}/api/mesh/not-a-dimension/0/0`);
       assert.equal(badDim.status, 404);
     });
 
     it('serves map info describing the real world', async () => {
-      const info = (await fetch(`${base}/api/map/info`).then((response) => response.json())) as MapInfo;
+      const info = (await fetch(`${base}/api/map/info`).then((response) => response.json())) as MapInfo & {
+        textureAtlas?: boolean;
+      };
       assert.equal(info.dimension, 'overworld');
       assert.equal(info.tileSize, TILE_SIZE);
       assert.ok(info.chunkCount > 0);

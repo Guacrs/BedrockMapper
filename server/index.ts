@@ -443,9 +443,14 @@ export async function startServer(config: Config, options: StartServerOptions = 
         }
         sendJson(response, 200, { dimension: dimensionId, ...mesh });
       } catch (error) {
+        const detail = message(error);
+        if (detail.startsWith('Dimension not rendered')) {
+          sendJson(response, 404, { error: 'dimension not rendered', dimension: dimensionId });
+          return;
+        }
         log.warn('mesh.failed', {
           chunk: `${dimensionId}/${chunkX}/${chunkZ}`,
-          error: message(error),
+          error: detail,
         });
         sendJson(response, 500, { error: 'mesh generation failed' });
       }
