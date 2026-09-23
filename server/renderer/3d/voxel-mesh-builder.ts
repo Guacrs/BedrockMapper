@@ -1,47 +1,44 @@
 /**
- * Experimental voxel / full-cube mesh for one Minecraft chunk.
+ * Experimental voxel mesh for one Minecraft chunk.
  *
- * Emits only exposed faces of renderable cubes (see `isRenderableCube`).
- * Internal faces between solid neighbours are culled. Chunk-boundary faces
- * consult west/east/north/south neighbour volumes — missing neighbours are
- * treated as air. No greedy meshing or special block models yet.
- *
- * Appearance (atlas UVs) comes from the optional texture pipeline; unknown
- * blocks keep the existing vertex-colour fallback.
+ * PR20: palette BlockRefs resolve to box models (full cube + slab). Exposed
+ * faces are culled with conservative box occlusion (Option A — never drop a
+ * face that is only partially covered). UVs come from the PR17 atlas.
  *
  * Coordinates: Minecraft X east, Y up, Z south (same as Three.js mapping).
  */
 
 import { blockColor, resolveBlockColor } from '../colors.ts';
-import { isRenderableCube } from '../../world/blocks.ts';
 import { CHUNK_SIZE } from '../../world/keys.ts';
 import {
   blockAtWorld,
-  isSolidAt,
+  blockRefAtWorld,
   type VoxelNeighborhood,
 } from './chunk-blocks.ts';
 import { type MeshChunk } from './mesh-types.ts';
-import { faceCornerUvs, loadAtlasMetadata, uvRectForKey } from './textures/atlas.ts';
-import { fullCubeFaceTexture, type CubeFace } from './textures/models.ts';
+import { isFaceFullyOccluded } from './models/occlude.ts';
+import { resolveBlockModel } from './models/resolve.ts';
+import type { BlockModel, BlockRef, FaceId, ModelBox } from './models/types.ts';
+import { faceCornerUvs, loadAtlasMetadata, type AtlasUvRect, uvRectForKey } from './textures/atlas.ts';
+import type { CubeFace } from './textures/models.ts';
 import { isOverlayCompositedTextureKey } from './textures/overlay.ts';
 
 interface FaceDef {
-  id: CubeFace;
-  /** Neighbour offset checked for occlusion. */
+  id: FaceId;
   dx: number;
   dy: number;
   dz: number;
   nx: number;
   ny: number;
   nz: number;
-  /** Four corners in CCW order when viewed from outside (unit cube). */
-  corners: readonly (readonly [number, number, number])[];
+  /**
+   * Four corners in CCW order on the unit square of this face, as (a,b) in
+   * face-local parameters: for east/west → (y,z); up/down → (x,z); n/s → (x,y).
+   * Mapped onto each ModelBox at emit time.
+   */
+  corners: readonly (readonly [number, number])[];
 }
 
-/**
- * Unit-cube faces. Normals are assigned explicitly so winding mistakes are
- * obvious in tests; corners are ordered for front-facing triangulation.
- */
 const FACES: readonly FaceDef[] = [
   {
     id: 'up',
@@ -52,10 +49,10 @@ const FACES: readonly FaceDef[] = [
     ny: 1,
     nz: 0,
     corners: [
-      [0, 1, 0],
-      [0, 1, 1],
-      [1, 1, 1],
-      [1, 1, 0],
+      [0, 0],
+      [0, 1],
+      [1, 1],
+      [1, 0],
     ],
   },
   {
@@ -67,10 +64,10 @@ const FACES: readonly FaceDef[] = [
     ny: -1,
     nz: 0,
     corners: [
-      [0, 0, 0],
-      [1, 0, 0],
-      [1, 0, 1],
-      [0, 0, 1],
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
     ],
   },
   {
@@ -82,10 +79,10 @@ const FACES: readonly FaceDef[] = [
     ny: 0,
     nz: 1,
     corners: [
-      [0, 0, 1],
-      [1, 0, 1],
-      [1, 1, 1],
-      [0, 1, 1],
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
     ],
   },
   {
@@ -97,10 +94,10 @@ const FACES: readonly FaceDef[] = [
     ny: 0,
     nz: -1,
     corners: [
-      [0, 0, 0],
-      [0, 1, 0],
-      [1, 1, 0],
-      [1, 0, 0],
+      [0, 0],
+      [0, 1],
+      [1, 1],
+      [1, 0],
     ],
   },
   {
@@ -112,10 +109,10 @@ const FACES: readonly FaceDef[] = [
     ny: 0,
     nz: 0,
     corners: [
-      [1, 0, 0],
-      [1, 1, 0],
-      [1, 1, 1],
-      [1, 0, 1],
+      [0, 0],
+      [1, 0],
+      [1, 1],
+      [0, 1],
     ],
   },
   {
@@ -127,13 +124,99 @@ const FACES: readonly FaceDef[] = [
     ny: 0,
     nz: 0,
     corners: [
-      [0, 0, 0],
-      [0, 0, 1],
-      [0, 1, 1],
-      [0, 1, 0],
+      [0, 0],
+      [0, 1],
+      [1, 1],
+      [1, 0],
     ],
   },
 ];
+
+function cornerWorld(
+  box: ModelBox,
+  face: FaceId,
+  a: number,
+  b: number,
+): [number, number, number] {
+  const [x0, y0, z0] = box.min;
+  const [x1, y1, z1] = box.max;
+  switch (face) {
+    case 'up':
+      return [x0 + a * (x1 - x0), y1, z0 + b * (z1 - z0)];
+    case 'down':
+      return [x0 + a * (x1 - x0), y0, z0 + b * (z1 - z0)];
+    case 'south':
+      return [x0 + a * (x1 - x0), y0 + b * (y1 - y0), z1];
+    case 'north':
+      return [x0 + a * (x1 - x0), y0 + b * (y1 - y0), z0];
+    case 'east':
+      return [x1, y0 + a * (y1 - y0), z0 + b * (z1 - z0)];
+    case 'west':
+      return [x0, y0 + a * (y1 - y0), z0 + b * (z1 - z0)];
+  }
+}
+
+/**
+ * UV corners for a face. Vertical side faces of non-unit-height boxes crop the
+ * atlas tile (Minecraft slab convention): bottom slab → lower half of the side
+ * texture; top slab → upper half. Stretching the full tile onto a half face is
+ * avoided.
+ */
+export function faceCornerUvsForBox(
+  rect: AtlasUvRect,
+  face: CubeFace,
+  box: ModelBox,
+): readonly (readonly [number, number])[] {
+  const full = faceCornerUvs(rect, face);
+  if (face === 'up' || face === 'down') return full;
+
+  const y0 = box.min[1];
+  const y1 = box.max[1];
+  // Unit-height sides keep the full tile.
+  if (Math.abs(y0) < 1e-6 && Math.abs(y1 - 1) < 1e-6) return full;
+
+  const { u0, v0, u1, v1 } = rect;
+  const top = v0;
+  const bot = v1;
+  // Atlas v increases downward; y=1 is top of block → near `top` (v0).
+  const vAt = (y: number) => top + (1 - y) * (bot - top);
+  const vHi = vAt(y1); // smaller v (toward top of texture) for higher Y
+  const vLo = vAt(y0);
+
+  switch (face) {
+    case 'south':
+      return [
+        [u0, vLo],
+        [u1, vLo],
+        [u1, vHi],
+        [u0, vHi],
+      ];
+    case 'north':
+      return [
+        [u1, vLo],
+        [u1, vHi],
+        [u0, vHi],
+        [u0, vLo],
+      ];
+    case 'east':
+      // corners param (a,b) = (y,z); a=0 → y0, a=1 → y1
+      return [
+        [u0, vLo],
+        [u0, vHi],
+        [u1, vHi],
+        [u1, vLo],
+      ];
+    case 'west':
+      return [
+        [u1, vLo],
+        [u0, vLo],
+        [u0, vHi],
+        [u1, vHi],
+      ];
+    default:
+      return full;
+  }
+}
 
 function vertexRgb(
   blockName: string,
@@ -141,8 +224,6 @@ function vertexRgb(
   textureKey: string | null,
 ): [number, number, number] {
   const resolved = resolveBlockColor(blockName);
-  // Overlay-composited atlas frames already bake tint into opaque pixels
-  // (dirt stays dirt; mask pixels carry overlay_color). Do not multiply again.
   if (
     hasTexture &&
     (resolved.tint === 'none' || (textureKey != null && isOverlayCompositedTextureKey(textureKey)))
@@ -153,8 +234,31 @@ function vertexRgb(
   return [cr / 255, cg / 255, cb / 255];
 }
 
+function neighbourModel(
+  neighborhood: VoxelNeighborhood,
+  worldX: number,
+  worldY: number,
+  worldZ: number,
+  face: FaceDef,
+  cache: Map<BlockRef, BlockModel | null>,
+): BlockModel | null {
+  const ref = blockRefAtWorld(
+    neighborhood,
+    worldX + face.dx,
+    worldY + face.dy,
+    worldZ + face.dz,
+  );
+  if (!ref) return null;
+  let model = cache.get(ref);
+  if (model === undefined) {
+    model = resolveBlockModel(ref);
+    cache.set(ref, model);
+  }
+  return model;
+}
+
 /**
- * Build an indexed cube-face mesh for one chunk. Empty when there is nothing
+ * Build an indexed box-face mesh for one chunk. Empty when there is nothing
  * solid to draw.
  */
 export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: VoxelNeighborhood): MeshChunk {
@@ -172,6 +276,7 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
   const atlas = loadAtlasMetadata();
   const originX = chunkX * CHUNK_SIZE;
   const originZ = chunkZ * CHUNK_SIZE;
+  const modelCache = new Map<BlockRef, BlockModel | null>();
 
   for (const subIndex of self.subchunkIndices) {
     const baseY = subIndex * CHUNK_SIZE;
@@ -179,48 +284,59 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
       for (let lx = 0; lx < CHUNK_SIZE; lx++) {
         for (let ly = 0; ly < CHUNK_SIZE; ly++) {
           const worldY = baseY + ly;
-          const name = self.getLocal(lx, worldY, lz);
-          if (!isRenderableCube(name)) continue;
+          const ref = self.getLocalRef(lx, worldY, lz);
+          if (!ref) continue;
+
+          let model = modelCache.get(ref);
+          if (model === undefined) {
+            model = resolveBlockModel(ref);
+            modelCache.set(ref, model);
+          }
+          if (!model) continue;
 
           const worldX = originX + lx;
           const worldZ = originZ + lz;
 
-          for (const face of FACES) {
-            if (
-              isSolidAt(
+          for (const box of model.renderBoxes) {
+            for (const face of FACES) {
+              if (!box.faces[face.id]) continue;
+
+              const neighbour = neighbourModel(
                 neighborhood,
-                worldX + face.dx,
-                worldY + face.dy,
-                worldZ + face.dz,
-              )
-            ) {
-              continue;
-            }
+                worldX,
+                worldY,
+                worldZ,
+                face,
+                modelCache,
+              );
+              if (isFaceFullyOccluded(box, face.id, neighbour)) continue;
 
-            const textureKey = fullCubeFaceTexture(name!, face.id);
-            const rect =
-              atlas && textureKey ? uvRectForKey(atlas, textureKey) : null;
-            const hasTexture = rect != null;
-            const [r, g, b] = vertexRgb(name!, hasTexture, textureKey);
-            const cornerUvs = rect
-              ? faceCornerUvs(rect, face.id)
-              : ([
-                  [0, 0],
-                  [0, 0],
-                  [0, 0],
-                  [0, 0],
-                ] as const);
+              const textureKey = box.faces[face.id]!.textureKey;
+              const rect =
+                atlas && textureKey ? uvRectForKey(atlas, textureKey) : null;
+              const hasTexture = rect != null;
+              const [r, g, b] = vertexRgb(ref.name, hasTexture, textureKey);
+              const cornerUvs = rect
+                ? faceCornerUvsForBox(rect, face.id, box)
+                : ([
+                    [0, 0],
+                    [0, 0],
+                    [0, 0],
+                    [0, 0],
+                  ] as const);
 
-            const base = positions.length / 3;
-            for (let i = 0; i < 4; i++) {
-              const [cx, cy, cz] = face.corners[i]!;
-              const [u, v] = cornerUvs[i]!;
-              positions.push(worldX + cx, worldY + cy, worldZ + cz);
-              normals.push(face.nx, face.ny, face.nz);
-              colors.push(r, g, b);
-              uvs.push(u, v);
+              const base = positions.length / 3;
+              for (let i = 0; i < 4; i++) {
+                const [a, bParam] = face.corners[i]!;
+                const [lx2, ly2, lz2] = cornerWorld(box, face.id, a, bParam);
+                const [u, v] = cornerUvs[i]!;
+                positions.push(worldX + lx2, worldY + ly2, worldZ + lz2);
+                normals.push(face.nx, face.ny, face.nz);
+                colors.push(r, g, b);
+                uvs.push(u, v);
+              }
+              indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
             }
-            indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
           }
         }
       }
@@ -235,4 +351,4 @@ export function countFaces(mesh: MeshChunk): number {
   return mesh.indices.length / 6;
 }
 
-export { FACES as VOXEL_FACES, blockAtWorld };
+export { FACES as VOXEL_FACES, blockAtWorld, blockRefAtWorld };

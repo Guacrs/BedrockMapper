@@ -41,15 +41,10 @@ export function isWater(blockName: string): boolean {
 }
 
 /**
- * Whether a block occupies a full cube in the experimental voxel mesh.
+ * Whether a block name is considered for the experimental voxel mesh.
  *
- * Classification (deliberately minimal for this phase):
- * - invisible / empty → not rendered
- * - everything else → full cube (including water, leaves, and partial
- *   blocks such as slabs/stairs — special models come later)
- *
- * Conservative: unknown future block names render as cubes rather than
- * being dropped, matching the 2D palette's "unknown still paints" stance.
+ * Invisible / empty → skipped. Everything else is at least considered
+ * (full-cube fallback until a specialised family exists).
  */
 export function isRenderableCube(blockName: string | null | undefined): boolean {
   if (!blockName) return false;

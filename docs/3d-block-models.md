@@ -1,45 +1,59 @@
-# Experimental 3D: block states + block models (PR19 research)
+# Experimental 3D: block states + block models
 
-**Status:** research / architecture only. **Do not implement** from this document until an explicit coding brief is approved.
+**Status:** PR19 research complete · **PR20 implemented** (full cube + slab).
 
-**Frozen predecessors (do not modify in PR19 coding work without a new brief):**
+**Frozen predecessors:**
 
 | PR | Scope |
 |----|--------|
 | PR16 | Experimental voxel 3D meshes, streaming, meshVersion |
 | PR17 | Texture atlas, UVs, offline `overlay_color` bake |
 | PR18 | Empty-mesh 204, `textureAtlas` flag, CDN/app cache |
+| PR19 | This document (research) |
+| **PR20** | State retention, model resolver, full cube + slab, Option A occlusion |
 
-**Sources inspected for this document:**
+### PR20 implemented
 
-- Mojang `bedrock-samples` under `/tmp/bedrock-samples` (engine series **1.26.x**, full resource pack)
-- `mcbe-leveldb` NBT schemas in `node_modules/mcbe-leveldb`
-- BedrockMapper: `server/world/subchunk.ts`, `chunk-blocks.ts`, `voxel-mesh-builder.ts`, `mesh-types.ts`, `blocks.ts`, `renderer/3d/textures/`
-- Live palette dump from `./demo-world` via `BedrockWorld` (169 chunks; only full-cube samples present there)
+- `ChunkBlocks` palette stores immutable `BlockRef { name, states }` (NBT `version` still dropped)
+- `server/renderer/3d/models/` — types, resolve, occlude, families `full-cube` + `slab`
+- Mesher resolves models once per palette entry; full-cube↔full-cube keeps O(1) cull
+- Single slabs: ids ending in `_slab` excluding `double_slab` / `double_cut_*`; state `minecraft:vertical_half` ∈ {bottom, top}
+- Double slabs: distinct ids → full-cube fallback
+- Side-face UVs for half-height boxes **crop** the atlas tile vertically (Minecraft convention)
+- Occlusion **Option A**: drop a face only when fully covered; partial cover keeps the whole face
+- `MeshChunk` layout unchanged; PR17 appearance/atlas untouched
+
+### Deferred (not in PR20)
+
+- Stairs / `weirdo_direction` mapping (still unproven — do not guess)
+- Fence / pane connection families
+- Doors, trapdoors, torches, plants
+- `.geo.json` parsing
+- Face splitting (Option B)
 
 ---
 
 ## 1. Current architecture
 
+
 ```text
 Bedrock LevelDB
     ↓  mcbe-leveldb SubChunkPrefix.parse
 SubChunk { layers[].palette: BlockState{name, states}[], indices }
-    ↓  ChunkBlocks.fromSubChunks  ★ map(entry => entry.name) — STATES DISCARDED
-ChunkBlocks { palette: string[], indices }   // layer 0 only
+    ↓  ChunkBlocks.fromSubChunks  → palette: BlockRef{name, states}[]  (PR20)
+ChunkBlocks
     ↓
-VoxelNeighborhood (self + N/E/S/W)
-    ↓  isRenderableCube(name) + isSolidAt ≡ same check on neighbour
-exposed-face FULL-CUBE mesher (voxel-mesh-builder.ts)
-    ↓  PR17: fullCubeFaceTexture(name, face) → atlas UVs
+VoxelNeighborhood
+    ↓  resolveBlockModel(BlockRef) → full_cube | slab | …
+    ↓  isFaceFullyOccluded (Option A)
+box-face mesher (voxel-mesh-builder.ts)
+    ↓  PR17: appearance → atlas UVs (side UV crop for half-height boxes)
 MeshChunk { positions, normals, colors, uvs, indices }
     ↓
 Three.js
 ```
 
-**Current hard assumption:** every non-invisible block is a **1×1×1 cube**. Stairs, slabs, fences, panes, doors, torches, etc. render as solid cubes and cull as solid cubes.
-
-PR17 already supplies textures for those names (oak stairs → oak planks atlas frame, etc.) but **geometry is wrong**.
+**PR20 geometry:** full cubes + single slabs. Stairs/fences/etc. still use the full-cube fallback.
 
 ---
 
