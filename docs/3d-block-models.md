@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19 research · **PR20** cube+slab · **PR21** stairs · **PR22** fences (**frozen**) · **PR23** panes/iron bars.
+**Status:** PR19 research · **PR20** cube+slab · **PR21** stairs · **PR22** fences (**frozen**) · **PR23** panes · **PR24** doors+trapdoors.
 
 **Frozen predecessors:**
 
@@ -14,6 +14,7 @@
 | **PR21** | Straight stairs + `weirdo_direction` transforms |
 | **PR22** | Connected fences — `BlockRef` / `ConnectionMask` separation (**frozen**) |
 | **PR23** | Glass panes + iron bars — reuse `ConnectionMask`, thin occlusion |
+| **PR24** | Doors + trapdoors — intrinsic state transforms (no ConnectionMask) |
 
 ### PR20 implemented
 
@@ -92,12 +93,32 @@ Reuses PR22 `ConnectionMask` via `models/contextual.ts` (shared neighbour gather
 - `isFullCube` always **false** — explicit tests that panes do not cull neighbour unit faces
 - Demo world: **zero** pane/bars entries → synthetic fixture (same caveat as PR22)
 
+### PR24 implemented
+
+Intrinsic state families (no ConnectionMask) — same transform path as stairs:
+
+**Doors** (`families/door.ts`):
+
+- States: `minecraft:cardinal_direction` (or legacy `direction` 0=S,1=W,2=N,3=E), `door_hinge_bit`, `open_bit`, `upper_block_bit`
+- Closed facing east → west 3/16 strip; open left → north strip; open right → south strip; then `rotateModelY`
+- Wiki evidence: “door facing east occupies the west part of its block when closed”
+- Missing facing → full-cube fallback
+- 32 state combos tested (4×2×2×2)
+
+**Trapdoors** (`families/trapdoor.ts`):
+
+- States: `direction` 0–3, `open_bit`, `upside_down_bit`
+- Closed bottom/top plates; open → vertical flap on facing wall
+- 16 state combos tested; missing direction → full-cube fallback
+
+Both always `isFullCube: false`. Not treated as solid attach targets for fences/panes.
+
 ### Deferred (still)
 
 - Walls
-- Doors / trapdoors
 - Inner/outer corner stairs
-- Custom `.geo.json`
+- Thin blocks / plants / crosses (PR25)
+- Custom `.geo.json` (PR26)
 - Exact stair–stair polygon clipping
 - Greedy meshing / water / resource-pack runtime overrides
 
@@ -123,7 +144,7 @@ MeshChunk { positions, normals, colors, uvs, indices }
 Three.js
 ```
 
-**PR20–23 geometry:** full cubes + single slabs + straight stairs + connected fences + panes/iron bars. Doors/walls/etc. still use the full-cube fallback. Corner stairs fall back to full cube.
+**PR20–24 geometry:** full cubes + slabs + straight stairs + fences + panes/bars + doors + trapdoors. Walls/plants/etc. still use the full-cube fallback. Corner stairs fall back to full cube.
 
 ---
 
