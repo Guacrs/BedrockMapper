@@ -379,10 +379,14 @@ describe(
       const missing = await fetch(`${base}/api/mesh/overworld/999999/999999`);
       assert.equal(missing.status, 204);
       assert.equal(await missing.text(), '');
-      const badDim = await fetch(`${base}/api/mesh/not-a-dimension/0/0`);
+      const badDim = await fetch(`${base}/api/mesh/moon/0/0`);
       assert.equal(badDim.status, 404);
+      const badBody = (await badDim.json()) as { error?: string };
+      assert.equal(badBody.error, 'unknown dimension');
       const unrendered = await fetch(`${base}/api/mesh/nether/0/0`);
       assert.equal(unrendered.status, 404);
+      const unrenderedBody = (await unrendered.json()) as { error?: string };
+      assert.equal(unrenderedBody.error, 'dimension not rendered');
     });
 
     it('serves map info describing the real world', async () => {
