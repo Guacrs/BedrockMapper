@@ -247,6 +247,58 @@ describe('model cache by pane connection mask', () => {
 });
 
 describe('pane fixture neighborhood', () => {
+  it('mixed contextual neighborhood: N pane, E cube, S bars, W fence', () => {
+    //
+    //           pane (N)
+    //             │
+    //  fence ── pane ── stone
+    //             │
+    //           bars (S)
+    //
+    const cells = new Map<string, BlockState>([
+      ['8,8', { name: 'minecraft:glass_pane', states: {} }], // centre
+      ['8,7', { name: 'minecraft:glass_pane', states: {} }], // N (−Z)
+      ['9,8', { name: 'minecraft:stone', states: {} }], // E (+X)
+      ['8,9', { name: 'minecraft:iron_bars', states: {} }], // S (+Z)
+      ['7,8', { name: 'minecraft:oak_fence', states: {} }], // W (−X)
+    ]);
+    const self = volumeFromStates(0, 0, (x, y, z) =>
+      y === 64 ? (cells.get(`${x},${z}`) ?? null) : null,
+    );
+    const n = emptyNeighborhood(self);
+    const mask = connectionMaskAtWorld(n, 8, 64, 8, 'minecraft:glass_pane');
+
+    assert.equal(mask.north, true, 'N → pane');
+    assert.equal(mask.east, true, 'E → full cube');
+    assert.equal(mask.south, true, 'S → iron bars');
+    assert.equal(mask.west, false, 'W → fence must not connect');
+
+    const model = paneModel('minecraft:glass_pane', mask);
+    assert.equal(model.isFullCube, false);
+    assert.equal(model.renderBoxes.length, 4); // post + N + E + S (no W)
+
+    const hasNorth = model.renderBoxes.some(
+      (b) => b.min[2] === 0 && b.max[2] === 7 * PX && b.min[0] === 7 * PX,
+    );
+    const hasEast = model.renderBoxes.some(
+      (b) => b.min[0] === 9 * PX && b.max[0] === 1 && b.min[2] === 7 * PX,
+    );
+    const hasSouth = model.renderBoxes.some(
+      (b) => b.min[2] === 9 * PX && b.max[2] === 1 && b.min[0] === 7 * PX,
+    );
+    const hasWest = model.renderBoxes.some(
+      (b) => b.min[0] === 0 && b.max[0] === 7 * PX && b.min[2] === 7 * PX,
+    );
+    assert.ok(hasNorth, 'north arm present');
+    assert.ok(hasEast, 'east arm present');
+    assert.ok(hasSouth, 'south arm present');
+    assert.equal(hasWest, false, 'west arm absent');
+
+    // Centre pane must not fully cull a neighbouring stone's west face.
+    const stone = fullCubeModel('minecraft:stone');
+    assert.equal(isFaceFullyOccluded(stone.renderBoxes[0]!, 'west', model), false);
+  });
+
   it('isolated / full-cube / bars / fence / slab / all-4 / stored bits', () => {
     const self = paneFixtureSelf();
     const n = emptyNeighborhood(self);
