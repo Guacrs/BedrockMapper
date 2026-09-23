@@ -74,9 +74,25 @@ export function fenceFamily(name: string): FenceFamily | null {
 /**
  * Whether `self` fence should form a rail toward `neighbour`.
  *
- * `neighbourIsFullCube` must reflect the neighbour's **intrinsic** model
- * (`isFullCube`), not a contextual fence mask — avoids circular resolve.
- * Missing neighbour (`null`) → no connection (exposed edge / unloaded chunk).
+ * Decision tree (connectivity ≠ occlusion):
+ *
+ * ```
+ * neighbour
+ *   ├── null / air              → no
+ *   ├── compatible fence family → yes   (wooden↔wooden, nether↔nether)
+ *   ├── incompatible fence      → no    (wooden↛nether), even if "solid"
+ *   ├── fence gate              → yes   (both families; wood type ignored)
+ *   ├── model.isFullCube        → yes   (stone, dirt, … — Bedrock solid attach)
+ *   └── anything else           → no    (slab, stair, pane, …)
+ * ```
+ *
+ * Deliberately does **not** call `isSolidAt` / `isRenderableCube`. Those answer
+ * "is there something to draw / cull against", not "should a fence rail attach".
+ * A full cube may occlude a rail end face while connectivity still uses this
+ * explicit classifier; a slab is renderable but never a fence attach target.
+ *
+ * `neighbourIsFullCube` must come from the neighbour's **intrinsic** model
+ * (`isFullCube`), never from a contextual fence/pane mask.
  */
 export function fenceConnectsTo(
   selfName: string,
@@ -90,6 +106,7 @@ export function fenceConnectsTo(
     return selfFam != null && otherFam != null && selfFam === otherFam;
   }
   if (isFenceGateName(neighbour.name)) return true;
+  // Only after fence/gate checks — never treat fences as full-cube attach targets.
   return neighbourIsFullCube;
 }
 

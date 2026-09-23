@@ -77,6 +77,10 @@ Evidence: Minecraft Wiki Fence (Bedrock states + wooden≠nether); Microsoft `mi
 
 **Visual validation:** demo-world LevelDB scan found **zero** fence palette entries. Geometry is therefore exercised by the synthetic fixture in `test/block-models-fence.test.ts` (isolated, single dirs, all-4, combinations, non-connectable, same-fence, chunk boundary, missing data, cache, cube/slab/stair regressions) plus a dumped mesh summary artifact.
 
+**Fixture caveat:** the synthetic fixture validates **geometry + neighbour connectivity logic** (masks, rails, chunk borders, cache keys). It does **not** prove that a production BDS world stores the same fence ids/states we assume, nor that live LevelDB palettes emit `connection_*` bits. Real-world fence rendering remains unobserved until a world containing fences is available.
+
+**Connectivity ≠ occlusion:** fence attach uses an explicit classifier (`compatible fence` / `gate` / `model.isFullCube`) — never `isSolidAt` / `isRenderableCube`. A full cube may occlude a rail end without the fence becoming a full-cube occluder itself.
+
 ### Deferred (still)
 
 - Panes / iron bars (PR23)

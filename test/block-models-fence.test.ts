@@ -153,6 +153,103 @@ describe('fence id classification', () => {
 });
 
 describe('Bedrock fence connection rules', () => {
+  it('uses an explicit classifier — not generic solidity', () => {
+    // Decision matrix (connectivity ≠ occlusion / isRenderableCube):
+    const cases: Array<{
+      label: string;
+      self: string;
+      neighbour: BlockRef | null;
+      fullCube: boolean;
+      expect: boolean;
+    }> = [
+      {
+        label: 'compatible wooden fence',
+        self: 'minecraft:oak_fence',
+        neighbour: ref('minecraft:spruce_fence'),
+        fullCube: false,
+        expect: true,
+      },
+      {
+        label: 'compatible nether fence',
+        self: 'minecraft:nether_brick_fence',
+        neighbour: ref('minecraft:nether_brick_fence'),
+        fullCube: false,
+        expect: true,
+      },
+      {
+        label: 'incompatible fence (oak↛nether) even if flagged fullCube',
+        self: 'minecraft:oak_fence',
+        neighbour: ref('minecraft:nether_brick_fence'),
+        fullCube: true, // must still refuse — family check wins
+        expect: false,
+      },
+      {
+        label: 'incompatible fence (nether↛oak)',
+        self: 'minecraft:nether_brick_fence',
+        neighbour: ref('minecraft:oak_fence'),
+        fullCube: true,
+        expect: false,
+      },
+      {
+        label: 'compatible gate (wooden fence)',
+        self: 'minecraft:oak_fence',
+        neighbour: ref('minecraft:birch_fence_gate'),
+        fullCube: false,
+        expect: true,
+      },
+      {
+        label: 'compatible gate (nether fence → wooden gate)',
+        self: 'minecraft:nether_brick_fence',
+        neighbour: ref('minecraft:oak_fence_gate'),
+        fullCube: false,
+        expect: true,
+      },
+      {
+        label: 'arbitrary full cube (stone)',
+        self: 'minecraft:oak_fence',
+        neighbour: ref('minecraft:stone'),
+        fullCube: true,
+        expect: true,
+      },
+      {
+        label: 'stone without isFullCube flag must not connect',
+        self: 'minecraft:oak_fence',
+        neighbour: ref('minecraft:stone'),
+        fullCube: false,
+        expect: false,
+      },
+      {
+        label: 'slab (renderable, not full cube)',
+        self: 'minecraft:oak_fence',
+        neighbour: ref('minecraft:oak_slab'),
+        fullCube: false,
+        expect: false,
+      },
+      {
+        label: 'stair (renderable, not full cube)',
+        self: 'minecraft:oak_fence',
+        neighbour: ref('minecraft:oak_stairs'),
+        fullCube: false,
+        expect: false,
+      },
+      {
+        label: 'air / missing neighbour',
+        self: 'minecraft:oak_fence',
+        neighbour: null,
+        fullCube: false,
+        expect: false,
+      },
+    ];
+
+    for (const c of cases) {
+      assert.equal(
+        fenceConnectsTo(c.self, c.neighbour, c.fullCube),
+        c.expect,
+        c.label,
+      );
+    }
+  });
+
   it('connects wooden fences to each other and to solid cubes', () => {
     assert.equal(fenceConnectsTo('minecraft:oak_fence', ref('minecraft:spruce_fence'), false), true);
     assert.equal(fenceConnectsTo('minecraft:oak_fence', ref('minecraft:stone'), true), true);
