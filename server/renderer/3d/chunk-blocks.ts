@@ -3,15 +3,36 @@
  *
  * Built from already-parsed SubChunk records (same decode path as surfaces) —
  * no second LevelDB reader. Missing subchunks / empty columns read as air.
+ *
+ * Palette entries keep BlockRef { name, states } (PR20). Voxel cells still
+ * store palette indices only — no per-voxel state allocations.
  */
 
-import { isRenderableCube } from '../../world/blocks.ts';
+import { isInvisible } from '../../world/blocks.ts';
 import { blockIndex, blockYToSubChunkIndex, CHUNK_SIZE, SUBCHUNK_SIZE } from '../../world/keys.ts';
-import type { SubChunk } from '../../world/subchunk.ts';
+import type { BlockState, BlockStateValue as WorldStateValue, SubChunk } from '../../world/subchunk.ts';
+import type { BlockRef, BlockStateValue } from './models/types.ts';
 
 interface LayerView {
-  palette: string[];
+  palette: readonly BlockRef[];
   indices: ArrayLike<number>;
+}
+
+function normalizeStateValue(value: WorldStateValue): BlockStateValue {
+  if (typeof value === 'bigint') return Number(value);
+  return value;
+}
+
+/** Freeze a SubChunk palette entry into a shared BlockRef. */
+export function blockRefFromPaletteEntry(entry: BlockState): BlockRef {
+  const states: Record<string, BlockStateValue> = {};
+  for (const [key, value] of Object.entries(entry.states)) {
+    states[key] = normalizeStateValue(value);
+  }
+  return Object.freeze({
+    name: entry.name,
+    states: Object.freeze(states),
+  });
 }
 
 /** Blocks of one Minecraft chunk (16×16 columns, sparse in Y). */
@@ -31,7 +52,7 @@ export class ChunkBlocks {
       const layer = subChunk.layers[0];
       if (!layer) continue;
       volume.#layers.set(subChunk.index, {
-        palette: layer.palette.map((entry) => entry.name),
+        palette: layer.palette.map(blockRefFromPaletteEntry),
         indices: layer.indices,
       });
     }
@@ -45,15 +66,26 @@ export class ChunkBlocks {
 
   /**
    * Block name at local x/z (0..15) and world Y, or null when empty / missing.
+   * Kept for callers that only need the id string.
    */
   getLocal(localX: number, worldY: number, localZ: number): string | null {
+    return this.getLocalRef(localX, worldY, localZ)?.name ?? null;
+  }
+
+  /**
+   * Shared BlockRef at local coordinates, or null when empty / missing.
+   * The returned object is owned by the palette — do not mutate.
+   */
+  getLocalRef(localX: number, worldY: number, localZ: number): BlockRef | null {
     if (localX < 0 || localX >= CHUNK_SIZE || localZ < 0 || localZ >= CHUNK_SIZE) return null;
     const subIndex = blockYToSubChunkIndex(worldY);
     const layer = this.#layers.get(subIndex);
     if (!layer) return null;
     const localY = ((worldY % SUBCHUNK_SIZE) + SUBCHUNK_SIZE) % SUBCHUNK_SIZE;
     const paletteIndex = layer.indices[blockIndex(localX, localY, localZ)] as number;
-    return layer.palette[paletteIndex] ?? null;
+    const ref = layer.palette[paletteIndex];
+    if (!ref || isInvisible(ref.name)) return null;
+    return ref;
   }
 }
 
@@ -89,20 +121,34 @@ export function blockAtWorld(
   worldY: number,
   worldZ: number,
 ): string | null {
+  return blockRefAtWorld(neighborhood, worldX, worldY, worldZ)?.name ?? null;
+}
+
+/** Shared BlockRef at world coordinates, or null when empty / missing. */
+export function blockRefAtWorld(
+  neighborhood: VoxelNeighborhood,
+  worldX: number,
+  worldY: number,
+  worldZ: number,
+): BlockRef | null {
   const chunkX = Math.floor(worldX / CHUNK_SIZE);
   const chunkZ = Math.floor(worldZ / CHUNK_SIZE);
   const volume = volumeAt(neighborhood, chunkX, chunkZ);
   if (!volume) return null;
   const localX = worldX - chunkX * CHUNK_SIZE;
   const localZ = worldZ - chunkZ * CHUNK_SIZE;
-  return volume.getLocal(localX, worldY, localZ);
+  return volume.getLocalRef(localX, worldY, localZ);
 }
 
+/**
+ * Legacy helper: true when the cell has a renderable block (any model).
+ * Name kept for existing tests; occlusion now uses model-aware checks.
+ */
 export function isSolidAt(
   neighborhood: VoxelNeighborhood,
   worldX: number,
   worldY: number,
   worldZ: number,
 ): boolean {
-  return isRenderableCube(blockAtWorld(neighborhood, worldX, worldY, worldZ));
+  return blockRefAtWorld(neighborhood, worldX, worldY, worldZ) != null;
 }
