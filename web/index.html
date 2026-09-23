@@ -11,7 +11,7 @@
     <title>Bedrock Map</title>
     <link rel="icon" href="data:," />
     <link rel="stylesheet" href="/vendor/leaflet/leaflet.css" />
-    <link rel="stylesheet" href="/style.css" />
+    <link rel="stylesheet" href="/style.css?v=20260923c" />
     <script type="importmap">
       {
         "imports": {
@@ -40,6 +40,7 @@
       <span id="players">players&hellip;</span>
     </div>
     <script src="/vendor/leaflet/leaflet.js"></script>
-    <script type="module" src="/map.js"></script>
+    <!-- ?v= busts browser/CDN caches that still hold pre-204 mesh clients -->
+    <script type="module" src="/map.js?v=20260923c"></script>
   </body>
 </html>
