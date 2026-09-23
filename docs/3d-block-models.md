@@ -101,9 +101,11 @@ Intrinsic state families (no ConnectionMask) — same transform path as stairs:
 
 - States: `minecraft:cardinal_direction` (or legacy `direction` 0=S,1=W,2=N,3=E), `door_hinge_bit`, `open_bit`, `upper_block_bit`
 - Closed facing east → west 3/16 strip; open left → north strip; open right → south strip; then `rotateModelY`
+- Closed left/right share the same footprint; hinge only affects the open swing
+- **Upper/lower:** two independent cells, identical XZ panel per cell; `upper_block_bit` selects texture half (`door_wood_lower` vs `door_wood_upper`) — not a double-tall mesh in one cell
 - Wiki evidence: “door facing east occupies the west part of its block when closed”
-- Missing facing → full-cube fallback
-- 32 state combos tested (4×2×2×2)
+- Missing/invalid facing → full-cube fallback
+- 32 state combos + explicit hinge×open box assertions + stacked-half mesh test
 
 **Trapdoors** (`families/trapdoor.ts`):
 
@@ -112,6 +114,27 @@ Intrinsic state families (no ConnectionMask) — same transform path as stairs:
 - 16 state combos tested; missing direction → full-cube fallback
 
 Both always `isFullCube: false`. Not treated as solid attach targets for fences/panes.
+
+---
+
+## 18. Model-system audit checkpoint (after PR24)
+
+Before adding plants/walls/crosses, freeze these contracts:
+
+| Layer | Contract |
+|-------|----------|
+| `BlockRef` | Intrinsic palette identity only — never neighbour rails/arms |
+| `ConnectionMask` | Fence/pane only; computed at mesh time via `VoxelNeighborhood` |
+| `resolveBlockModel` | Process cache by family key; contextual families require mask |
+| `rotateModelY` / `flipModelY` | Shared transform primitives — families stay separate |
+| `isFullCube` | Fast occlusion path; thin/hinged/connected families stay false |
+| Option A occlusion | Drop face only when fully covered |
+| `faceCornerUvsForBox` | Unit-cell UV density on partial boxes |
+| Unsupported state | Full-cube fallback (visible, never silent empty) |
+
+**Do not** merge door/trapdoor/slab into a generic “thin block” framework yet. Extract shared primitives only when three+ families need the same helper.
+
+**Next families (later):** walls (connected), plants/crosses, then optional `.geo.json` — only after this checkpoint holds under review.
 
 ### Deferred (still)
 

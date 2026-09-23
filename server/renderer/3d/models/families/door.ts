@@ -21,11 +21,19 @@
  *
  * Thickness: 3/16 block (wiki); Bedrock notes ~0.1825 — we use 3/16.
  *
- * Upper and lower halves use the same panel box in their own cell; textures
- * come from PR17 appearance per block id (upper/lower may share a key today).
+ * ## Upper / lower halves
+ *
+ * Bedrock stores two independent palette cells (Y and Y+1). Each half renders
+ * **one panel in its own cell** with the same XZ footprint — not a double-tall
+ * mesh in one cell, and not a second complete two-block door. `upper_block_bit`
+ * selects the texture half (lower vs upper) and the cache key; geometry boxes
+ * are intentionally identical per cell.
  */
 
-import { fullCubeFaceTexture } from '../../textures/models.ts';
+import {
+  appearanceForBlock,
+  type TextureKey,
+} from '../../textures/appearance.ts';
 import { rotateModelY } from '../transform.ts';
 import type { BlockModel, BlockRef, FaceId, ModelBox } from '../types.ts';
 
@@ -94,12 +102,38 @@ export function quarterTurnsForDoorFacing(facing: DoorFacing): number {
   }
 }
 
-function allFaces(blockName: string): ModelBox['faces'] {
-  const ids: FaceId[] = ['up', 'down', 'north', 'south', 'east', 'west'];
-  const faces: Partial<Record<FaceId, { textureKey: ReturnType<typeof fullCubeFaceTexture> }>> = {};
-  for (const id of ids) {
-    faces[id] = Object.freeze({ textureKey: fullCubeFaceTexture(blockName, id) });
+/** Legacy / modern id aliases for PR17 appearance lookup. */
+function appearanceAliases(blockName: string): string[] {
+  const short = shortBlockId(blockName);
+  const out = [blockName, `minecraft:${short}`];
+  if (short === 'oak_door') out.push('minecraft:wooden_door');
+  if (short === 'wooden_door') out.push('minecraft:oak_door');
+  return out;
+}
+
+/**
+ * Pick the door leaf texture for this half.
+ * Bedrock `blocks.json` often maps bottom → up/down and top → side; we honour
+ * `upper_block_bit` instead of stretching one tile across both halves.
+ */
+export function doorTextureKey(blockName: string, upper: boolean): TextureKey | null {
+  for (const id of appearanceAliases(blockName)) {
+    const app = appearanceForBlock(id);
+    if (!app) continue;
+    const bottom = app.down ?? app.up ?? app.all ?? null;
+    const top = app.side ?? app.up ?? app.all ?? null;
+    const key = upper ? top : bottom;
+    if (key) return key;
   }
+  return null;
+}
+
+function allFaces(blockName: string, upper: boolean): ModelBox['faces'] {
+  const key = doorTextureKey(blockName, upper);
+  const mat = Object.freeze({ textureKey: key });
+  const ids: FaceId[] = ['up', 'down', 'north', 'south', 'east', 'west'];
+  const faces: Partial<Record<FaceId, { textureKey: TextureKey | null }>> = {};
+  for (const id of ids) faces[id] = mat;
   return Object.freeze(faces);
 }
 
@@ -116,7 +150,9 @@ function box(
 }
 
 /**
- * Base door facing **east** (inside → +X), closed: panel on the west edge.
+ * Base door facing **east** (inside → +X).
+ *
+ * Closed: panel on the west edge (hinge side does not move the closed leaf).
  * Open swings 90° around the hinge:
  * - left hinge (north when facing east) → panel on north edge
  * - right hinge (south when facing east) → panel on south edge
@@ -125,24 +161,24 @@ export function baseEastDoor(
   blockName: string,
   hingeRight: boolean,
   open: boolean,
+  upper: boolean,
 ): BlockModel {
-  const faces = allFaces(blockName);
+  const faces = allFaces(blockName, upper);
   let panel: ModelBox;
   if (!open) {
-    // Closed: west strip (door facing east occupies west part of block).
+    // Closed: west strip — left/right hinge share the same closed footprint.
     panel = box([0, 0, 0], [PX, 1, 1], faces);
   } else if (!hingeRight) {
-    // Open, left hinge → north strip
     panel = box([0, 0, 0], [1, 1, PX], faces);
   } else {
-    // Open, right hinge → south strip
     panel = box([0, 0, 1 - PX], [1, 1, 1], faces);
   }
 
   const hinge = hingeRight ? 'right' : 'left';
   const openKey = open ? 'open' : 'closed';
+  const half = upper ? 'upper' : 'lower';
   return Object.freeze({
-    key: `door:base_east_${hinge}_${openKey}:${blockName}`,
+    key: `door:base_east_${hinge}_${openKey}_${half}:${blockName}`,
     renderBoxes: Object.freeze([panel]),
     occlusionBoxes: Object.freeze([panel]),
     isFullCube: false,
@@ -170,7 +206,7 @@ export function tryBuildDoor(ref: BlockRef): DoorResolveResult {
   const open = doorIsOpen(ref.states);
   const upper = doorIsUpper(ref.states);
 
-  let model = baseEastDoor(ref.name, hingeRight, open);
+  let model = baseEastDoor(ref.name, hingeRight, open, upper);
   model = rotateModelY(model, quarterTurnsForDoorFacing(facing));
   model = Object.freeze({
     ...model,

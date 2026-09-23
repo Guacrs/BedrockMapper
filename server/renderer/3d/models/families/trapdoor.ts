@@ -16,6 +16,10 @@
  */
 
 import { fullCubeFaceTexture } from '../../textures/models.ts';
+import {
+  appearanceForBlock,
+  type TextureKey,
+} from '../../textures/appearance.ts';
 import type { BlockModel, BlockRef, FaceId, ModelBox } from '../types.ts';
 
 const PX = 3 / 16;
@@ -62,12 +66,27 @@ export function trapdoorIsTop(states: BlockRef['states']): boolean {
   return states['upside_down_bit'] === true;
 }
 
-function allFaces(blockName: string): ModelBox['faces'] {
-  const ids: FaceId[] = ['up', 'down', 'north', 'south', 'east', 'west'];
-  const faces: Partial<Record<FaceId, { textureKey: ReturnType<typeof fullCubeFaceTexture> }>> = {};
-  for (const id of ids) {
-    faces[id] = Object.freeze({ textureKey: fullCubeFaceTexture(blockName, id) });
+function trapdoorTextureKey(blockName: string): TextureKey | null {
+  const short = shortTrapdoorId(blockName);
+  const aliases = [blockName, `minecraft:${short}`];
+  if (short === 'oak_trapdoor') aliases.push('minecraft:trapdoor');
+  if (short === 'trapdoor') aliases.push('minecraft:oak_trapdoor');
+  for (const id of aliases) {
+    const app = appearanceForBlock(id);
+    if (!app) continue;
+    const key = app.all ?? app.side ?? app.up ?? app.down ?? null;
+    if (key) return key;
   }
+  // Fall back to the full-cube helper (may still be null).
+  return fullCubeFaceTexture(blockName, 'north');
+}
+
+function allFaces(blockName: string): ModelBox['faces'] {
+  const key = trapdoorTextureKey(blockName);
+  const mat = Object.freeze({ textureKey: key });
+  const ids: FaceId[] = ['up', 'down', 'north', 'south', 'east', 'west'];
+  const faces: Partial<Record<FaceId, { textureKey: TextureKey | null }>> = {};
+  for (const id of ids) faces[id] = mat;
   return Object.freeze(faces);
 }
 

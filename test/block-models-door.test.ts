@@ -13,6 +13,7 @@ import { assertMeshInvariants } from '../server/renderer/3d/mesh-types.ts';
 import {
   DOOR_DIRECTION_TO_FACING,
   doorFacingFromStates,
+  doorTextureKey,
   isDoorName,
   quarterTurnsForDoorFacing,
   tryBuildDoor,
@@ -25,9 +26,9 @@ import {
 } from '../server/renderer/3d/models/families/trapdoor.ts';
 import { fullCubeModel } from '../server/renderer/3d/models/families/full-cube.ts';
 import { isFaceFullyOccluded } from '../server/renderer/3d/models/occlude.ts';
-import { resolveBlockModel, resetBlockModelCache } from '../server/renderer/3d/models/resolve.ts';
+import { neighbourIsFullCubeForConnection, resolveBlockModel, resetBlockModelCache } from '../server/renderer/3d/models/resolve.ts';
 import type { BlockRef } from '../server/renderer/3d/models/types.ts';
-import { buildVoxelMesh, countFaces } from '../server/renderer/3d/voxel-mesh-builder.ts';
+import { buildVoxelMesh, countFaces, faceCornerUvsForBox } from '../server/renderer/3d/voxel-mesh-builder.ts';
 import { blockIndex } from '../server/world/keys.ts';
 import type { BlockState, SubChunk } from '../server/world/subchunk.ts';
 
@@ -179,6 +180,99 @@ describe('door geometry', () => {
     }
   });
 
+  it('closed left and closed right share the same footprint', () => {
+    const left = tryBuildDoor(doorRef('east', { hingeRight: false, open: false }));
+    const right = tryBuildDoor(doorRef('east', { hingeRight: true, open: false }));
+    assert.equal(left.ok && right.ok, true);
+    if (!left.ok || !right.ok) return;
+    assert.deepEqual([...left.model.renderBoxes[0]!.min], [...right.model.renderBoxes[0]!.min]);
+    assert.deepEqual([...left.model.renderBoxes[0]!.max], [...right.model.renderBoxes[0]!.max]);
+  });
+
+  it('asserts all four hinge×open east footprints explicitly', () => {
+    const cases: Array<{
+      hingeRight: boolean;
+      open: boolean;
+      min: number[];
+      max: number[];
+    }> = [
+      { hingeRight: false, open: false, min: [0, 0, 0], max: [DOOR_T, 1, 1] },
+      { hingeRight: true, open: false, min: [0, 0, 0], max: [DOOR_T, 1, 1] },
+      { hingeRight: false, open: true, min: [0, 0, 0], max: [1, 1, DOOR_T] },
+      { hingeRight: true, open: true, min: [0, 0, 1 - DOOR_T], max: [1, 1, 1] },
+    ];
+    for (const c of cases) {
+      const built = tryBuildDoor(doorRef('east', { hingeRight: c.hingeRight, open: c.open }));
+      assert.equal(built.ok, true);
+      if (!built.ok) continue;
+      assert.deepEqual([...built.model.renderBoxes[0]!.min], c.min);
+      assert.deepEqual([...built.model.renderBoxes[0]!.max], c.max);
+    }
+  });
+
+  it('upper and lower share XZ footprint but are separate cells / texture halves', () => {
+    const lower = tryBuildDoor(doorRef('east', { upper: false }));
+    const upper = tryBuildDoor(doorRef('east', { upper: true }));
+    assert.equal(lower.ok && upper.ok, true);
+    if (!lower.ok || !upper.ok) return;
+    // Same panel box in each half-cell — not a double-tall single model.
+    assert.deepEqual([...lower.model.renderBoxes[0]!.min], [...upper.model.renderBoxes[0]!.min]);
+    assert.deepEqual([...lower.model.renderBoxes[0]!.max], [...upper.model.renderBoxes[0]!.max]);
+    assert.notEqual(lower.model.key, upper.model.key);
+    assert.match(lower.model.key, /:lower:/);
+    assert.match(upper.model.key, /:upper:/);
+    // Texture half selection (oak_door aliases wooden_door appearance).
+    assert.equal(doorTextureKey('minecraft:oak_door', false), 'blocks/door_wood_lower');
+    assert.equal(doorTextureKey('minecraft:oak_door', true), 'blocks/door_wood_upper');
+    assert.equal(lower.model.renderBoxes[0]!.faces.north?.textureKey, 'blocks/door_wood_lower');
+    assert.equal(upper.model.renderBoxes[0]!.faces.north?.textureKey, 'blocks/door_wood_upper');
+  });
+
+  it('stacked upper+lower mesh emits two panels without doubling one cell', () => {
+    resetBlockModelCache();
+    const placements = new Map<string, BlockState>([
+      [
+        '3,64,3',
+        {
+          name: 'minecraft:oak_door',
+          states: {
+            'minecraft:cardinal_direction': 'east',
+            door_hinge_bit: false,
+            open_bit: false,
+            upper_block_bit: false,
+          },
+        },
+      ],
+      [
+        '3,65,3',
+        {
+          name: 'minecraft:oak_door',
+          states: {
+            'minecraft:cardinal_direction': 'east',
+            door_hinge_bit: false,
+            open_bit: false,
+            upper_block_bit: true,
+          },
+        },
+      ],
+    ]);
+    const self = volumeFromStates(0, 0, (x, y, z) => placements.get(`${x},${y},${z}`) ?? null);
+    const mesh = buildVoxelMesh(0, 0, emptyNeighborhood(self));
+    assertMeshInvariants(mesh);
+    // Each half is a thin panel (6 faces). Shared up/down contact between the
+    // stacked west-strips is culled by Option A → 10 faces, not 12.
+    assert.equal(countFaces(mesh), 10);
+    // Vertices span two block cells in Y, not one double-height box.
+    let minY = Infinity;
+    let maxY = -Infinity;
+    for (let i = 1; i < mesh.positions.length; i += 3) {
+      minY = Math.min(minY, mesh.positions[i]!);
+      maxY = Math.max(maxY, mesh.positions[i]!);
+    }
+    assert.equal(minY, 64);
+    assert.equal(maxY, 66);
+  });
+
   it('covers every supported state combination via resolve', () => {
     resetBlockModelCache();
     let count = 0;
@@ -198,13 +292,23 @@ describe('door geometry', () => {
     assert.equal(count, 32);
   });
 
-  it('falls back to full cube when facing is missing', () => {
+  it('falls back to full cube when facing is missing or invalid', () => {
     resetBlockModelCache();
-    const model = resolveBlockModel({
+    const missing = resolveBlockModel({
       name: 'minecraft:oak_door',
       states: { open_bit: false, door_hinge_bit: false, upper_block_bit: false },
     })!;
-    assert.equal(model.isFullCube, true);
+    assert.equal(missing.isFullCube, true);
+    const invalid = resolveBlockModel({
+      name: 'minecraft:oak_door',
+      states: {
+        'minecraft:cardinal_direction': 'up',
+        open_bit: false,
+        door_hinge_bit: false,
+        upper_block_bit: false,
+      },
+    })!;
+    assert.equal(invalid.isFullCube, true);
   });
 
   it('does not fully occlude neighbouring stone on uncovered sides', () => {
@@ -261,6 +365,20 @@ describe('trapdoor geometry', () => {
       assert.ok(Math.abs(b.max[2]! - e[5]) < 1e-9);
       assert.equal(built.model.isFullCube, false);
     }
+  });
+
+  it('crops side-face UV density on closed trapdoor plates', () => {
+    const built = tryBuildTrapdoor(trapRef(0, { open: false, top: false }));
+    assert.equal(built.ok, true);
+    if (!built.ok) return;
+    const rect = { u0: 0, v0: 0, u1: 1, v1: 1 };
+    const uvs = faceCornerUvsForBox(rect, 'south', built.model.renderBoxes[0]!);
+    // Bottom plate y=0..3/16 → V from 1 down to 1-3/16 (unit-cell density).
+    const y1 = DOOR_T;
+    assert.ok(Math.abs(uvs[0]![1]! - 1) < 1e-9);
+    assert.ok(Math.abs(uvs[1]![1]! - 1) < 1e-9);
+    assert.ok(Math.abs(uvs[2]![1]! - (1 - y1)) < 1e-9);
+    assert.ok(Math.abs(uvs[3]![1]! - (1 - y1)) < 1e-9);
   });
 
   it('covers every supported trapdoor state combination', () => {
@@ -336,5 +454,17 @@ describe('door/trapdoor meshing regressions', () => {
       x === 5 && y === 64 && z === 5 ? { name: 'minecraft:stone', states: {} } : null,
     );
     assert.equal(countFaces(buildVoxelMesh(0, 0, emptyNeighborhood(stoneOnly))), 6);
+  });
+});
+
+describe('door/trapdoor vs fence/pane attach', () => {
+  it('doors and trapdoors are never full-cube attach targets', () => {
+    resetBlockModelCache();
+    const door = resolveBlockModel(doorRef('east'))!;
+    const trap = resolveBlockModel(trapRef(0))!;
+    assert.equal(door.isFullCube, false);
+    assert.equal(trap.isFullCube, false);
+    assert.equal(neighbourIsFullCubeForConnection(doorRef('east')), false);
+    assert.equal(neighbourIsFullCubeForConnection(trapRef(1, { open: true })), false);
   });
 });
