@@ -9,6 +9,7 @@
 import { parseArgs } from 'node:util';
 import {
   assertFixtureExpectations,
+  assertReciprocalConnectivity,
   formatModelFixtureReport,
   reportModelFixture,
 } from '../renderer/3d/fixture/report-model-fixture.ts';
@@ -29,11 +30,14 @@ if (values.json) {
 }
 
 if (values.assert) {
-  const failures = assertFixtureExpectations(lines);
+  const failures = [
+    ...assertFixtureExpectations(lines),
+    ...assertReciprocalConnectivity(lines),
+  ];
   if (failures.length) {
     console.error(`\n${failures.length} expectation failure(s):`);
     for (const f of failures) console.error(`  ${f.id}: ${f.message}`);
     process.exit(1);
   }
-  console.error(`\nOK — ${lines.length} cells, all expectations passed.`);
+  console.error(`\nOK — ${lines.length} cells, all expectations + reciprocity passed.`);
 }

@@ -328,3 +328,49 @@ export function modelFixtureExpectations(): readonly FixtureExpectation[] {
     { id: 'mix-centre', family: 'wall', isFullCube: false, mask: { north: true, east: true, south: true, west: false }, post: true, tall: false },
   ]);
 }
+
+/**
+ * Cardinal links that must be reciprocal on both contextual families.
+ * Catches asymmetric `connectsTo` classifiers (A→B but not B→A).
+ */
+export type Cardinal = 'north' | 'east' | 'south' | 'west';
+
+export interface ReciprocalLink {
+  readonly aId: string;
+  readonly bId: string;
+  /** Direction from A toward B. */
+  readonly fromA: Cardinal;
+}
+
+export function modelFixtureReciprocalLinks(): readonly ReciprocalLink[] {
+  return Object.freeze([
+    { aId: 'fence-n-post', bId: 'fence-n-neighbor', fromA: 'north' },
+    { aId: 'fence-corner', bId: 'fence-corner-n', fromA: 'north' },
+    { aId: 'fence-corner', bId: 'fence-corner-e', fromA: 'east' },
+    { aId: 'fence-t', bId: 'fence-t-n', fromA: 'north' },
+    { aId: 'fence-t', bId: 'fence-t-e', fromA: 'east' },
+    { aId: 'fence-t', bId: 'fence-t-w', fromA: 'west' },
+    { aId: 'fence-plus', bId: 'fence-plus-n', fromA: 'north' },
+    { aId: 'fence-plus', bId: 'fence-plus-s', fromA: 'south' },
+    { aId: 'fence-plus', bId: 'fence-plus-e', fromA: 'east' },
+    { aId: 'fence-plus', bId: 'fence-plus-w', fromA: 'west' },
+    { aId: 'fence-boundary-w', bId: 'fence-boundary-e', fromA: 'east' },
+    { aId: 'pane-pair-a', bId: 'pane-pair-b', fromA: 'east' },
+    { aId: 'pane-boundary-w', bId: 'pane-boundary-e', fromA: 'east' },
+    { aId: 'wall-straight-a', bId: 'wall-straight-b', fromA: 'east' },
+    { aId: 'wall-straight-b', bId: 'wall-straight-c', fromA: 'east' },
+    { aId: 'wall-corner', bId: 'wall-corner-n', fromA: 'north' },
+    { aId: 'wall-corner', bId: 'wall-corner-e', fromA: 'east' },
+    { aId: 'wall-t', bId: 'wall-t-n', fromA: 'north' },
+    { aId: 'wall-t', bId: 'wall-t-e', fromA: 'east' },
+    { aId: 'wall-t', bId: 'wall-t-w', fromA: 'west' },
+    { aId: 'wall-plus', bId: 'wall-plus-n', fromA: 'north' },
+    { aId: 'wall-plus', bId: 'wall-plus-s', fromA: 'south' },
+    { aId: 'wall-plus', bId: 'wall-plus-e', fromA: 'east' },
+    { aId: 'wall-plus', bId: 'wall-plus-w', fromA: 'west' },
+    { aId: 'wall-boundary-w', bId: 'wall-boundary-e', fromA: 'east' },
+    { aId: 'wall-to-pane', bId: 'wall-to-pane-n', fromA: 'north' },
+    { aId: 'mix-centre', bId: 'mix-n', fromA: 'north' },
+    { aId: 'mix-centre', bId: 'mix-s', fromA: 'south' },
+  ]);
+}

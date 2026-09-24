@@ -25,7 +25,10 @@ import { buildFixtureNeighborhood } from './build-fixture-volumes.ts';
 import {
   modelFixtureCells,
   modelFixtureExpectations,
+  modelFixtureReciprocalLinks,
+  type Cardinal,
   type FixtureExpectation,
+  type ReciprocalLink,
 } from './model-fixture-layout.ts';
 
 export interface ModelFixtureReportLine {
@@ -45,6 +48,8 @@ export interface ModelFixtureReportLine {
   readonly mask?: string;
   readonly post?: boolean;
   readonly tall?: boolean;
+  /** Parsed mask flags when contextual; undefined for intrinsic families. */
+  readonly maskFlags?: { north: boolean; east: boolean; south: boolean; west: boolean };
 }
 
 function familyOf(name: string): string {
@@ -83,6 +88,7 @@ export function reportModelFixture(): ModelFixtureReportLine[] {
 
     let model: BlockModel;
     let mask: string | undefined;
+    let maskFlags: ModelFixtureReportLine['maskFlags'];
     let post: boolean | undefined;
     let tall: boolean | undefined;
 
@@ -90,12 +96,14 @@ export function reportModelFixture(): ModelFixtureReportLine[] {
       const shape = wallShapeAtWorld(neighborhood, cell.x, cell.y, cell.z, ref.name);
       model = resolveBlockModel(ref, shape.mask, shape)!;
       mask = connectionMaskKey(shape.mask);
+      maskFlags = { ...shape.mask };
       post = shape.post;
       tall = shape.tall;
     } else if (isContextualConnectedName(ref.name)) {
       const m = connectionMaskAtWorld(neighborhood, cell.x, cell.y, cell.z, ref.name);
       model = resolveBlockModel(ref, m)!;
       mask = connectionMaskKey(m);
+      maskFlags = { ...m };
     } else {
       model = resolveBlockModel(ref)!;
     }
@@ -115,6 +123,7 @@ export function reportModelFixture(): ModelFixtureReportLine[] {
       isFullCube: model.isFullCube,
       boxCount: model.renderBoxes.length,
       mask,
+      maskFlags,
       post,
       tall,
     });
@@ -192,6 +201,58 @@ export function assertFixtureExpectations(
       failures.push({
         id: exp.id,
         message: `modelKey expected prefix ${exp.modelKeyPrefix}, got ${line.modelKey}`,
+      });
+    }
+  }
+  return failures;
+}
+
+const OPPOSITE: Record<Cardinal, Cardinal> = {
+  north: 'south',
+  south: 'north',
+  east: 'west',
+  west: 'east',
+};
+
+/**
+ * Assert A→B and B→A connection masks for every authored reciprocal link.
+ * Does not cover intentional asymmetries (wall↛fence, pane↛fence).
+ */
+export function assertReciprocalConnectivity(
+  lines: readonly ModelFixtureReportLine[],
+  links: readonly ReciprocalLink[] = modelFixtureReciprocalLinks(),
+): ExpectationFailure[] {
+  const byId = new Map(lines.map((l) => [l.id, l]));
+  const failures: ExpectationFailure[] = [];
+
+  for (const link of links) {
+    const a = byId.get(link.aId);
+    const b = byId.get(link.bId);
+    if (!a || !b) {
+      failures.push({
+        id: `${link.aId}↔${link.bId}`,
+        message: `missing report line(s): a=${!!a} b=${!!b}`,
+      });
+      continue;
+    }
+    if (!a.maskFlags || !b.maskFlags) {
+      failures.push({
+        id: `${link.aId}↔${link.bId}`,
+        message: 'both cells must be contextual (have ConnectionMask)',
+      });
+      continue;
+    }
+    const fromB = OPPOSITE[link.fromA];
+    if (!a.maskFlags[link.fromA]) {
+      failures.push({
+        id: `${link.aId}↔${link.bId}`,
+        message: `${link.aId}.${link.fromA} expected true`,
+      });
+    }
+    if (!b.maskFlags[fromB]) {
+      failures.push({
+        id: `${link.aId}↔${link.bId}`,
+        message: `${link.bId}.${fromB} expected true (reciprocal of ${link.aId}.${link.fromA})`,
       });
     }
   }
