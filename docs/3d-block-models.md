@@ -126,14 +126,16 @@ Wall family (`families/wall.ts`) — contextual, **not** a fence reuse:
 - States: `wall_connection_type_{n,e,s,w}` ∈ {none, short, tall} + `wall_post_bit` (Microsoft Learn + Wiki). **Ignored on BlockRef** — inferred at mesh time (same empty-NBT rationale as fences).
 - Attach (`wallConnectsTo`, ≠ fence/pane/`isSolidAt`): wall↔wall, wall→full cube, wall→pane/bars, wall→gate, wall→trapdoor (BE 1.16.20). **wall↛fence**. Plants explicitly refused (allowlist mirrors PR25).
 - Post: omitted on straight N–S / E–W **or** four-way; forced when a non-air block is above (wiki).
-- Tall vs short: single `tall` flag for all arms when anything is above the cell (approximation of per-side tall — documented limitation).
-- Geometry: post `[4,0,4]–[12,16,12]`; arms 6px (5–11), height 14/16 or 16/16.
+- Tall vs short (**accepted frozen limitation**): Bedrock exposes independent `wall_connection_type_{n,e,s,w}` ∈ {none, short, tall}. This PR uses `ConnectionMask` (boolean connect) + **one global `tall` bit** — if any non-invisible block sits above the wall cell, **every** connected arm uses tall height (16/16); otherwise all arms are short (14/16). Per-direction short/tall is deferred; do not expand this milestone into that rewrite.
+- Geometry: post `[4,0,4]–[12,16,12]` (Y `1` = full 16/16 block height); arms 6px (5–11), height 14/16 or 16/16.
 - Cache key: `wall:{mask}:p{0|1}:t{0|1}:{name}` — never shared with fence/pane keys.
-- Fence/pane classifiers updated to **accept walls** as attach targets (reciprocal for panes; fences attach to walls).
+- Fence/pane classifiers updated to **accept walls** as attach targets (reciprocal for panes; fences attach to walls). Asymmetry intentional: **wall↛fence** while fence→wall and pane→wall connect.
 
 **Contracts:** `isFullCube === false`; Option A occlusion unchanged; ConnectionMask stays boolean (post/tall are `WallShape` extras).
 
 **Visual validation:** synthetic fixture in `test/block-models-wall.test.ts`. Same caveat as PR22/23.
+
+**Frozen:** keep explicit `wallConnectsTo` (never `isSolidAt`). Accept uniform-tall approximation until a later per-direction height milestone. Leave duplicated local `isWall` checks in fence/pane (circular-import avoidance) — PR27 tracks that duplication; do not extract a shared module in this freeze.
 
 ---
 
