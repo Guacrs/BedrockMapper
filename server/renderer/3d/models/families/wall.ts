@@ -56,10 +56,10 @@ const ARM_TALL = 1;
 
 /**
  * Plant / cross ids that must never receive wall arms.
- * Mirrors the PR25 cross allowlist for connection refuse only — wall models
- * do not depend on cross geometry being present on this branch.
+ * Mirrors the PR25 cross allowlist for connection refuse — and for coverage
+ * inventory (geometry lives on PR25; this branch may still full-cube-fallback).
  */
-const WALL_NONCONNECT_PLANTS: ReadonlySet<string> = new Set([
+export const CROSS_PLANT_SHORT_IDS: ReadonlySet<string> = new Set([
   'short_grass',
   'tallgrass',
   'fern',
@@ -99,6 +99,12 @@ const WALL_NONCONNECT_PLANTS: ReadonlySet<string> = new Set([
   'nether_sprouts',
 ]);
 
+const WALL_NONCONNECT_PLANTS = CROSS_PLANT_SHORT_IDS;
+
+/** True when the id is in the PR25 cross/plant allowlist (connection refuse). */
+export function isCrossPlantName(name: string): boolean {
+  return CROSS_PLANT_SHORT_IDS.has(shortBlockId(name));
+}
 export interface WallShape {
   readonly mask: ConnectionMask;
   /** Center post (`wall_post_bit` equivalent). */

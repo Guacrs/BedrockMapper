@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19 research · **PR20** cube+slab · **PR21** stairs · **PR22** fences (**frozen**) · **PR23** panes · **PR24** doors+trapdoors (**frozen**) · **PR26** walls.
+**Status:** PR19–PR24 frozen · **PR25** cross/plants (draft) · **PR26** walls (draft) · **§19** model-system audit + coverage inventory.
 
 **Frozen predecessors:**
 
@@ -165,6 +165,82 @@ Before adding plants/walls/crosses, freeze these contracts:
 - Custom `.geo.json`
 - Exact stair–stair polygon clipping
 - Greedy meshing / water / resource-pack runtime overrides
+
+---
+
+## 19. Model-system audit (after PR25 + PR26)
+
+**Status:** documentation + coverage inventory only — **no refactor** in this checkpoint.
+
+### 19.1 Contracts still holding
+
+| Layer | Status after PR25/PR26 |
+|-------|------------------------|
+| `BlockRef` | Intrinsic only — walls/crosses do not write neighbour state into palette refs |
+| `ConnectionMask` | Boolean N/E/S/W for fence / pane / wall horizontal attach |
+| `WallShape` | Wall-only `{post, tall}` contextual extras; cache-keyed separately from fences |
+| `BlockModel` | Boxes + materials + `isFullCube`; families remain separate modules |
+| Transforms | `rotateModelY` / `flipModelY` used by stairs/doors/trapdoors — unchanged |
+| UV / materials | PR17 atlas + `faceCornerUvsForBox` unit-cell density; crosses use same helper |
+| Occlusion | Option A; `isFullCube` is occlusion-only, never a connectivity shortcut |
+| Connection | Explicit per-family classifiers — **never** `isSolidAt()` |
+| Cache keys | Family-prefixed; walls include `p`/`t`; fences/panes include mask only |
+| Fallback | Unsupported / invalid state → full cube (visible) |
+
+### 19.2 Supported model families
+
+| Family | Kind | Module | Contextual? |
+|--------|------|--------|-------------|
+| Full cube | geometric | `families/full-cube.ts` | no |
+| Slab | geometric | `families/slab.ts` | no (intrinsic half) |
+| Stair | state-driven | `families/stair.ts` | no |
+| Fence | contextual | `families/fence.ts` | yes (`ConnectionMask`) |
+| Pane / iron bars | contextual | `families/pane.ts` | yes |
+| Door | state-driven | `families/door.ts` | no |
+| Trapdoor | state-driven | `families/trapdoor.ts` | no |
+| Cross / plant | geometric | `families/cross.ts` (**PR25**) | no |
+| Wall | contextual | `families/wall.ts` (**PR26**) | yes (`ConnectionMask` + `WallShape`) |
+
+### 19.3 Geometry / transform / texture contracts
+
+- **Geometry primitives:** axis-aligned `ModelBox` lists only (no greedy mesh, no `.geo.json`).
+- **Transform primitives:** Y rotation + Y flip — shared; not a generic “thin block” framework.
+- **Texture/UV:** unit-cell density on partial boxes; nearly full-tile on near-full-width cross planes.
+- **Occlusion contract:** drop face only when neighbour occlusion fully covers it; thin families never set `isFullCube`.
+- **Connection contract:** family `connectsTo(self, neighbour, neighbourIsFullCube)`; peer families (wall↔pane, fence↔wall) are explicit.
+- **Fallback contract:** prefer visible full cube over empty/malformed geometry; document uncertainty.
+- **Cache-key contract:** must include every geometry-relevant input (name, mask, wall post/tall, door/trapdoor/stair states).
+
+### 19.4 Coverage inventory (A–K)
+
+Automated report: `server/renderer/3d/models/coverage.ts` + `test/block-model-coverage.test.ts` against `data/textures/block-appearance.json`.
+
+| Code | Category | Meaning |
+|------|----------|---------|
+| A | Full cube | Explicit default cube model |
+| B | Slab | Explicit single-slab model |
+| C | Stair | Explicit straight stair (corners → full-cube fallback) |
+| D | Fence | Explicit connected fence |
+| E | Pane / iron bar | Explicit connected pane |
+| F | Door | Explicit state-driven door |
+| G | Trapdoor | Explicit state-driven trapdoor |
+| H | Cross / plant | Allowlist; **geometry on PR25** (`explicit_on_pr25` until merged) |
+| I | Wall | Explicit connected wall (PR26) |
+| J | Fallback | Safe full-cube stand-in (e.g. fence gates — attach only) |
+| K | Future | Known custom geometry / research required |
+
+**Important:** membership in J or K is **not** a claim that the rendered full cube matches Bedrock. The inventory separates “explicit implementation” from “safe fallback” from “unknown / future”.
+
+### 19.5 Known limitations / unsupported Bedrock geometry
+
+- Per-direction wall short/tall (uniform `tall` from above)
+- Corner stairs, fence-gate models, double plants, vines, berry bushes, bamboo stalks, floor flowers (`pink_petals`)
+- Exact stair–stair clipping; water transparency; resource-pack `.geo.json`; greedy meshing / LOD
+- Demo worlds often lack fence/pane/plant/wall palette entries — synthetic fixtures validate logic, not BDS distributions
+
+### 19.6 Refactor verdict
+
+**No refactor justified yet.** Shared helpers (`ConnectionMask`, `rotateModelY`, `faceCornerUvsForBox`, `neighbourIsFullCubeForConnection`) already cover the cross-family needs. A generic “thin/connected block” framework would blur BlockRef vs ConnectionMask vs occlusion and is explicitly deferred until three+ families need the same new helper.
 
 ---
 
