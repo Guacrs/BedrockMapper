@@ -137,6 +137,8 @@ Cross / plant family (`families/cross.ts`) — intrinsic geometry, **no** `Conne
 
 **Visual validation:** demo LevelDB typically has **zero** cross-plant palette entries (grass_block ≠ short_grass). Geometry + connectivity exclusion exercised by `test/block-models-cross.test.ts` synthetic fixture. Same caveat as PR22/23: synthetic validation does **not** prove production BDS world state distribution.
 
+**Frozen (do not expand):** allowlist stays explicit — do not add ids (e.g. extra saplings) without Bedrock evidence they use `minecraft:geometry.cross`. No ThinBlock abstraction. Walls remain PR26.
+
 ---
 
 ## 18. Model-system audit checkpoint (after PR24)
