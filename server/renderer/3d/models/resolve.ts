@@ -4,18 +4,20 @@
  * No filesystem / JSON work here — textures come from the already-loaded PR17
  * appearance DB via family builders.
  *
- * Contextual families (fences): pass a `ConnectionMask` computed from
+ * Contextual families (fences/panes): pass a `ConnectionMask` computed from
  * neighbours. Intrinsic `BlockRef` states alone must never encode N/E/S/W
  * geometry for those families.
  */
 
 import { isInvisible } from '../../../world/blocks.ts';
 import { connectionMaskKey, type ConnectionMask } from './connection.ts';
+import { isDoorName, tryBuildDoor } from './families/door.ts';
 import { fenceModel, isFenceGateName, isFenceName } from './families/fence.ts';
-import { isPaneName, paneModel } from './families/pane.ts';
 import { fullCubeModel } from './families/full-cube.ts';
+import { isPaneName, paneModel } from './families/pane.ts';
 import { isDoubleSlabName, isSingleSlabName, slabModel } from './families/slab.ts';
 import { isStairName, tryBuildStraightStair } from './families/stair.ts';
+import { isTrapdoorName, tryBuildTrapdoor } from './families/trapdoor.ts';
 import type { BlockModel, BlockRef } from './types.ts';
 import { EMPTY_BLOCK_REF } from './types.ts';
 
@@ -29,6 +31,19 @@ function cacheKey(ref: BlockRef, connection?: ConnectionMask): string {
   if (isPaneName(ref.name)) {
     const maskKey = connection ? connectionMaskKey(connection) : 'n0e0s0w0';
     return `pane:${maskKey}:${ref.name}`;
+  }
+  if (isDoorName(ref.name)) {
+    const facing = String(ref.states['minecraft:cardinal_direction'] ?? ref.states['direction'] ?? '?');
+    const hinge = ref.states['door_hinge_bit'] === true ? 'R' : 'L';
+    const open = ref.states['open_bit'] === true ? 'O' : 'C';
+    const half = ref.states['upper_block_bit'] === true ? 'U' : 'L';
+    return `door:${facing}:${hinge}:${open}:${half}:${ref.name}`;
+  }
+  if (isTrapdoorName(ref.name)) {
+    const dir = String(ref.states['direction'] ?? ref.states['minecraft:cardinal_direction'] ?? '?');
+    const open = ref.states['open_bit'] === true ? 'O' : 'C';
+    const top = ref.states['upside_down_bit'] === true ? 'T' : 'B';
+    return `trapdoor:${dir}:${open}:${top}:${ref.name}`;
   }
   if (isSingleSlabName(ref.name)) {
     const half = ref.states['minecraft:vertical_half'] === 'top' ? 'top' : 'bottom';
@@ -79,6 +94,12 @@ export function resolveBlockModel(
       west: false,
     };
     model = paneModel(ref.name, mask);
+  } else if (isDoorName(ref.name)) {
+    const built = tryBuildDoor(ref);
+    model = built.ok ? built.model : fullCubeModel(ref.name);
+  } else if (isTrapdoorName(ref.name)) {
+    const built = tryBuildTrapdoor(ref);
+    model = built.ok ? built.model : fullCubeModel(ref.name);
   } else if (isSingleSlabName(ref.name)) {
     model = slabModel(ref);
   } else if (isDoubleSlabName(ref.name)) {
@@ -87,7 +108,7 @@ export function resolveBlockModel(
     const built = tryBuildStraightStair(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
   } else {
-    // Unsupported partials (doors, …) stay full cubes — conservative.
+    // Unsupported partials (walls, plants, …) stay full cubes — conservative.
     model = fullCubeModel(ref.name);
   }
 
@@ -97,11 +118,19 @@ export function resolveBlockModel(
 
 /**
  * True when a neighbour cell counts as a solid full cube for connected-model
- * attach (fences / panes). Fences, gates, and panes are never full cubes here.
+ * attach (fences / panes). Thin / hinged families never count as solid attach.
  */
 export function neighbourIsFullCubeForConnection(ref: BlockRef | null): boolean {
   if (!ref) return false;
-  if (isFenceName(ref.name) || isFenceGateName(ref.name) || isPaneName(ref.name)) return false;
+  if (
+    isFenceName(ref.name) ||
+    isFenceGateName(ref.name) ||
+    isPaneName(ref.name) ||
+    isDoorName(ref.name) ||
+    isTrapdoorName(ref.name)
+  ) {
+    return false;
+  }
   const model = resolveBlockModel(ref);
   return model?.isFullCube === true;
 }

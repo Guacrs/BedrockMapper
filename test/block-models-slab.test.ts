@@ -230,14 +230,14 @@ describe('slab models + meshing', () => {
 
   it('unknown renderable blocks fall back to full cube', () => {
     resetBlockModelCache();
-    // Doors are not modelled yet (PR24) — must stay visible as full cubes.
+    // Walls are not modelled yet — must stay visible as full cubes.
     const model = resolveBlockModel({
-      name: 'minecraft:wooden_door',
+      name: 'minecraft:cobblestone_wall',
       states: {
-        'minecraft:cardinal_direction': 'north',
-        open_bit: false,
-        upper_block_bit: false,
-        door_hinge_bit: false,
+        wall_connection_type_north: 'none',
+        wall_connection_type_east: 'none',
+        wall_connection_type_south: 'none',
+        wall_connection_type_west: 'none',
       },
     } as BlockRef)!;
     assert.equal(model.isFullCube, true);
