@@ -2,6 +2,7 @@ node_modules/
 cache/
 .env
 demo-world/
+model-fixture-world/
 *.log
 
 # Generated Minecraft texture atlas (from Mojang/bedrock-samples — do not commit).
