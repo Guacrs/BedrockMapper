@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19 research complete · **PR20 implemented** (full cube + slab).
+**Status:** PR19 research complete · **PR20** full cube + slab · **PR21** straight stairs · **PR22** connected fences.
 
 **Frozen predecessors:**
 
@@ -11,6 +11,8 @@
 | PR18 | Empty-mesh 204, `textureAtlas` flag, CDN/app cache |
 | PR19 | This document (research) |
 | **PR20** | State retention, model resolver, full cube + slab, Option A occlusion |
+| **PR21** | Straight stairs + `weirdo_direction` transforms |
+| **PR22** | Connected fences — `BlockRef` / `ConnectionMask` separation |
 
 ### PR20 implemented
 
@@ -35,11 +37,59 @@
 - UVs: unit-cell density crop on partial box faces (shared helper with slabs)
 - Occlusion: unchanged PR20 Option A
 
+### PR22 implemented
+
+**Architecture (hard requirement):**
+
+```text
+BlockRef
+  = block ID + intrinsic Bedrock states
+        │
+        ▼
+ConnectionMask
+  = N / E / S / W neighbour relationships  (NOT on BlockRef)
+        │
+        ▼
+BlockModel
+  = post + connected rails
+        │
+        ▼
+Voxel mesher
+```
+
+- `models/connection.ts` — `ConnectionMask` + cache key `n#e#s#w#`
+- `models/families/fence.ts` — post `[6,0,6]–[10,16,10]` + dual rails per direction (Y 6–9 / 12–15)
+- Mesher computes mask via `VoxelNeighborhood` / `blockRefAtWorld` (chunk boundaries + missing = no link)
+- Model cache keyed by **name + mask**, not palette `BlockRef` alone (same palette entry → different rails per cell)
+- Stored `minecraft:connection_*` on the palette entry are **ignored** for geometry (older worlds often have `{}`; preview bits are neighbour-derived anyway)
+
+**Bedrock connection rules (researched, not Java-copied):**
+
+| Self | Neighbour | Connect? |
+|------|-----------|----------|
+| wooden `*_fence` | other wooden fence | yes |
+| wooden fence | `nether_brick_fence` | **no** |
+| either fence family | fence gate | yes |
+| either fence family | full-cube solid | yes |
+| either fence family | slab / stair / air / missing | no |
+
+Evidence: Minecraft Wiki Fence (Bedrock states + wooden≠nether); Microsoft `minecraft:connection` trait; Bedrock Wiki custom-fence geo (post/rails pixel sizes).
+
+**Visual validation:** demo-world LevelDB scan found **zero** fence palette entries. Geometry is therefore exercised by the synthetic fixture in `test/block-models-fence.test.ts` (isolated, single dirs, all-4, combinations, non-connectable, same-fence, chunk boundary, missing data, cache, cube/slab/stair regressions) plus a dumped mesh summary artifact.
+
+**Fixture caveat:** the synthetic fixture validates **geometry + neighbour connectivity logic** (masks, rails, chunk borders, cache keys). It does **not** prove that a production BDS world stores the same fence ids/states we assume, nor that live LevelDB palettes emit `connection_*` bits. Real-world fence rendering remains unobserved until a world containing fences is available.
+
+**Connectivity ≠ occlusion:** fence attach uses an explicit classifier (`compatible fence` / `gate` / `model.isFullCube`) — never `isSolidAt` / `isRenderableCube`. A full cube may occlude a rail end without the fence becoming a full-cube occluder itself.
+
 ### Deferred (still)
 
+- Panes / iron bars (PR23)
+- Walls
+- Doors / trapdoors
 - Inner/outer corner stairs
-- Fence / pane / door / torch / geo.json
+- Custom `.geo.json`
 - Exact stair–stair polygon clipping
+- Greedy meshing / water / resource-pack runtime overrides
 
 ---
 
@@ -54,7 +104,7 @@ SubChunk { layers[].palette: BlockState{name, states}[], indices }
 ChunkBlocks
     ↓
 VoxelNeighborhood
-    ↓  resolveBlockModel(BlockRef) → full_cube | slab | …
+    ↓  resolveBlockModel(BlockRef[, ConnectionMask]) → full_cube | slab | stair | fence
     ↓  isFaceFullyOccluded (Option A)
 box-face mesher (voxel-mesh-builder.ts)
     ↓  PR17: appearance → atlas UVs (side UV crop for half-height boxes)
@@ -63,7 +113,7 @@ MeshChunk { positions, normals, colors, uvs, indices }
 Three.js
 ```
 
-**PR20–21 geometry:** full cubes + single slabs + straight stairs. Fences/panes/etc. still use the full-cube fallback. Corner stairs fall back to full cube.
+**PR20–22 geometry:** full cubes + single slabs + straight stairs + connected fences. Panes/doors/etc. still use the full-cube fallback. Corner stairs fall back to full cube.
 
 ---
 

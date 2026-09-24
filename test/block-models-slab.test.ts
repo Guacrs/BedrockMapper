@@ -230,9 +230,9 @@ describe('slab models + meshing', () => {
 
   it('unknown renderable blocks fall back to full cube', () => {
     resetBlockModelCache();
-    // Fences are not modelled yet — must stay visible as full cubes.
+    // Panes are not modelled yet (PR23) — must stay visible as full cubes.
     const model = resolveBlockModel({
-      name: 'minecraft:oak_fence',
+      name: 'minecraft:glass_pane',
       states: {
         'minecraft:connection_north': true,
         'minecraft:connection_south': false,
