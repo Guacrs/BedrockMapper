@@ -47,6 +47,22 @@ import type { BlockModel, BlockRef, FaceId, ModelBox } from '../types.ts';
 
 const PX = 1 / 16;
 
+/** Local wall check — avoid importing wall.ts (circular with fenceConnectsTo). */
+function neighbourIsWall(name: string): boolean {
+  const short = shortBlockId(name);
+  if (
+    short.includes('wall_sign') ||
+    short.endsWith('_wall_banner') ||
+    short === 'wall_banner' ||
+    short === 'wall_sign' ||
+    short.includes('coral_wall_fan') ||
+    short.includes('wall_fan')
+  ) {
+    return false;
+  }
+  return short.endsWith('_wall');
+}
+
 export type FenceFamily = 'wooden' | 'nether_brick';
 
 export function shortBlockId(name: string): string {
@@ -106,6 +122,8 @@ export function fenceConnectsTo(
     return selfFam != null && otherFam != null && selfFam === otherFam;
   }
   if (isFenceGateName(neighbour.name)) return true;
+  // Fences attach to walls (Bedrock/Java parity) even though walls are not full cubes.
+  if (neighbourIsWall(neighbour.name)) return true;
   // Only after fence/gate checks — never treat fences as full-cube attach targets.
   return neighbourIsFullCube;
 }

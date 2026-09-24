@@ -1,10 +1,13 @@
 /**
- * Contextual neighbour connectivity for connected-model families (PR22–23).
+ * Contextual neighbour connectivity for connected-model families (PR22–26).
  *
  * Keeps BlockRef intrinsic. Families supply their own `connectsTo` classifier;
  * this module only gathers N/E/S/W neighbours and builds a ConnectionMask.
+ *
+ * Walls additionally need post/tall shape bits — see `wallShapeAtWorld`.
  */
 
+import { isInvisible } from '../../../world/blocks.ts';
 import { blockRefAtWorld, type VoxelNeighborhood } from '../chunk-blocks.ts';
 import {
   connectionMaskFromFlags,
@@ -12,12 +15,18 @@ import {
 } from './connection.ts';
 import { fenceConnectsTo, isFenceName } from './families/fence.ts';
 import { isPaneName, paneConnectsTo } from './families/pane.ts';
+import {
+  isWallName,
+  wallConnectsTo,
+  wallShapeFromMask,
+  type WallShape,
+} from './families/wall.ts';
 import { neighbourIsFullCubeForConnection } from './resolve.ts';
 import type { BlockRef } from './types.ts';
 
 /** True when geometry depends on a neighbour ConnectionMask. */
 export function isContextualConnectedName(name: string): boolean {
-  return isFenceName(name) || isPaneName(name);
+  return isFenceName(name) || isPaneName(name) || isWallName(name);
 }
 
 export type ConnectsToFn = (
@@ -29,6 +38,7 @@ export type ConnectsToFn = (
 export function connectsToForBlock(selfName: string): ConnectsToFn {
   if (isFenceName(selfName)) return fenceConnectsTo;
   if (isPaneName(selfName)) return paneConnectsTo;
+  if (isWallName(selfName)) return wallConnectsTo;
   return () => false;
 }
 
@@ -62,4 +72,21 @@ export function connectionMaskAtWorld(
     connectsTo(selfName, south, full.south),
     connectsTo(selfName, west, full.west),
   );
+}
+
+/**
+ * Full wall shape (mask + post + tall) at a world cell.
+ * `hasAbove` is true when the cell immediately above is non-invisible.
+ */
+export function wallShapeAtWorld(
+  neighborhood: VoxelNeighborhood,
+  worldX: number,
+  worldY: number,
+  worldZ: number,
+  selfName: string,
+): WallShape {
+  const mask = connectionMaskAtWorld(neighborhood, worldX, worldY, worldZ, selfName);
+  const above = blockRefAtWorld(neighborhood, worldX, worldY + 1, worldZ);
+  const hasAbove = above != null && !isInvisible(above.name);
+  return wallShapeFromMask(mask, hasAbove);
 }

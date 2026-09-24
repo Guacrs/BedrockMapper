@@ -4,9 +4,9 @@
  * No filesystem / JSON work here — textures come from the already-loaded PR17
  * appearance DB via family builders.
  *
- * Contextual families (fences/panes): pass a `ConnectionMask` computed from
- * neighbours. Intrinsic `BlockRef` states alone must never encode N/E/S/W
- * geometry for those families.
+ * Contextual families (fences/panes/walls): pass a `ConnectionMask` computed
+ * from neighbours. Walls also pass `WallShape` (post + tall). Intrinsic
+ * `BlockRef` states alone must never encode N/E/S/W geometry for those families.
  */
 
 import { isInvisible } from '../../../world/blocks.ts';
@@ -18,12 +18,32 @@ import { isPaneName, paneModel } from './families/pane.ts';
 import { isDoubleSlabName, isSingleSlabName, slabModel } from './families/slab.ts';
 import { isStairName, tryBuildStraightStair } from './families/stair.ts';
 import { isTrapdoorName, tryBuildTrapdoor } from './families/trapdoor.ts';
+import {
+  isWallName,
+  wallModel,
+  wallShapeFromMask,
+  wallShapeKey,
+  type WallShape,
+} from './families/wall.ts';
 import type { BlockModel, BlockRef } from './types.ts';
 import { EMPTY_BLOCK_REF } from './types.ts';
 
 const modelCache = new Map<string, BlockModel>();
 
-function cacheKey(ref: BlockRef, connection?: ConnectionMask): string {
+function cacheKey(
+  ref: BlockRef,
+  connection?: ConnectionMask,
+  wallShape?: WallShape,
+): string {
+  if (isWallName(ref.name)) {
+    const shape =
+      wallShape ??
+      wallShapeFromMask(
+        connection ?? { north: false, east: false, south: false, west: false },
+        false,
+      );
+    return `wall:${wallShapeKey(shape)}:${ref.name}`;
+  }
   if (isFenceName(ref.name)) {
     const maskKey = connection ? connectionMaskKey(connection) : 'n0e0s0w0';
     return `fence:${maskKey}:${ref.name}`;
@@ -64,21 +84,30 @@ function cacheKey(ref: BlockRef, connection?: ConnectionMask): string {
 /**
  * Resolve an immutable model for a palette entry (cached).
  *
- * For fences/panes, pass `connection` from neighbour lookup. Omitting it
- * yields an isolated post (safe fallback; mesher should always supply the mask).
+ * For fences/panes/walls, pass `connection` from neighbour lookup. Walls should
+ * also pass `wallShape` (post + tall); omitting it yields an isolated short post.
  */
 export function resolveBlockModel(
   ref: BlockRef,
   connection?: ConnectionMask,
+  wallShape?: WallShape,
 ): BlockModel | null {
   if (!ref.name || isInvisible(ref.name)) return null;
 
-  const key = cacheKey(ref, connection);
+  const key = cacheKey(ref, connection, wallShape);
   const hit = modelCache.get(key);
   if (hit) return hit;
 
   let model: BlockModel;
-  if (isFenceName(ref.name)) {
+  if (isWallName(ref.name)) {
+    const shape =
+      wallShape ??
+      wallShapeFromMask(
+        connection ?? { north: false, east: false, south: false, west: false },
+        false,
+      );
+    model = wallModel(ref.name, shape);
+  } else if (isFenceName(ref.name)) {
     const mask = connection ?? {
       north: false,
       east: false,
@@ -108,7 +137,7 @@ export function resolveBlockModel(
     const built = tryBuildStraightStair(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
   } else {
-    // Unsupported partials (walls, plants, …) stay full cubes — conservative.
+    // Unsupported partials (plants, …) stay full cubes — conservative.
     model = fullCubeModel(ref.name);
   }
 
@@ -118,7 +147,8 @@ export function resolveBlockModel(
 
 /**
  * True when a neighbour cell counts as a solid full cube for connected-model
- * attach (fences / panes). Thin / hinged families never count as solid attach.
+ * attach (fences / panes / walls). Thin / hinged / connected families never
+ * count as solid attach via this helper — family classifiers handle peers.
  */
 export function neighbourIsFullCubeForConnection(ref: BlockRef | null): boolean {
   if (!ref) return false;
@@ -126,6 +156,7 @@ export function neighbourIsFullCubeForConnection(ref: BlockRef | null): boolean 
     isFenceName(ref.name) ||
     isFenceGateName(ref.name) ||
     isPaneName(ref.name) ||
+    isWallName(ref.name) ||
     isDoorName(ref.name) ||
     isTrapdoorName(ref.name)
   ) {

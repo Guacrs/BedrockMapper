@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19 research · **PR20** cube+slab · **PR21** stairs · **PR22** fences (**frozen**) · **PR23** panes · **PR24** doors+trapdoors.
+**Status:** PR19 research · **PR20** cube+slab · **PR21** stairs · **PR22** fences (**frozen**) · **PR23** panes · **PR24** doors+trapdoors (**frozen**) · **PR26** walls.
 
 **Frozen predecessors:**
 
@@ -14,7 +14,9 @@
 | **PR21** | Straight stairs + `weirdo_direction` transforms |
 | **PR22** | Connected fences — `BlockRef` / `ConnectionMask` separation (**frozen**) |
 | **PR23** | Glass panes + iron bars — reuse `ConnectionMask`, thin occlusion |
-| **PR24** | Doors + trapdoors — intrinsic state transforms (no ConnectionMask) |
+| **PR24** | Doors + trapdoors — intrinsic state transforms (no ConnectionMask) (**frozen**) |
+| **PR25** | Cross / plant models — separate branch `cursor/3d-cross-models-ef90` |
+| **PR26** | Wall models — contextual ConnectionMask + post/tall (**this PR**) |
 
 ### PR20 implemented
 
@@ -115,6 +117,24 @@ Intrinsic state families (no ConnectionMask) — same transform path as stairs:
 
 Both always `isFullCube: false`. Not treated as solid attach targets for fences/panes.
 
+### PR26 implemented
+
+Wall family (`families/wall.ts`) — contextual, **not** a fence reuse:
+
+**Bedrock research:**
+
+- States: `wall_connection_type_{n,e,s,w}` ∈ {none, short, tall} + `wall_post_bit` (Microsoft Learn + Wiki). **Ignored on BlockRef** — inferred at mesh time (same empty-NBT rationale as fences).
+- Attach (`wallConnectsTo`, ≠ fence/pane/`isSolidAt`): wall↔wall, wall→full cube, wall→pane/bars, wall→gate, wall→trapdoor (BE 1.16.20). **wall↛fence**. Plants explicitly refused (allowlist mirrors PR25).
+- Post: omitted on straight N–S / E–W **or** four-way; forced when a non-air block is above (wiki).
+- Tall vs short: single `tall` flag for all arms when anything is above the cell (approximation of per-side tall — documented limitation).
+- Geometry: post `[4,0,4]–[12,16,12]`; arms 6px (5–11), height 14/16 or 16/16.
+- Cache key: `wall:{mask}:p{0|1}:t{0|1}:{name}` — never shared with fence/pane keys.
+- Fence/pane classifiers updated to **accept walls** as attach targets (reciprocal for panes; fences attach to walls).
+
+**Contracts:** `isFullCube === false`; Option A occlusion unchanged; ConnectionMask stays boolean (post/tall are `WallShape` extras).
+
+**Visual validation:** synthetic fixture in `test/block-models-wall.test.ts`. Same caveat as PR22/23.
+
 ---
 
 ## 18. Model-system audit checkpoint (after PR24)
@@ -134,14 +154,15 @@ Before adding plants/walls/crosses, freeze these contracts:
 
 **Do not** merge door/trapdoor/slab into a generic “thin block” framework yet. Extract shared primitives only when three+ families need the same helper.
 
-**Next families (later):** walls (connected), plants/crosses, then optional `.geo.json` — only after this checkpoint holds under review.
+**Next families (later):** cross/plants (PR25 branch), then optional `.geo.json` — only after this checkpoint holds under review.
 
 ### Deferred (still)
 
-- Walls
+- Cross / plant geometry (PR25 — separate PR)
+- Per-direction wall tall/short (currently uniform `tall` from above)
 - Inner/outer corner stairs
-- Thin blocks / plants / crosses (PR25)
-- Custom `.geo.json` (PR26)
+- Double plants / vines / berry bushes / bamboo stalks
+- Custom `.geo.json`
 - Exact stair–stair polygon clipping
 - Greedy meshing / water / resource-pack runtime overrides
 
@@ -158,7 +179,7 @@ SubChunk { layers[].palette: BlockState{name, states}[], indices }
 ChunkBlocks
     ↓
 VoxelNeighborhood
-    ↓  resolveBlockModel(BlockRef[, ConnectionMask]) → full_cube | slab | stair | fence
+    ↓  resolveBlockModel(BlockRef[, ConnectionMask[, WallShape]]) → full_cube | slab | stair | fence | pane | door | trapdoor | wall
     ↓  isFaceFullyOccluded (Option A)
 box-face mesher (voxel-mesh-builder.ts)
     ↓  PR17: appearance → atlas UVs (side UV crop for half-height boxes)
@@ -167,7 +188,7 @@ MeshChunk { positions, normals, colors, uvs, indices }
 Three.js
 ```
 
-**PR20–24 geometry:** full cubes + slabs + straight stairs + fences + panes/bars + doors + trapdoors. Walls/plants/etc. still use the full-cube fallback. Corner stairs fall back to full cube.
+**PR20–26 geometry:** full cubes + slabs + straight stairs + fences + panes/bars + doors + trapdoors + walls. Plants/crosses are on PR25 (separate branch). Corner stairs fall back to full cube.
 
 ---
 

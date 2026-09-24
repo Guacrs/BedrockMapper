@@ -35,6 +35,22 @@ import type { BlockModel, BlockRef, FaceId, ModelBox } from '../types.ts';
 
 const PX = 1 / 16;
 
+/** Local wall check — avoid importing wall.ts (circular with paneConnectsTo). */
+function neighbourIsWall(name: string): boolean {
+  const short = shortBlockId(name);
+  if (
+    short.includes('wall_sign') ||
+    short.endsWith('_wall_banner') ||
+    short === 'wall_banner' ||
+    short === 'wall_sign' ||
+    short.includes('coral_wall_fan') ||
+    short.includes('wall_fan')
+  ) {
+    return false;
+  }
+  return short.endsWith('_wall');
+}
+
 /** Glass panes (incl. stained/hard) and iron bars. */
 export function isPaneName(name: string): boolean {
   const short = shortBlockId(name);
@@ -67,6 +83,8 @@ export function paneConnectsTo(
   if (!neighbour) return false;
   if (isFenceName(neighbour.name)) return false;
   if (isPaneName(neighbour.name)) return true;
+  // Walls connect to panes (BE 1.16+); panes reciprocate.
+  if (neighbourIsWall(neighbour.name)) return true;
   return neighbourIsFullCube;
 }
 

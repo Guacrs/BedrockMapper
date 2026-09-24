@@ -1,10 +1,11 @@
 /**
  * Experimental voxel mesh for one Minecraft chunk.
  *
- * PR20–23: palette BlockRefs resolve to box models (full cube, slab, stair,
- * fence, pane). Contextual families use ConnectionMask from VoxelNeighborhood —
- * neighbour arms/rails are never stored on BlockRef. Exposed faces are culled
- * with conservative box occlusion (Option A). UVs come from the PR17 atlas.
+ * PR20–26: palette BlockRefs resolve to box models (full cube, slab, stair,
+ * fence, pane, wall, …). Contextual families use ConnectionMask from
+ * VoxelNeighborhood — neighbour arms/rails are never stored on BlockRef.
+ * Exposed faces are culled with conservative box occlusion (Option A). UVs
+ * come from the PR17 atlas.
  *
  * Coordinates: Minecraft X east, Y up, Z south (same as Three.js mapping).
  */
@@ -21,7 +22,9 @@ import type { ConnectionMask } from './models/connection.ts';
 import {
   connectionMaskAtWorld,
   isContextualConnectedName,
+  wallShapeAtWorld,
 } from './models/contextual.ts';
+import { isWallName, wallShapeKey } from './models/families/wall.ts';
 import { isFaceFullyOccluded } from './models/occlude.ts';
 import { resolveBlockModel } from './models/resolve.ts';
 import type { BlockModel, BlockRef, FaceId, ModelBox } from './models/types.ts';
@@ -266,6 +269,16 @@ function modelAtWorld(
   if (!ref) return null;
 
   if (isContextualConnectedName(ref.name)) {
+    if (isWallName(ref.name)) {
+      const shape = wallShapeAtWorld(neighborhood, worldX, worldY, worldZ, ref.name);
+      const key = `${ref.name}|${wallShapeKey(shape)}`;
+      let model = contextualCache.get(key);
+      if (model === undefined) {
+        model = resolveBlockModel(ref, shape.mask, shape);
+        contextualCache.set(key, model);
+      }
+      return model;
+    }
     const mask = connectionMaskAtWorld(neighborhood, worldX, worldY, worldZ, ref.name);
     const key = `${ref.name}|${mask.north ? 1 : 0}${mask.east ? 1 : 0}${mask.south ? 1 : 0}${mask.west ? 1 : 0}`;
     let model = contextualCache.get(key);
