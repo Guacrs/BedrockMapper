@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19 research · **PR20** cube+slab · **PR21** stairs · **PR22** fences (**frozen**) · **PR23** panes · **PR24** doors+trapdoors (**frozen**) · **PR26** walls.
+**Status:** PR19 research · **PR20** cube+slab · **PR21** stairs · **PR22** fences (**frozen**) · **PR23** panes · **PR24** doors+trapdoors (**frozen**) · **PR25** cross/plants (separate, **frozen**) · **PR26** walls (**frozen**).
 
 **Frozen predecessors:**
 
@@ -15,8 +15,8 @@
 | **PR22** | Connected fences — `BlockRef` / `ConnectionMask` separation (**frozen**) |
 | **PR23** | Glass panes + iron bars — reuse `ConnectionMask`, thin occlusion |
 | **PR24** | Doors + trapdoors — intrinsic state transforms (no ConnectionMask) (**frozen**) |
-| **PR25** | Cross / plant models — separate branch `cursor/3d-cross-models-ef90` |
-| **PR26** | Wall models — contextual ConnectionMask + post/tall (**this PR**) |
+| **PR25** | Cross / plant models — separate branch `cursor/3d-cross-models-ef90` (**frozen**) |
+| **PR26** | Wall models — contextual ConnectionMask + post/tall (**frozen**) |
 
 ### PR20 implemented
 

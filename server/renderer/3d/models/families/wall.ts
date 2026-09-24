@@ -23,10 +23,11 @@
  * 3. Post rule (wiki): center post unless exactly two opposite sides **or**
  *    all four sides are connected — unless an above block forces a post.
  * 4. Tall vs short (wiki): side rises when a block above covers that arm’s
- *    top strip. This PR approximates with a single `tall` flag for all arms
- *    when any non-air block sits above the wall cell (documented limitation).
+ *    top strip. **Frozen approximation:** a single `tall` flag for all arms
+ *    when any non-air block sits above the wall cell. Bedrock’s real model is
+ *    per-direction `none|short|tall` on `wall_connection_type_*` — deferred.
  * 5. Geometry (Java template / Bedrock parity, pixel space):
- *      post  [4,0,4]–[12,16,12]
+ *      post  [4,0,4]–[12,16,12]   (Y max = 1.0 block = 16px, not 1px)
  *      short arm height 14; tall arm height 16; arm thickness 6 (5–11)
  *
  * Fence connectivity ≠ wall connectivity — dedicated `wallConnectsTo`.
