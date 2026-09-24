@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19 research · **PR20** cube+slab · **PR21** stairs · **PR22** fences (**frozen**) · **PR23** panes · **PR24** doors+trapdoors (**frozen**) · **PR25** cross/plants.
+**Status:** PR19 research · **PR20** cube+slab · **PR21** stairs · **PR22** fences (**frozen**) · **PR23** panes · **PR24** doors+trapdoors (**frozen**) · **PR25** cross/plants (**frozen**).
 
 **Frozen predecessors:**
 
@@ -15,7 +15,7 @@
 | **PR22** | Connected fences — `BlockRef` / `ConnectionMask` separation (**frozen**) |
 | **PR23** | Glass panes + iron bars — reuse `ConnectionMask`, thin occlusion |
 | **PR24** | Doors + trapdoors — intrinsic state transforms (no ConnectionMask) (**frozen**) |
-| **PR25** | Cross / plant models — `minecraft:geometry.cross` planes (**this PR**) |
+| **PR25** | Cross / plant models — `minecraft:geometry.cross` planes (**frozen**) |
 
 ### PR20 implemented
 
