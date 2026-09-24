@@ -230,15 +230,10 @@ describe('slab models + meshing', () => {
 
   it('unknown renderable blocks fall back to full cube', () => {
     resetBlockModelCache();
-    // Walls are not modelled yet — must stay visible as full cubes.
+    // Blocks without a dedicated family (e.g. lectern) stay visible as full cubes.
     const model = resolveBlockModel({
-      name: 'minecraft:cobblestone_wall',
-      states: {
-        wall_connection_type_north: 'none',
-        wall_connection_type_east: 'none',
-        wall_connection_type_south: 'none',
-        wall_connection_type_west: 'none',
-      },
+      name: 'minecraft:lectern',
+      states: {},
     } as BlockRef)!;
     assert.equal(model.isFullCube, true);
   });

@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19 research · **PR20** cube+slab · **PR21** stairs · **PR22** fences (**frozen**) · **PR23** panes · **PR24** doors+trapdoors (**frozen**) · **PR25** cross/plants (**frozen**).
+**Status:** PR19–PR24 frozen · **PR25** cross/plants (**frozen**, in beta) · **PR26** walls (**frozen**, uniform-tall accepted).
 
 **Frozen predecessors:**
 
@@ -15,7 +15,8 @@
 | **PR22** | Connected fences — `BlockRef` / `ConnectionMask` separation (**frozen**) |
 | **PR23** | Glass panes + iron bars — reuse `ConnectionMask`, thin occlusion |
 | **PR24** | Doors + trapdoors — intrinsic state transforms (no ConnectionMask) (**frozen**) |
-| **PR25** | Cross / plant models — `minecraft:geometry.cross` planes (**frozen**) |
+| **PR25** | Cross / plant models — `minecraft:geometry.cross` planes (**frozen**, in beta) |
+| **PR26** | Wall models — contextual ConnectionMask + post/tall (**frozen**) |
 
 ### PR20 implemented
 
@@ -126,7 +127,7 @@ Cross / plant family (`families/cross.ts`) — intrinsic geometry, **no** `Conne
 - Footprint matches classic cross: two vertical planes through block centre (Java from/to 0.8…15.2 at axis 8); AABB mesher uses 1px thickness centred on 8/16.
 - Front/back = both cardinal faces per plane (no material-side global change).
 - Explicit allowlist of short ids (short_grass, fern, deadbush, saplings, flowers, mushrooms, nether roots/fungi/sprouts, plus a few legacy aliases). **Not** a “thin block” heuristic.
-- Deferred (full-cube fallback until researched): double plants (`tall_grass`, `large_fern`, sunflower, …), vines, berry bushes, bamboo stalks, `pink_petals` / wildflowers, walls (PR26).
+- Deferred (full-cube fallback until researched): double plants (`tall_grass`, `large_fern`, sunflower, …), vines, berry bushes, bamboo stalks, `pink_petals` / wildflowers.
 
 **Contracts preserved:**
 
@@ -137,7 +138,28 @@ Cross / plant family (`families/cross.ts`) — intrinsic geometry, **no** `Conne
 
 **Visual validation:** demo LevelDB typically has **zero** cross-plant palette entries (grass_block ≠ short_grass). Geometry + connectivity exclusion exercised by `test/block-models-cross.test.ts` synthetic fixture. Same caveat as PR22/23: synthetic validation does **not** prove production BDS world state distribution.
 
-**Frozen (do not expand):** allowlist stays explicit — do not add ids (e.g. extra saplings) without Bedrock evidence they use `minecraft:geometry.cross`. No ThinBlock abstraction. Walls remain PR26.
+**Frozen (do not expand):** allowlist stays explicit — do not add ids without Bedrock evidence they use `minecraft:geometry.cross`.
+
+### PR26 implemented
+
+Wall family (`families/wall.ts`) — contextual, **not** a fence reuse:
+
+**Bedrock research:**
+
+- States: `wall_connection_type_{n,e,s,w}` ∈ {none, short, tall} + `wall_post_bit` (Microsoft Learn + Wiki). **Ignored on BlockRef** — inferred at mesh time (same empty-NBT rationale as fences).
+- Attach (`wallConnectsTo`, ≠ fence/pane/`isSolidAt`): wall↔wall, wall→full cube, wall→pane/bars, wall→gate, wall→trapdoor (BE 1.16.20). **wall↛fence**. Plants refused via `isCrossName` from `cross.ts`.
+- Post: omitted on straight N–S / E–W **or** four-way; forced when a non-air block is above (wiki).
+- Tall vs short (**accepted frozen limitation**): Bedrock exposes independent `wall_connection_type_{n,e,s,w}` ∈ {none, short, tall}. This PR uses `ConnectionMask` (boolean connect) + **one global `tall` bit** — if any non-invisible block sits above the wall cell, **every** connected arm uses tall height (16/16); otherwise all arms are short (14/16). Per-direction short/tall is deferred.
+- Geometry: post `[4,0,4]–[12,16,12]` (Y `1` = full 16/16 block height); arms 6px (5–11), height 14/16 or 16/16.
+- Cache key: `wall:{mask}:p{0|1}:t{0|1}:{name}` — never shared with fence/pane keys.
+- Fence/pane classifiers updated to **accept walls** as attach targets. Asymmetry intentional: **wall↛fence** while fence→wall and pane→wall connect.
+
+**Contracts:** `isFullCube === false`; Option A occlusion unchanged; ConnectionMask stays boolean (post/tall are `WallShape` extras).
+
+**Visual validation:** synthetic fixture in `test/block-models-wall.test.ts`. Same caveat as PR22/23.
+
+**Frozen:** keep explicit `wallConnectsTo` (never `isSolidAt`). Accept uniform-tall approximation until a later per-direction height milestone.
+
 
 ---
 
@@ -158,11 +180,11 @@ Before adding plants/walls/crosses, freeze these contracts:
 
 **Do not** merge door/trapdoor/slab into a generic “thin block” framework yet. Extract shared primitives only when three+ families need the same helper.
 
-**Next families (later):** walls (connected), then optional `.geo.json` — only after this checkpoint holds under review.
+**Next families (later):** model validation fixture world, then double plants / vines — only after this checkpoint holds under review.
 
 ### Deferred (still)
 
-- Walls (PR26)
+- Per-direction wall tall/short (currently uniform `tall` from above)
 - Inner/outer corner stairs
 - Double plants / vines / berry bushes / bamboo stalks / floor flowers
 - Custom `.geo.json`
@@ -182,7 +204,7 @@ SubChunk { layers[].palette: BlockState{name, states}[], indices }
 ChunkBlocks
     ↓
 VoxelNeighborhood
-    ↓  resolveBlockModel(BlockRef[, ConnectionMask]) → full_cube | slab | stair | fence | pane | door | trapdoor | cross
+    ↓  resolveBlockModel(BlockRef[, ConnectionMask[, WallShape]]) → full_cube | slab | stair | fence | pane | door | trapdoor | cross | wall
     ↓  isFaceFullyOccluded (Option A)
 box-face mesher (voxel-mesh-builder.ts)
     ↓  PR17: appearance → atlas UVs (side UV crop for half-height boxes)
@@ -191,7 +213,7 @@ MeshChunk { positions, normals, colors, uvs, indices }
 Three.js
 ```
 
-**PR20–25 geometry:** full cubes + slabs + straight stairs + fences + panes/bars + doors + trapdoors + cross plants. Walls/double-plants/etc. still use the full-cube fallback. Corner stairs fall back to full cube.
+**PR20–26 geometry:** full cubes + slabs + straight stairs + fences + panes/bars + doors + trapdoors + cross plants + walls. Double plants / vines / etc. still use the full-cube fallback. Corner stairs fall back to full cube.
 
 ---
 
