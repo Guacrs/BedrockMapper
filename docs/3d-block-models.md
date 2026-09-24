@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19 research complete · **PR20** full cube + slab · **PR21** straight stairs · **PR22** connected fences.
+**Status:** PR19 research · **PR20** cube+slab · **PR21** stairs · **PR22** fences (**frozen**) · **PR23** panes/iron bars.
 
 **Frozen predecessors:**
 
@@ -12,7 +12,8 @@
 | PR19 | This document (research) |
 | **PR20** | State retention, model resolver, full cube + slab, Option A occlusion |
 | **PR21** | Straight stairs + `weirdo_direction` transforms |
-| **PR22** | Connected fences — `BlockRef` / `ConnectionMask` separation |
+| **PR22** | Connected fences — `BlockRef` / `ConnectionMask` separation (**frozen**) |
+| **PR23** | Glass panes + iron bars — reuse `ConnectionMask`, thin occlusion |
 
 ### PR20 implemented
 
@@ -81,9 +82,18 @@ Evidence: Minecraft Wiki Fence (Bedrock states + wooden≠nether); Microsoft `mi
 
 **Connectivity ≠ occlusion:** fence attach uses an explicit classifier (`compatible fence` / `gate` / `model.isFullCube`) — never `isSolidAt` / `isRenderableCube`. A full cube may occlude a rail end without the fence becoming a full-cube occluder itself.
 
+### PR23 implemented
+
+Reuses PR22 `ConnectionMask` via `models/contextual.ts` (shared neighbour gather + family `connectsTo`).
+
+- `models/families/pane.ts` — glass panes (incl. stained/hard) + `iron_bars`
+- Geometry: 2×2 post `[7,0,7]–[9,16,9]` + full-height 2px arms per connection
+- Attach: pane↔pane/bars, pane→full cube; **pane↛fence**, pane↛slab/gate/air
+- `isFullCube` always **false** — explicit tests that panes do not cull neighbour unit faces
+- Demo world: **zero** pane/bars entries → synthetic fixture (same caveat as PR22)
+
 ### Deferred (still)
 
-- Panes / iron bars (PR23)
 - Walls
 - Doors / trapdoors
 - Inner/outer corner stairs
@@ -113,7 +123,7 @@ MeshChunk { positions, normals, colors, uvs, indices }
 Three.js
 ```
 
-**PR20–22 geometry:** full cubes + single slabs + straight stairs + connected fences. Panes/doors/etc. still use the full-cube fallback. Corner stairs fall back to full cube.
+**PR20–23 geometry:** full cubes + single slabs + straight stairs + connected fences + panes/iron bars. Doors/walls/etc. still use the full-cube fallback. Corner stairs fall back to full cube.
 
 ---
 

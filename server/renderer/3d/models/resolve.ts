@@ -12,6 +12,7 @@
 import { isInvisible } from '../../../world/blocks.ts';
 import { connectionMaskKey, type ConnectionMask } from './connection.ts';
 import { fenceModel, isFenceGateName, isFenceName } from './families/fence.ts';
+import { isPaneName, paneModel } from './families/pane.ts';
 import { fullCubeModel } from './families/full-cube.ts';
 import { isDoubleSlabName, isSingleSlabName, slabModel } from './families/slab.ts';
 import { isStairName, tryBuildStraightStair } from './families/stair.ts';
@@ -22,9 +23,12 @@ const modelCache = new Map<string, BlockModel>();
 
 function cacheKey(ref: BlockRef, connection?: ConnectionMask): string {
   if (isFenceName(ref.name)) {
-    // Mask is required for correct geometry; missing → isolated post.
     const maskKey = connection ? connectionMaskKey(connection) : 'n0e0s0w0';
     return `fence:${maskKey}:${ref.name}`;
+  }
+  if (isPaneName(ref.name)) {
+    const maskKey = connection ? connectionMaskKey(connection) : 'n0e0s0w0';
+    return `pane:${maskKey}:${ref.name}`;
   }
   if (isSingleSlabName(ref.name)) {
     const half = ref.states['minecraft:vertical_half'] === 'top' ? 'top' : 'bottom';
@@ -45,8 +49,8 @@ function cacheKey(ref: BlockRef, connection?: ConnectionMask): string {
 /**
  * Resolve an immutable model for a palette entry (cached).
  *
- * For fences, pass `connection` from neighbour lookup. Omitting it yields an
- * isolated post (safe fallback; mesher should always supply the mask).
+ * For fences/panes, pass `connection` from neighbour lookup. Omitting it
+ * yields an isolated post (safe fallback; mesher should always supply the mask).
  */
 export function resolveBlockModel(
   ref: BlockRef,
@@ -67,6 +71,14 @@ export function resolveBlockModel(
       west: false,
     };
     model = fenceModel(ref.name, mask);
+  } else if (isPaneName(ref.name)) {
+    const mask = connection ?? {
+      north: false,
+      east: false,
+      south: false,
+      west: false,
+    };
+    model = paneModel(ref.name, mask);
   } else if (isSingleSlabName(ref.name)) {
     model = slabModel(ref);
   } else if (isDoubleSlabName(ref.name)) {
@@ -75,7 +87,7 @@ export function resolveBlockModel(
     const built = tryBuildStraightStair(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
   } else {
-    // Unsupported partials (panes, doors, …) stay full cubes — conservative.
+    // Unsupported partials (doors, …) stay full cubes — conservative.
     model = fullCubeModel(ref.name);
   }
 
@@ -84,15 +96,18 @@ export function resolveBlockModel(
 }
 
 /**
- * True when a neighbour cell counts as a solid full cube for fence rails.
- * Fences and gates are never full cubes here (handled by family rules).
+ * True when a neighbour cell counts as a solid full cube for connected-model
+ * attach (fences / panes). Fences, gates, and panes are never full cubes here.
  */
-export function neighbourIsFullCubeForFence(ref: BlockRef | null): boolean {
+export function neighbourIsFullCubeForConnection(ref: BlockRef | null): boolean {
   if (!ref) return false;
-  if (isFenceName(ref.name) || isFenceGateName(ref.name)) return false;
+  if (isFenceName(ref.name) || isFenceGateName(ref.name) || isPaneName(ref.name)) return false;
   const model = resolveBlockModel(ref);
   return model?.isFullCube === true;
 }
+
+/** @deprecated Use neighbourIsFullCubeForConnection */
+export const neighbourIsFullCubeForFence = neighbourIsFullCubeForConnection;
 
 /** Test helper — drop process caches. */
 export function resetBlockModelCache(): void {
