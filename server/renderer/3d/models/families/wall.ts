@@ -39,6 +39,7 @@ import {
   connectionMaskKey,
   type ConnectionMask,
 } from '../connection.ts';
+import { isCrossName } from './cross.ts';
 import { isFenceGateName, isFenceName, shortBlockId } from './fence.ts';
 import { isTrapdoorName } from './trapdoor.ts';
 import type { BlockModel, BlockRef, FaceId, ModelBox } from '../types.ts';
@@ -54,51 +55,6 @@ function neighbourIsPane(name: string): boolean {
 /** Arm height in blocks: short = 14/16, tall = 16/16. */
 const ARM_SHORT = 14 * PX;
 const ARM_TALL = 1;
-
-/**
- * Plant / cross ids that must never receive wall arms.
- * Mirrors the PR25 cross allowlist for connection refuse only — wall models
- * do not depend on cross geometry being present on this branch.
- */
-const WALL_NONCONNECT_PLANTS: ReadonlySet<string> = new Set([
-  'short_grass',
-  'tallgrass',
-  'fern',
-  'deadbush',
-  'oak_sapling',
-  'spruce_sapling',
-  'birch_sapling',
-  'jungle_sapling',
-  'acacia_sapling',
-  'dark_oak_sapling',
-  'cherry_sapling',
-  'pale_oak_sapling',
-  'bamboo_sapling',
-  'sapling',
-  'dandelion',
-  'poppy',
-  'blue_orchid',
-  'allium',
-  'azure_bluet',
-  'red_tulip',
-  'orange_tulip',
-  'white_tulip',
-  'pink_tulip',
-  'oxeye_daisy',
-  'cornflower',
-  'lily_of_the_valley',
-  'wither_rose',
-  'torchflower',
-  'yellow_flower',
-  'red_flower',
-  'brown_mushroom',
-  'red_mushroom',
-  'crimson_fungus',
-  'warped_fungus',
-  'crimson_roots',
-  'warped_roots',
-  'nether_sprouts',
-]);
 
 export interface WallShape {
   readonly mask: ConnectionMask;
@@ -151,7 +107,7 @@ export function wallConnectsTo(
   if (isFenceGateName(neighbour.name)) return true;
   if (neighbourIsPane(neighbour.name)) return true;
   if (isTrapdoorName(neighbour.name)) return true;
-  if (WALL_NONCONNECT_PLANTS.has(shortBlockId(neighbour.name))) return false;
+  if (isCrossName(neighbour.name)) return false;
   return neighbourIsFullCube;
 }
 

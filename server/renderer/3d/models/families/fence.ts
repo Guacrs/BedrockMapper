@@ -37,6 +37,7 @@
  * ignored so the model stays neighbour-driven and cacheable by mask.
  */
 
+import { isCrossName } from './cross.ts';
 import { fullCubeFaceTexture } from '../../textures/models.ts';
 import {
   connectionMaskFromFlags,
@@ -124,6 +125,9 @@ export function fenceConnectsTo(
   if (isFenceGateName(neighbour.name)) return true;
   // Fences attach to walls (Bedrock/Java parity) even though walls are not full cubes.
   if (neighbourIsWall(neighbour.name)) return true;
+  // Plants / crosses are never solid attach targets (even if a caller wrongly
+  // flags them full-cube). Connectivity ≠ occlusion.
+  if (isCrossName(neighbour.name)) return false;
   // Only after fence/gate checks — never treat fences as full-cube attach targets.
   return neighbourIsFullCube;
 }
