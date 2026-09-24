@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR24 frozen · **PR25** cross/plants (draft) · **PR26** walls (draft) · **§19** model-system audit + coverage inventory.
+**Status:** PR19–PR24 frozen · **PR25** cross/plants (**frozen**) · **PR26** walls (**frozen**, uniform-tall accepted) · **§19 / PR27** audit open until PR25 lands in beta and cross ownership is cleaned up.
 
 **Frozen predecessors:**
 
@@ -15,8 +15,8 @@
 | **PR22** | Connected fences — `BlockRef` / `ConnectionMask` separation (**frozen**) |
 | **PR23** | Glass panes + iron bars — reuse `ConnectionMask`, thin occlusion |
 | **PR24** | Doors + trapdoors — intrinsic state transforms (no ConnectionMask) (**frozen**) |
-| **PR25** | Cross / plant models — separate branch `cursor/3d-cross-models-ef90` |
-| **PR26** | Wall models — contextual ConnectionMask + post/tall (**this PR**) |
+| **PR25** | Cross / plant models — separate branch `cursor/3d-cross-models-ef90` (**frozen**) |
+| **PR26** | Wall models — contextual ConnectionMask + post/tall (**frozen**) |
 
 ### PR20 implemented
 
@@ -126,14 +126,16 @@ Wall family (`families/wall.ts`) — contextual, **not** a fence reuse:
 - States: `wall_connection_type_{n,e,s,w}` ∈ {none, short, tall} + `wall_post_bit` (Microsoft Learn + Wiki). **Ignored on BlockRef** — inferred at mesh time (same empty-NBT rationale as fences).
 - Attach (`wallConnectsTo`, ≠ fence/pane/`isSolidAt`): wall↔wall, wall→full cube, wall→pane/bars, wall→gate, wall→trapdoor (BE 1.16.20). **wall↛fence**. Plants explicitly refused (allowlist mirrors PR25).
 - Post: omitted on straight N–S / E–W **or** four-way; forced when a non-air block is above (wiki).
-- Tall vs short: single `tall` flag for all arms when anything is above the cell (approximation of per-side tall — documented limitation).
-- Geometry: post `[4,0,4]–[12,16,12]`; arms 6px (5–11), height 14/16 or 16/16.
+- Tall vs short (**accepted frozen limitation**): Bedrock exposes independent `wall_connection_type_{n,e,s,w}` ∈ {none, short, tall}. This PR uses `ConnectionMask` (boolean connect) + **one global `tall` bit** — if any non-invisible block sits above the wall cell, **every** connected arm uses tall height (16/16); otherwise all arms are short (14/16). Per-direction short/tall is deferred; do not expand this milestone into that rewrite.
+- Geometry: post `[4,0,4]–[12,16,12]` (Y `1` = full 16/16 block height); arms 6px (5–11), height 14/16 or 16/16.
 - Cache key: `wall:{mask}:p{0|1}:t{0|1}:{name}` — never shared with fence/pane keys.
-- Fence/pane classifiers updated to **accept walls** as attach targets (reciprocal for panes; fences attach to walls).
+- Fence/pane classifiers updated to **accept walls** as attach targets (reciprocal for panes; fences attach to walls). Asymmetry intentional: **wall↛fence** while fence→wall and pane→wall connect.
 
 **Contracts:** `isFullCube === false`; Option A occlusion unchanged; ConnectionMask stays boolean (post/tall are `WallShape` extras).
 
 **Visual validation:** synthetic fixture in `test/block-models-wall.test.ts`. Same caveat as PR22/23.
+
+**Frozen:** keep explicit `wallConnectsTo` (never `isSolidAt`). Accept uniform-tall approximation until a later per-direction height milestone. Leave duplicated local `isWall` checks in fence/pane (circular-import avoidance) — PR27 tracks that duplication; do not extract a shared module in this freeze.
 
 ---
 
@@ -171,6 +173,15 @@ Before adding plants/walls/crosses, freeze these contracts:
 ## 19. Model-system audit (after PR25 + PR26)
 
 **Status:** documentation + coverage inventory only — **no refactor** in this checkpoint.
+
+**Not frozen yet.** Finalize after PR25/PR26 land in beta and the temporary cross-id ownership is cleaned up:
+
+```text
+today (PR27 stacked on walls):   coverage.ts → wall.ts → CROSS_PLANT_SHORT_IDS
+after PR25 in beta:              coverage.ts → cross.ts (canonical) + wall.ts / fence.ts / …
+```
+
+Until then, `isCrossPlantName` living on `wall.ts` is an intentional branch-stacking compromise, not the long-term source of truth. Duplicated local `isWall` helpers in fence/pane likewise stay until a post-merge cleanup (do not extract a shared module in this audit).
 
 ### 19.1 Contracts still holding
 

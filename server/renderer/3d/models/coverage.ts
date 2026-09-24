@@ -8,6 +8,11 @@
  * Cross/plant geometry is implemented on PR25; this module still labels the
  * allowlist as family `cross` with `implementation: 'explicit_on_pr25'` when
  * `isCrossName` is unavailable on the current branch.
+ *
+ * Temporary ownership: plant ids are imported from `wall.ts`
+ * (`isCrossPlantName`) because this audit branch stacks on PR26 before PR25
+ * lands in beta. After PR25 merges, switch the canonical import to
+ * `families/cross.ts` and stop treating wall as the cross-id owner.
  */
 
 import { isInvisible } from '../../../world/blocks.ts';
