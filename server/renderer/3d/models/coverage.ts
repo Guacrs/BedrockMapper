@@ -5,24 +5,24 @@
  * **explicit model implementation** from **safe full-cube fallback** and
  * **known-future / research**.
  *
- * Cross/plant geometry is implemented on PR25; this module still labels the
- * allowlist as family `cross` with `implementation: 'explicit_on_pr25'` when
- * `isCrossName` is unavailable on the current branch.
+ * Canonical ownership after PR25/PR26 in beta:
  *
- * Temporary ownership: plant ids are imported from `wall.ts`
- * (`isCrossPlantName`) because this audit branch stacks on PR26 before PR25
- * lands in beta. After PR25 merges, switch the canonical import to
- * `families/cross.ts` and stop treating wall as the cross-id owner.
+ * ```text
+ * coverage.ts → families/cross.ts (`isCrossName`)
+ *             → families/wall.ts  (`isWallName`)
+ *             → fence / pane / door / …
+ * ```
  */
 
 import { isInvisible } from '../../../world/blocks.ts';
+import { isCrossName } from './families/cross.ts';
 import { isDoorName } from './families/door.ts';
 import { isFenceGateName, isFenceName, shortBlockId } from './families/fence.ts';
 import { isPaneName } from './families/pane.ts';
 import { isDoubleSlabName, isSingleSlabName } from './families/slab.ts';
 import { isStairName } from './families/stair.ts';
 import { isTrapdoorName } from './families/trapdoor.ts';
-import { isCrossPlantName, isWallName } from './families/wall.ts';
+import { isWallName } from './families/wall.ts';
 
 /** Report categories from the Phase 3 audit brief. */
 export type ModelFamilyId =
@@ -40,7 +40,6 @@ export type ModelFamilyId =
 
 export type ImplementationKind =
   | 'explicit'
-  | 'explicit_on_pr25'
   | 'safe_full_cube_fallback'
   | 'unknown_research';
 
@@ -148,13 +147,8 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
   if (isStairName(name)) {
     return { name, family: 'stair', implementation: 'explicit' };
   }
-  if (isCrossPlantName(name)) {
-    return {
-      name,
-      family: 'cross',
-      implementation: 'explicit_on_pr25',
-      note: 'allowlist shared with PR25; geometry on cursor/3d-cross-models-ef90',
-    };
+  if (isCrossName(name)) {
+    return { name, family: 'cross', implementation: 'explicit' };
   }
   if (FUTURE_SHORT_IDS.has(short) || looksLikeCoralWallFan(short) || short.includes('wall_sign')) {
     return {
@@ -190,7 +184,6 @@ export function summarizeCoverage(entries: readonly ModelCoverageEntry[]): Cover
   } satisfies Record<ModelFamilyId, number>;
   const byImplementation = {
     explicit: 0,
-    explicit_on_pr25: 0,
     safe_full_cube_fallback: 0,
     unknown_research: 0,
   } satisfies Record<ImplementationKind, number>;

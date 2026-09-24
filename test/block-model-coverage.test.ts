@@ -31,10 +31,7 @@ describe('model family coverage inventory', () => {
     assert.equal(classifyBlockModelCoverage('minecraft:oak_trapdoor')?.family, 'trapdoor');
     assert.equal(classifyBlockModelCoverage('minecraft:cobblestone_wall')?.family, 'wall');
     assert.equal(classifyBlockModelCoverage('minecraft:short_grass')?.family, 'cross');
-    assert.equal(
-      classifyBlockModelCoverage('minecraft:short_grass')?.implementation,
-      'explicit_on_pr25',
-    );
+    assert.equal(classifyBlockModelCoverage('minecraft:short_grass')?.implementation, 'explicit');
     assert.equal(classifyBlockModelCoverage('minecraft:tall_grass')?.family, 'future');
     assert.equal(classifyBlockModelCoverage('minecraft:lectern')?.family, 'future');
     assert.equal(classifyBlockModelCoverage('minecraft:air'), null);
@@ -54,9 +51,7 @@ describe('model family coverage inventory', () => {
     assert.ok(summary.byFamily.cross >= 10, 'PR25 allowlist plants');
     assert.ok(summary.byFamily.full_cube >= 50);
     assert.ok(summary.byFamily.future >= 5);
-    // Explicit wall/fence/pane/door/trapdoor/slab/stair are "explicit"
-    assert.ok(summary.byImplementation.explicit >= 50);
-    // Cross geometry tracked separately until PR25 lands on beta
-    assert.ok(summary.byImplementation.explicit_on_pr25 >= 10);
+    // Explicit families include cube/slab/stair/fence/pane/door/trapdoor/wall/cross
+    assert.ok(summary.byImplementation.explicit >= 60);
   });
 });
