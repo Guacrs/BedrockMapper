@@ -7,10 +7,14 @@
  * Contextual families (fences/panes): pass a `ConnectionMask` computed from
  * neighbours. Intrinsic `BlockRef` states alone must never encode N/E/S/W
  * geometry for those families.
+ *
+ * Cross/plant models are intrinsic (no ConnectionMask) — two thin planes,
+ * always `isFullCube: false`.
  */
 
 import { isInvisible } from '../../../world/blocks.ts';
 import { connectionMaskKey, type ConnectionMask } from './connection.ts';
+import { crossModel, isCrossName } from './families/cross.ts';
 import { isDoorName, tryBuildDoor } from './families/door.ts';
 import { fenceModel, isFenceGateName, isFenceName } from './families/fence.ts';
 import { fullCubeModel } from './families/full-cube.ts';
@@ -31,6 +35,9 @@ function cacheKey(ref: BlockRef, connection?: ConnectionMask): string {
   if (isPaneName(ref.name)) {
     const maskKey = connection ? connectionMaskKey(connection) : 'n0e0s0w0';
     return `pane:${maskKey}:${ref.name}`;
+  }
+  if (isCrossName(ref.name)) {
+    return `cross:${ref.name}`;
   }
   if (isDoorName(ref.name)) {
     const facing = String(ref.states['minecraft:cardinal_direction'] ?? ref.states['direction'] ?? '?');
@@ -94,6 +101,8 @@ export function resolveBlockModel(
       west: false,
     };
     model = paneModel(ref.name, mask);
+  } else if (isCrossName(ref.name)) {
+    model = crossModel(ref.name);
   } else if (isDoorName(ref.name)) {
     const built = tryBuildDoor(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
@@ -108,7 +117,7 @@ export function resolveBlockModel(
     const built = tryBuildStraightStair(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
   } else {
-    // Unsupported partials (walls, plants, …) stay full cubes — conservative.
+    // Unsupported partials (walls, double plants, …) stay full cubes — conservative.
     model = fullCubeModel(ref.name);
   }
 
@@ -126,6 +135,7 @@ export function neighbourIsFullCubeForConnection(ref: BlockRef | null): boolean 
     isFenceName(ref.name) ||
     isFenceGateName(ref.name) ||
     isPaneName(ref.name) ||
+    isCrossName(ref.name) ||
     isDoorName(ref.name) ||
     isTrapdoorName(ref.name)
   ) {
