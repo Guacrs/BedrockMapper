@@ -30,6 +30,7 @@ import {
   connectionMaskKey,
   type ConnectionMask,
 } from '../connection.ts';
+import { isCrossName } from './cross.ts';
 import { isFenceName, shortBlockId } from './fence.ts';
 import type { BlockModel, BlockRef, FaceId, ModelBox } from '../types.ts';
 
@@ -66,6 +67,7 @@ export function paneConnectsTo(
 ): boolean {
   if (!neighbour) return false;
   if (isFenceName(neighbour.name)) return false;
+  if (isCrossName(neighbour.name)) return false;
   if (isPaneName(neighbour.name)) return true;
   return neighbourIsFullCube;
 }

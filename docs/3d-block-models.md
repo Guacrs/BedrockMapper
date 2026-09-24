@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19 research · **PR20** cube+slab · **PR21** stairs · **PR22** fences (**frozen**) · **PR23** panes · **PR24** doors+trapdoors.
+**Status:** PR19 research · **PR20** cube+slab · **PR21** stairs · **PR22** fences (**frozen**) · **PR23** panes · **PR24** doors+trapdoors (**frozen**) · **PR25** cross/plants.
 
 **Frozen predecessors:**
 
@@ -14,7 +14,8 @@
 | **PR21** | Straight stairs + `weirdo_direction` transforms |
 | **PR22** | Connected fences — `BlockRef` / `ConnectionMask` separation (**frozen**) |
 | **PR23** | Glass panes + iron bars — reuse `ConnectionMask`, thin occlusion |
-| **PR24** | Doors + trapdoors — intrinsic state transforms (no ConnectionMask) |
+| **PR24** | Doors + trapdoors — intrinsic state transforms (no ConnectionMask) (**frozen**) |
+| **PR25** | Cross / plant models — `minecraft:geometry.cross` planes (**this PR**) |
 
 ### PR20 implemented
 
@@ -115,6 +116,27 @@ Intrinsic state families (no ConnectionMask) — same transform path as stairs:
 
 Both always `isFullCube: false`. Not treated as solid attach targets for fences/panes.
 
+### PR25 implemented
+
+Cross / plant family (`families/cross.ts`) — intrinsic geometry, **no** `ConnectionMask`:
+
+**Bedrock research:**
+
+- Vanilla identifier `minecraft:geometry.cross` (Microsoft Learn `minecraft:geometry`) — engine-built-in, not a shipped `.geo.json`.
+- Footprint matches classic cross: two vertical planes through block centre (Java from/to 0.8…15.2 at axis 8); AABB mesher uses 1px thickness centred on 8/16.
+- Front/back = both cardinal faces per plane (no material-side global change).
+- Explicit allowlist of short ids (short_grass, fern, deadbush, saplings, flowers, mushrooms, nether roots/fungi/sprouts, plus a few legacy aliases). **Not** a “thin block” heuristic.
+- Deferred (full-cube fallback until researched): double plants (`tall_grass`, `large_fern`, sunflower, …), vines, berry bushes, bamboo stalks, `pink_petals` / wildflowers, walls (PR26).
+
+**Contracts preserved:**
+
+- `isFullCube === false` — does not cull neighbour unit faces
+- Explicit refuse in fence/pane `connectsTo` classifiers (and `neighbourIsFullCubeForConnection`)
+- Unit-cell UV density via existing `faceCornerUvsForBox` (near-full tile on near-full-width planes)
+- No `ThinBlockModel` abstraction
+
+**Visual validation:** demo LevelDB typically has **zero** cross-plant palette entries (grass_block ≠ short_grass). Geometry + connectivity exclusion exercised by `test/block-models-cross.test.ts` synthetic fixture. Same caveat as PR22/23: synthetic validation does **not** prove production BDS world state distribution.
+
 ---
 
 ## 18. Model-system audit checkpoint (after PR24)
@@ -134,14 +156,14 @@ Before adding plants/walls/crosses, freeze these contracts:
 
 **Do not** merge door/trapdoor/slab into a generic “thin block” framework yet. Extract shared primitives only when three+ families need the same helper.
 
-**Next families (later):** walls (connected), plants/crosses, then optional `.geo.json` — only after this checkpoint holds under review.
+**Next families (later):** walls (connected), then optional `.geo.json` — only after this checkpoint holds under review.
 
 ### Deferred (still)
 
-- Walls
+- Walls (PR26)
 - Inner/outer corner stairs
-- Thin blocks / plants / crosses (PR25)
-- Custom `.geo.json` (PR26)
+- Double plants / vines / berry bushes / bamboo stalks / floor flowers
+- Custom `.geo.json`
 - Exact stair–stair polygon clipping
 - Greedy meshing / water / resource-pack runtime overrides
 
@@ -158,7 +180,7 @@ SubChunk { layers[].palette: BlockState{name, states}[], indices }
 ChunkBlocks
     ↓
 VoxelNeighborhood
-    ↓  resolveBlockModel(BlockRef[, ConnectionMask]) → full_cube | slab | stair | fence
+    ↓  resolveBlockModel(BlockRef[, ConnectionMask]) → full_cube | slab | stair | fence | pane | door | trapdoor | cross
     ↓  isFaceFullyOccluded (Option A)
 box-face mesher (voxel-mesh-builder.ts)
     ↓  PR17: appearance → atlas UVs (side UV crop for half-height boxes)
@@ -167,7 +189,7 @@ MeshChunk { positions, normals, colors, uvs, indices }
 Three.js
 ```
 
-**PR20–24 geometry:** full cubes + slabs + straight stairs + fences + panes/bars + doors + trapdoors. Walls/plants/etc. still use the full-cube fallback. Corner stairs fall back to full cube.
+**PR20–25 geometry:** full cubes + slabs + straight stairs + fences + panes/bars + doors + trapdoors + cross plants. Walls/double-plants/etc. still use the full-cube fallback. Corner stairs fall back to full cube.
 
 ---
 
