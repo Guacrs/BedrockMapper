@@ -448,6 +448,7 @@ MeshStandardMaterial   MeshStandardMaterial
 | Viewer | Shared `emissiveMaterial` (MeshStandardMaterial + emissive channel); per-chunk Group |
 | Lights | Existing hemisphere + directional; soft AmbientLight fill for shadowed emitter faces |
 | Non-emissive | `unlit_redstone_torch` (emission 0) stays on terrain |
+| Wall torch | Canonical west-attached 2×10×2 stick at −22.5° (ModelBox `rotation`), `rotateModelY` for N/E/S/W; sprite UV crop; not an AABB stub |
 
 **Out of scope:** BlockLight / SkyLight propagation, per-face light maps, water caustics, LOD, inventing glow for decorative blocks without Bedrock emission evidence.
 
