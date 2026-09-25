@@ -559,7 +559,35 @@ Bedrock has no separate floor Y-rotation — footprint orientation is fixed. Tex
 
 **Validation:** `test/block-models-pr36.test.ts` + fixture + `report-model-fixture --assert`.
 
-**Next:** PR37 rails (contextual shape), then BlockLight/SkyLight.
+**Frozen.** Visual check confirmed floor / wall / ceiling cobble bases + angled handles. No attachment-system refactor. Next: PR37 rails (stored `rail_direction` authoritative; narrow neighbor fallback only).
+
+---
+
+## 29. Rail models (PR37)
+
+**Goal:** stop rendering rails as full cubes. Flat / ascending / corner shapes from Bedrock `rail_direction`, with powered texture as a separate axis from geometry.
+
+### Bedrock state research
+
+| Id | States | Evidence |
+|----|--------|----------|
+| `rail` | `rail_direction` 0–9 | Wiki Rail/BS Bedrock — includes corners 6–9 |
+| `golden_rail` / `detector_rail` / `activator_rail` | `rail_direction` 0–5 + `rail_data_bit` | Wiki + Microsoft listings — **no corners** |
+
+| `rail_direction` | Shape |
+|------------------|-------|
+| 0 | flat north–south |
+| 1 | flat east–west |
+| 2–5 | ascending E/W/N/S |
+| 6–9 | corners SE/SW/NW/NE (`rail` only) |
+
+**Authoritative shape:** LevelDB stores `rail_direction` (updated by the game on place/neighbor change). Meshing uses **stored state**, not a fence-style ConnectionMask rewrite. A narrow `railShapeFromNeighbors` exists only as missing-state fallback / fixture verification — not a generic rail connectivity framework.
+
+**Powered:** `rail_data_bit` selects powered vs unpowered **texture** (appearance up vs down); geometry is shared.
+
+**Validation:** `test/block-models-pr37.test.ts` + fixture (incl. chunk-boundary) + `report-model-fixture --assert`.
+
+**Next:** tripwire hooks / signs / chains / candles, then BlockLight/SkyLight.
 
 ---
 ## 1. Current architecture
