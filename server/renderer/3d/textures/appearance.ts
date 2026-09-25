@@ -1,8 +1,11 @@
 /**
- * Normalized per-block texture appearance for full-cube meshing.
+ * Normalized per-block texture appearance for cube-face meshing (PR17 + PR31).
  *
  * Built offline from Bedrock resource_pack/blocks.json + terrain_texture.json.
  * Runtime never parses Mojang's raw pack format.
+ *
+ * PR31: optional north/south/east/west slots — cardinals no longer collapse into
+ * a single `side` when blocks.json distinguishes them.
  */
 
 import fs from 'node:fs';
@@ -15,10 +18,18 @@ export interface BlockAppearance {
   all?: TextureKey;
   up?: TextureKey;
   down?: TextureKey;
+  /** Shared horizontal face when cardinals are not distinguished. */
   side?: TextureKey;
+  north?: TextureKey;
+  south?: TextureKey;
+  east?: TextureKey;
+  west?: TextureKey;
 }
 
+/** Legacy slot enum (up/down/side) — prefer cube-face lookup for new code. */
 export type FaceSlot = 'up' | 'down' | 'side';
+
+export type CubeFace = 'up' | 'down' | 'north' | 'south' | 'east' | 'west';
 
 export interface BlockAppearanceDatabase {
   version: string;
@@ -57,7 +68,7 @@ export function appearanceForBlock(blockName: string): BlockAppearance | null {
 }
 
 /**
- * Resolve which texture key to use for a cube face slot.
+ * Resolve which texture key to use for a legacy face slot.
  * Preference: specific face → `all` → null (caller falls back to vertex colour).
  */
 export function textureKeyForFace(appearance: BlockAppearance | null, face: FaceSlot): TextureKey | null {
@@ -67,12 +78,27 @@ export function textureKeyForFace(appearance: BlockAppearance | null, face: Face
   return appearance.side ?? appearance.all ?? null;
 }
 
+/**
+ * Resolve texture for a cube face (PR31). Cardinals prefer their own slot,
+ * then shared `side`, then `all`. Missing → null (deterministic colour fallback).
+ */
+export function textureKeyForCubeFace(
+  appearance: BlockAppearance | null,
+  face: CubeFace,
+): TextureKey | null {
+  if (!appearance) return null;
+  if (face === 'up') return appearance.up ?? appearance.all ?? null;
+  if (face === 'down') return appearance.down ?? appearance.all ?? null;
+  const cardinal = appearance[face];
+  return cardinal ?? appearance.side ?? appearance.all ?? null;
+}
+
 /** Collect every texture key referenced by an appearance (deterministic order). */
 export function appearanceTextureKeys(appearance: BlockAppearance): TextureKey[] {
   const keys = new Set<TextureKey>();
-  if (appearance.all) keys.add(appearance.all);
-  if (appearance.up) keys.add(appearance.up);
-  if (appearance.down) keys.add(appearance.down);
-  if (appearance.side) keys.add(appearance.side);
+  for (const slot of ['all', 'up', 'down', 'side', 'north', 'south', 'east', 'west'] as const) {
+    const k = appearance[slot];
+    if (k) keys.add(k);
+  }
   return [...keys].sort();
 }

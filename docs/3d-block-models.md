@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR29 frozen in beta · **PR30** coverage-driven common geometry (this PR).
+**Status:** PR19–PR30 frozen in beta · **PR31** accurate per-face textures (this PR).
 
 **Frozen predecessors:**
 
@@ -20,7 +20,8 @@
 | **PR27** | Model-system audit + coverage inventory A–K (**frozen**, in beta) |
 | **PR28** | Constructed Bedrock fixture world + model-resolution report (**frozen**, in beta) |
 | **PR29** | Occlusion shared-plane gate + fixture-driven visual/integration fixes (**frozen**, in beta) |
-| **PR30** | Coverage-driven common geometry (carpet, plate, snow, ladder, torch, cactus) |
+| **PR30** | Coverage-driven common geometry (carpet, plate, snow, ladder, torch, cactus) (**frozen**, in beta) |
+| **PR31** | Accurate per-face textures (cardinals, facing, UV density, tint safety) |
 
 ### PR20 implemented
 
@@ -184,7 +185,7 @@ Before adding plants/walls/crosses, freeze these contracts:
 
 **Do not** merge door/trapdoor/slab into a generic “thin block” framework yet. Extract shared primitives only when three+ families need the same helper.
 
-**Next:** PR29 fixture-driven visual/integration fixes (below) — then coverage-driven geometry (PR30), water (PR31), complex models, performance/LOD. Do not add families opportunistically.
+**Next:** PR29 fixture-driven visual/integration fixes (below) — then coverage-driven geometry (PR30), accurate textures (PR31), lighting (PR32). Do not add families opportunistically.
 
 ### Deferred (still)
 
@@ -342,7 +343,7 @@ decodeSubChunk → ChunkBlocks → contextual resolve → mesh → Three.js view
 
 ---
 
-## 22. Coverage-driven common geometry (PR30)
+## 22. Coverage-driven common geometry (PR30) — **frozen**
 
 **Goal:** stop rendering common non-cubes as full cubes when Bedrock evidence is sufficient. No texture redesign, no lighting, no ThinBlock abstraction.
 
@@ -361,6 +362,33 @@ decodeSubChunk → ChunkBlocks → contextual resolve → mesh → Three.js view
 **Validation:** `test/block-models-pr30.test.ts` + fixture cells at z=36 + coverage inventory.
 
 **Not in PR30:** per-face texture redesign (PR31), lighting/emissive (PR32), light propagation (PR33).
+
+---
+
+## 23. Accurate per-face textures (PR31)
+
+**Goal:** make face materials match Bedrock definitions against the PR30 geometry. No lighting / emissive / water / LOD.
+
+```text
+BlockRef → model family → ModelFace → Bedrock texture → atlas frame → UV crop → tint/overlay
+```
+
+| Change | Detail |
+|--------|--------|
+| Cardinal slots | `BlockAppearance` keeps `north/south/east/west` when `blocks.json` distinguishes them (no collapse into one `side`) |
+| Lookup | `textureKeyForCubeFace` / `fullCubeFaceTexture` — cardinal → side → all → null |
+| Facing remap | `fullCubeModelForRef` rotates materials so authored front matches `minecraft:cardinal_direction` / `facing_direction` |
+| Pillar axis | `pillar_axis` x/z remaps log end-caps to top texture |
+| Aliases | builder emits `oak_door`↔`wooden_door`, `oak_trapdoor`↔`trapdoor` |
+| UV density | unchanged unit-cell crop (`faceCornerUvsForBox`) — thin faces do not stretch full tiles |
+| Tint safety | overlay-composited keys stay vertex-white (no double grass tint) |
+| Missing texture | `textureKey: null` → vertex colour only (deterministic; no invented texture) |
+
+**Out of scope:** emissive materials, torch/glowstone lights, light propagation, water transparency, resource-pack runtime, greedy meshing, LOD.
+
+**Validation:** `test/block-models-pr31.test.ts` + `npm run textures:build` + existing atlas/family suites.
+
+**Next:** PR32 lighting + emissive (separate from textures).
 
 ---
 

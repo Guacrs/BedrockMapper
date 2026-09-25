@@ -19,7 +19,7 @@ import { carpetModel, isCarpetName } from './families/carpet.ts';
 import { crossModel, isCrossName } from './families/cross.ts';
 import { isDoorName, tryBuildDoor } from './families/door.ts';
 import { fenceModel, isFenceGateName, isFenceName } from './families/fence.ts';
-import { fullCubeModel } from './families/full-cube.ts';
+import { fullCubeModel, fullCubeModelForRef, fullCubeOrientationKey } from './families/full-cube.ts';
 import { isLadderName, tryBuildLadder } from './families/ladder.ts';
 import { isPaneName, paneModel } from './families/pane.ts';
 import { isPressurePlateName, pressurePlateIsPressed, pressurePlateModel } from './families/pressure-plate.ts';
@@ -103,13 +103,13 @@ function cacheKey(
   if (isStairName(ref.name)) {
     const corner = ref.states['minecraft:corner'];
     if (corner !== undefined && corner !== 'none') {
-      return `full_cube:fallback_corner:${ref.name}`;
+      return `full_cube:fallback_corner:${fullCubeOrientationKey(ref.states)}:${ref.name}`;
     }
     const weirdo = ref.states['weirdo_direction'];
     const up = ref.states['upside_down_bit'] === true ? 'top' : 'bottom';
     return `stair:${String(weirdo)}:${up}:${ref.name}`;
   }
-  return `full_cube:${ref.name}`;
+  return `full_cube:${fullCubeOrientationKey(ref.states)}:${ref.name}`;
 }
 
 /**
@@ -171,20 +171,21 @@ export function resolveBlockModel(
     model = cactusModel(ref.name);
   } else if (isDoorName(ref.name)) {
     const built = tryBuildDoor(ref);
-    model = built.ok ? built.model : fullCubeModel(ref.name);
+    model = built.ok ? built.model : fullCubeModelForRef(ref);
   } else if (isTrapdoorName(ref.name)) {
     const built = tryBuildTrapdoor(ref);
-    model = built.ok ? built.model : fullCubeModel(ref.name);
+    model = built.ok ? built.model : fullCubeModelForRef(ref);
   } else if (isSingleSlabName(ref.name)) {
     model = slabModel(ref);
   } else if (isDoubleSlabName(ref.name)) {
-    model = fullCubeModel(ref.name);
+    model = fullCubeModelForRef(ref);
   } else if (isStairName(ref.name)) {
     const built = tryBuildStraightStair(ref);
-    model = built.ok ? built.model : fullCubeModel(ref.name);
+    model = built.ok ? built.model : fullCubeModelForRef(ref);
   } else {
     // Unsupported partials stay full cubes — conservative.
-    model = fullCubeModel(ref.name);
+    // PR31: oriented cubes use facing / pillar_axis for material remap.
+    model = fullCubeModelForRef(ref);
   }
 
   modelCache.set(key, model);
