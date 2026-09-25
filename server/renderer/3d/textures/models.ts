@@ -1,19 +1,26 @@
 /**
- * Full-cube block model — the only geometry model in the texture phase-1 PR.
+ * Cube-face texture helpers for model families (PR17 + PR31).
  *
- * Future stairs/slabs/fences can add sibling models without touching the atlas.
+ * Families call `fullCubeFaceTexture(name, face)` — PR31 resolves north/south/
+ * east/west when the appearance DB distinguishes them.
  */
 
 import {
   appearanceForBlock,
+  textureKeyForCubeFace,
   textureKeyForFace,
   type BlockAppearance,
+  type CubeFace as AppearanceCubeFace,
   type FaceSlot,
   type TextureKey,
 } from './appearance.ts';
 
-export type CubeFace = 'up' | 'down' | 'north' | 'south' | 'east' | 'west';
+export type CubeFace = AppearanceCubeFace;
 
+/**
+ * Map a cube face to the legacy up/down/side slot (cardinals → `side`).
+ * Prefer `fullCubeFaceTexture` / `textureKeyForCubeFace` for accurate cardinals.
+ */
 export function faceSlot(face: CubeFace): FaceSlot {
   if (face === 'up') return 'up';
   if (face === 'down') return 'down';
@@ -21,11 +28,16 @@ export function faceSlot(face: CubeFace): FaceSlot {
 }
 
 /**
- * Look up the texture key for one face of a full cube.
+ * Look up the texture key for one face of a cube.
  * Returns null when the block has no appearance / that face has no texture.
  */
 export function fullCubeFaceTexture(blockName: string, face: CubeFace): TextureKey | null {
-  return textureKeyForFace(appearanceForBlock(blockName), faceSlot(face));
+  return textureKeyForCubeFace(appearanceForBlock(blockName), face);
+}
+
+/** @deprecated Prefer fullCubeFaceTexture — kept for slot-only call sites. */
+export function fullCubeFaceTextureSlot(blockName: string, face: FaceSlot): TextureKey | null {
+  return textureKeyForFace(appearanceForBlock(blockName), face);
 }
 
 export function fullCubeAppearance(blockName: string): BlockAppearance | null {

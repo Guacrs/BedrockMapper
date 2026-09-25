@@ -79,14 +79,14 @@ describe('texture appearance helpers', () => {
     );
   });
 
-  it('maps cube faces to appearance slots', () => {
+  it('maps cube faces to appearance slots (legacy side collapse)', () => {
     assert.equal(faceSlot('up'), 'up');
     assert.equal(faceSlot('down'), 'down');
     assert.equal(faceSlot('north'), 'side');
     assert.equal(faceSlot('east'), 'side');
   });
 
-  it('fullCubeFaceTexture uses appearance DB when present, else null', () => {
+  it('fullCubeFaceTexture resolves cardinals when appearance has them', () => {
     const key = fullCubeFaceTexture('minecraft:stone', 'up');
     // With or without a built atlas: either a real key or null — never throws.
     assert.ok(key === null || key === 'blocks/stone' || key.startsWith('blocks/'));
