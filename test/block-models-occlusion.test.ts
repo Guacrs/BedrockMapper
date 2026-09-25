@@ -194,3 +194,159 @@ describe('PR29 occlusion shared-plane gate', () => {
     assert.equal(hasInterior, true);
   });
 });
+
+function meshHasVertex(
+  mesh: ReturnType<typeof buildVoxelMesh>,
+  pred: (x: number, y: number, z: number, nx: number, ny: number, nz: number) => boolean,
+): boolean {
+  for (let i = 0; i < mesh.positions.length; i += 3) {
+    if (
+      pred(
+        mesh.positions[i]!,
+        mesh.positions[i + 1]!,
+        mesh.positions[i + 2]!,
+        mesh.normals[i]!,
+        mesh.normals[i + 1]!,
+        mesh.normals[i + 2]!,
+      )
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
+ * Final review checklist: interior faces kept beside solids; full-cube↔full-cube
+ * fast path still culls the shared face (must not regress to 12 faces).
+ */
+describe('PR29 mesh review checklist', () => {
+  it('keeps top-slab bottom against a full cube below', () => {
+    resetBlockModelCache();
+    const self = volumeFromStates(0, 0, (x, y, z): BlockState | null => {
+      if (x !== 2 || z !== 3) return null;
+      if (y === 70) return { name: 'minecraft:stone', states: {} };
+      if (y === 71) {
+        return { name: 'minecraft:oak_slab', states: { 'minecraft:vertical_half': 'top' } };
+      }
+      return null;
+    });
+    const mesh = buildVoxelMesh(0, 0, emptyNeighborhood(self));
+    assert.equal(
+      meshHasVertex(mesh, (_x, y, _z, _nx, ny) => Math.abs(y - 71.5) < 1e-6 && Math.abs(ny + 1) < 1e-6),
+      true,
+    );
+  });
+
+  it('keeps stair step top against a full cube above', () => {
+    resetBlockModelCache();
+    const self = volumeFromStates(0, 0, (x, y, z): BlockState | null => {
+      if (x !== 2 || z !== 3) return null;
+      if (y === 70) {
+        return {
+          name: 'minecraft:oak_stairs',
+          states: { weirdo_direction: 0, upside_down_bit: false, 'minecraft:corner': 'none' },
+        };
+      }
+      if (y === 71) return { name: 'minecraft:stone', states: {} };
+      return null;
+    });
+    const mesh = buildVoxelMesh(0, 0, emptyNeighborhood(self));
+    assert.equal(
+      meshHasVertex(mesh, (_x, y, _z, _nx, ny) => Math.abs(y - 70.5) < 1e-6 && Math.abs(ny - 1) < 1e-6),
+      true,
+    );
+  });
+
+  it('keeps fence / pane / wall / cross interior faces beside a full cube', () => {
+    resetBlockModelCache();
+    const cases: Array<{
+      name: string;
+      block: BlockState;
+      localX: number;
+    }> = [
+      { name: 'fence', block: { name: 'minecraft:oak_fence', states: {} }, localX: 10 / 16 },
+      { name: 'pane', block: { name: 'minecraft:glass_pane', states: {} }, localX: 9 / 16 },
+      { name: 'wall', block: { name: 'minecraft:cobblestone_wall', states: {} }, localX: 12 / 16 },
+    ];
+    for (const c of cases) {
+      const self = volumeFromStates(0, 0, (x, y, z): BlockState | null => {
+        if (y !== 70 || z !== 3) return null;
+        if (x === 2) return c.block;
+        if (x === 3) return { name: 'minecraft:stone', states: {} };
+        return null;
+      });
+      const mesh = buildVoxelMesh(0, 0, emptyNeighborhood(self));
+      assert.equal(
+        meshHasVertex(
+          mesh,
+          (x, _y, _z, nx) => Math.abs(x - (2 + c.localX)) < 1e-6 && Math.abs(nx - 1) < 1e-6,
+        ),
+        true,
+        `${c.name} post east face must remain`,
+      );
+    }
+
+    const crossSelf = volumeFromStates(0, 0, (x, y, z): BlockState | null => {
+      if (y !== 70 || z !== 3) return null;
+      if (x === 2) return { name: 'minecraft:short_grass', states: {} };
+      if (x === 3) return { name: 'minecraft:stone', states: {} };
+      return null;
+    });
+    const crossMesh = buildVoxelMesh(0, 0, emptyNeighborhood(crossSelf));
+    assert.equal(
+      meshHasVertex(crossMesh, (x, _y, _z, nx) => x > 2.5 && x < 3 && Math.abs(nx - 1) < 1e-6),
+      true,
+      'cross plane east face must remain',
+    );
+  });
+
+  it('still culls the shared face between two full cubes (fast path)', () => {
+    resetBlockModelCache();
+    const stone = resolveBlockModel({ name: 'minecraft:stone', states: {} } as BlockRef)!;
+    assert.equal(faceLiesOnUnitSharedPlane(stone.renderBoxes[0]!, 'east'), true);
+    assert.equal(isFaceFullyOccluded(stone.renderBoxes[0]!, 'east', stone), true);
+
+    const self = volumeFromStates(0, 0, (x, y, z): BlockState | null => {
+      if (y !== 70 || z !== 3) return null;
+      if (x === 2 || x === 3) return { name: 'minecraft:stone', states: {} };
+      return null;
+    });
+    const mesh = buildVoxelMesh(0, 0, emptyNeighborhood(self));
+    assertMeshInvariants(mesh);
+    assert.equal(countFaces(mesh), 10); // 6+6 − 2 shared
+    assert.equal(
+      meshHasVertex(
+        mesh,
+        (x, y, _z, nx, ny) =>
+          Math.abs(x - 3) < 1e-6 && Math.abs(nx - 1) < 1e-6 && Math.abs(ny) < 1e-6 && y >= 70 && y <= 71,
+      ),
+      false,
+      'shared +X face between stones must be culled',
+    );
+  });
+
+  it('two bottom slabs side-by-side cull the shared vertical face but keep tops', () => {
+    resetBlockModelCache();
+    const self = volumeFromStates(0, 0, (x, y, z): BlockState | null => {
+      if (y !== 70 || z !== 3) return null;
+      if (x === 2 || x === 3) {
+        return { name: 'minecraft:oak_slab', states: { 'minecraft:vertical_half': 'bottom' } };
+      }
+      return null;
+    });
+    const mesh = buildVoxelMesh(0, 0, emptyNeighborhood(self));
+    assert.equal(countFaces(mesh), 10);
+    assert.equal(
+      meshHasVertex(
+        mesh,
+        (x, y, _z, nx) => Math.abs(x - 3) < 1e-6 && Math.abs(nx - 1) < 1e-6 && y < 70.6,
+      ),
+      false,
+    );
+    assert.equal(
+      meshHasVertex(mesh, (_x, y, _z, _nx, ny) => Math.abs(y - 70.5) < 1e-6 && Math.abs(ny - 1) < 1e-6),
+      true,
+    );
+  });
+});
