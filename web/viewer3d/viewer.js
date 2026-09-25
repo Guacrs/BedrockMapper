@@ -121,15 +121,17 @@ export class TerrainViewer3D {
 
     // PR33: self-lit emitters (torch, glowstone, …). Strong emissive channel so
     // thin torches and full-cube lamps read as glowing under the same sun.
+    // alphaTest discards torch/cross transparent texels (else they shade black).
     this.emissiveMaterial = new THREE.MeshStandardMaterial({
       vertexColors: true,
       roughness: 0.4,
       metalness: 0,
       flatShading: false,
-      side: THREE.FrontSide,
+      side: THREE.DoubleSide,
       emissive: new THREE.Color(0xffffff),
       emissiveIntensity: 2.2,
       toneMapped: false,
+      alphaTest: 0.1,
     });
 
     const hemi = new THREE.HemisphereLight(0xb1e1ff, 0x444422, 0.55);

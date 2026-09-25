@@ -26,7 +26,7 @@ import { terrainStatus, trackingStatus } from './status.js';
 import { TerrainLayer, worldSummary } from './terrain.js';
 
 /** Bump when shipping client fixes that must beat sticky browser/CDN caches. */
-const ASSET_VERSION = '20260925a';
+const ASSET_VERSION = '20260925b';
 
 const MinecraftCRS = L.extend({}, L.CRS.Simple, {
   transformation: new L.Transformation(1, 0, 1, 0),
