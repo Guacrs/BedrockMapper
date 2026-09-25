@@ -43,7 +43,7 @@ const EMITTERS: ReadonlyMap<string, BlockLighting> = new Map([
   ['torch', Object.freeze({ emission: level(14), lightColor: rgb(0xffd28a) })],
   ['soul_torch', Object.freeze({ emission: level(10), lightColor: rgb(0x6fe0ff) })],
   ['redstone_torch', Object.freeze({ emission: level(7), lightColor: rgb(0xff4a4a) })],
-  ['unlit_redstone_torch', Object.freeze({ emission: 0 })],
+  ['unlit_redstone_torch', Object.freeze({ emission: 0, lightColor: rgb(0xff4a4a) })],
   ['copper_torch', Object.freeze({ emission: level(14), lightColor: rgb(0xffd28a) })],
   ['colored_torch_blue', Object.freeze({ emission: level(14), lightColor: rgb(0x6fa8ff) })],
   ['colored_torch_green', Object.freeze({ emission: level(14), lightColor: rgb(0x6fff8a) })],

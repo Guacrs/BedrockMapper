@@ -129,7 +129,7 @@ describe('PR33 emissive mesh layer', () => {
   });
 
   it('keeps stone on terrain and torch on emissive in the same chunk', () => {
-    const self = volumeFromStates(0, 0, (x, y, z) => {
+    const self = volumeFromStates(0, 0, (x, y, z): BlockState | null => {
       if (x === 2 && y === 64 && z === 2) return { name: 'minecraft:stone', states: {} };
       if (x === 5 && y === 64 && z === 5) {
         return { name: 'minecraft:torch', states: { torch_facing_direction: 'top' } };
