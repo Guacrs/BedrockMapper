@@ -16,6 +16,8 @@ import {
   isEmissiveBlock,
 } from '../server/renderer/3d/lighting/block-lighting.ts';
 import { assertMeshInvariants, isEmptyMesh } from '../server/renderer/3d/mesh-types.ts';
+import { torchModel } from '../server/renderer/3d/models/families/torch.ts';
+import { resetBlockModelCache } from '../server/renderer/3d/models/resolve.ts';
 import {
   buildVoxelMesh,
   countEmissiveFaces,
@@ -139,7 +141,8 @@ describe('PR33 emissive mesh layer', () => {
     const mesh = buildVoxelMesh(0, 0, emptyNeighborhood(self));
     assertMeshInvariants(mesh);
     assert.equal(countFaces(mesh), 6);
-    assert.ok(countEmissiveFaces(mesh) >= 4); // floor torch = two planes × 2 faces each (min)
+    // Floor torch = two planes × 2 faces each (cross-face assignment, not 6×2).
+    assert.equal(countEmissiveFaces(mesh), 4);
     assert.ok(mesh.emissive);
   });
 
@@ -168,5 +171,78 @@ describe('PR33 emissive mesh layer', () => {
     assert.equal(countFaces(mesh) + countEmissiveFaces(mesh), 10);
     assert.equal(countFaces(mesh), 5);
     assert.equal(countEmissiveFaces(mesh), 5);
+  });
+});
+
+describe('PR33 torch cross-plane faces', () => {
+  function faceIds(box: { faces: Record<string, unknown> }): string[] {
+    return Object.keys(box.faces).sort();
+  }
+
+  it('floor torch planes texture only broad faces (like cross.ts)', () => {
+    resetBlockModelCache();
+    const floor = torchModel({
+      name: 'minecraft:torch',
+      states: { torch_facing_direction: 'top' },
+    });
+    assert.equal(floor.renderBoxes.length, 2);
+    assert.equal(floor.isFullCube, false);
+    assert.equal(floor.renderBoxes[0]!.max[1], 10 / 16);
+    assert.equal(floor.renderBoxes[1]!.max[1], 10 / 16);
+    assert.deepEqual(faceIds(floor.renderBoxes[0]!), ['north', 'south']);
+    assert.deepEqual(faceIds(floor.renderBoxes[1]!), ['east', 'west']);
+    for (const id of ['up', 'down'] as const) {
+      assert.equal(floor.renderBoxes[0]!.faces[id], undefined);
+      assert.equal(floor.renderBoxes[1]!.faces[id], undefined);
+    }
+    assert.equal(floor.renderBoxes[0]!.faces.east, undefined);
+    assert.equal(floor.renderBoxes[0]!.faces.west, undefined);
+    assert.equal(floor.renderBoxes[1]!.faces.north, undefined);
+    assert.equal(floor.renderBoxes[1]!.faces.south, undefined);
+  });
+
+  it('soul / redstone floor torches share the same face assignment', () => {
+    resetBlockModelCache();
+    for (const name of [
+      'minecraft:soul_torch',
+      'minecraft:redstone_torch',
+      'minecraft:copper_torch',
+    ] as const) {
+      const floor = torchModel({ name, states: { torch_facing_direction: 'top' } });
+      assert.equal(floor.renderBoxes.length, 2, name);
+      assert.deepEqual(faceIds(floor.renderBoxes[0]!), ['north', 'south'], name);
+      assert.deepEqual(faceIds(floor.renderBoxes[1]!), ['east', 'west'], name);
+    }
+  });
+
+  it('wall torch textures only broad stub faces; keeps attachment orientation', () => {
+    resetBlockModelCache();
+    const east = torchModel({
+      name: 'minecraft:torch',
+      states: { torch_facing_direction: 'east' },
+    });
+    assert.equal(east.renderBoxes.length, 1);
+    assert.deepEqual(faceIds(east.renderBoxes[0]!), ['north', 'south']);
+    assert.ok(east.renderBoxes[0]!.max[0] === 1);
+
+    const north = torchModel({
+      name: 'minecraft:soul_torch',
+      states: { torch_facing_direction: 'west' },
+    });
+    assert.equal(north.renderBoxes.length, 1);
+    assert.deepEqual(faceIds(north.renderBoxes[0]!), ['north', 'south']);
+    assert.equal(north.renderBoxes[0]!.min[0], 0);
+  });
+
+  it('floor torch emissive mesh emits exactly four faces (2 planes × 2)', () => {
+    const self = volumeFromStates(0, 0, (x, y, z): BlockState | null =>
+      x === 4 && y === 64 && z === 4
+        ? { name: 'minecraft:torch', states: { torch_facing_direction: 'top' } }
+        : null,
+    );
+    const mesh = buildVoxelMesh(0, 0, emptyNeighborhood(self));
+    assertMeshInvariants(mesh);
+    assert.equal(countFaces(mesh), 0);
+    assert.equal(countEmissiveFaces(mesh), 4);
   });
 });

@@ -11,8 +11,11 @@
  *   cell → stub sits on the cell's west face (x=0). Flame points opposite.
  * - `top` / `unknown` → upright (standing on floor).
  * - Floor geometry: two thin vertical planes (same footprint idea as
- *   `minecraft:geometry.cross`, height 10/16 for the stick).
- * - Wall geometry: thin stick protruding inward from the attachment face.
+ *   `minecraft:geometry.cross`, height 10/16 for the stick). Face textures
+ *   follow the cross-plant pattern (PR25): only the broad plane faces get
+ *   the torch sprite — never the 1px edge faces (PR33 fix).
+ * - Wall geometry: thin stick protruding inward from the attachment face;
+ *   only the broad side faces of the stub are textured.
  * - **No emissive / light emission here** — that is PR33.
  * - Lanterns / chains stay in coverage category K (not this family).
  */
@@ -59,10 +62,18 @@ export function torchFacingFromStates(states: BlockRef['states']): TorchFacing {
   return 'top';
 }
 
-function allFaces(blockName: string): ModelBox['faces'] {
-  const ids: FaceId[] = ['up', 'down', 'north', 'south', 'east', 'west'];
-  const faces: Partial<Record<FaceId, { textureKey: ReturnType<typeof fullCubeFaceTexture> }>> = {};
-  for (const id of ids) {
+/**
+ * Texture only the listed faces — same helper pattern as `cross.ts`.
+ * Thin AABB edge faces must stay untextured so the torch sprite is not
+ * stamped onto 1px strips.
+ */
+function planeFaces(
+  blockName: string,
+  faceIds: readonly FaceId[],
+): ModelBox['faces'] {
+  const faces: Partial<Record<FaceId, { textureKey: ReturnType<typeof fullCubeFaceTexture> }>> =
+    {};
+  for (const id of faceIds) {
     faces[id] = Object.freeze({ textureKey: fullCubeFaceTexture(blockName, id) });
   }
   return Object.freeze(faces);
@@ -80,35 +91,56 @@ function box(
   });
 }
 
-function floorTorchBoxes(faces: ModelBox['faces']): ModelBox[] {
-  // Two thin planes (cross), height 10/16.
+/**
+ * Floor torch: two intersecting planes at height 10/16.
+ *
+ * - Plane A (X-span at Z≈8/16): north + south only
+ * - Plane B (Z-span at X≈8/16): east + west only
+ */
+function floorTorchBoxes(blockName: string): ModelBox[] {
+  const ns = planeFaces(blockName, ['north', 'south']);
+  const ew = planeFaces(blockName, ['east', 'west']);
   return [
-    box([INSET, 0, PLANE_LO], [1 - INSET, FLOOR_H, PLANE_HI], faces),
-    box([PLANE_LO, 0, INSET], [PLANE_HI, FLOOR_H, 1 - INSET], faces),
+    box([INSET, 0, PLANE_LO], [1 - INSET, FLOOR_H, PLANE_HI], ns),
+    box([PLANE_LO, 0, INSET], [PLANE_HI, FLOOR_H, 1 - INSET], ew),
   ];
 }
 
-function wallTorchBox(facing: Exclude<TorchFacing, 'top'>, faces: ModelBox['faces']): ModelBox {
+/**
+ * Wall stub: thin stick on the attachment face. Only the broad side faces
+ * receive the torch sprite (same idea as floor planes — no texture on the
+ * thin AABB edges / ends / top / bottom).
+ *
+ * - Attached east/west → thin in Z → north + south
+ * - Attached north/south → thin in X → east + west
+ */
+function wallTorchBox(
+  blockName: string,
+  facing: Exclude<TorchFacing, 'top'>,
+): ModelBox {
   const mid = 0.5 - WALL_THICK / 2;
   const midH = WALL_THICK;
+  const ns = planeFaces(blockName, ['north', 'south']);
+  const ew = planeFaces(blockName, ['east', 'west']);
   switch (facing) {
     case 'east':
       // Attached toward +X support → stub from east face inward.
-      return box([1 - WALL_LEN, mid, mid], [1, mid + midH + 6 * PX, mid + WALL_THICK], faces);
+      return box([1 - WALL_LEN, mid, mid], [1, mid + midH + 6 * PX, mid + WALL_THICK], ns);
     case 'west':
-      return box([0, mid, mid], [WALL_LEN, mid + midH + 6 * PX, mid + WALL_THICK], faces);
+      return box([0, mid, mid], [WALL_LEN, mid + midH + 6 * PX, mid + WALL_THICK], ns);
     case 'south':
-      return box([mid, mid, 1 - WALL_LEN], [mid + WALL_THICK, mid + midH + 6 * PX, 1], faces);
+      return box([mid, mid, 1 - WALL_LEN], [mid + WALL_THICK, mid + midH + 6 * PX, 1], ew);
     case 'north':
-      return box([mid, mid, 0], [mid + WALL_THICK, mid + midH + 6 * PX, WALL_LEN], faces);
+      return box([mid, mid, 0], [mid + WALL_THICK, mid + midH + 6 * PX, WALL_LEN], ew);
   }
 }
 
 export function torchModel(ref: BlockRef): BlockModel {
   const facing = torchFacingFromStates(ref.states);
-  const faces = allFaces(ref.name);
   const boxes =
-    facing === 'top' ? floorTorchBoxes(faces) : [wallTorchBox(facing, faces)];
+    facing === 'top'
+      ? floorTorchBoxes(ref.name)
+      : [wallTorchBox(ref.name, facing)];
   return Object.freeze({
     key: `torch:${facing}:${ref.name}`,
     renderBoxes: Object.freeze(boxes),

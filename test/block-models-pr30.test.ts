@@ -142,6 +142,9 @@ describe('PR30 torch', () => {
     assert.equal(floor.isFullCube, false);
     assert.equal(floor.renderBoxes[0]!.max[1], 10 * PX);
     assert.equal(floor.renderBoxes[1]!.max[1], 10 * PX);
+    // Cross-plane face assignment (same principle as cross.ts) — PR33.
+    assert.deepEqual(Object.keys(floor.renderBoxes[0]!.faces).sort(), ['north', 'south']);
+    assert.deepEqual(Object.keys(floor.renderBoxes[1]!.faces).sort(), ['east', 'west']);
 
     // Microsoft: torch_facing_direction = "block the torch is attached to"
     // relative to its position → stub sits on that face of the cell.
@@ -155,6 +158,12 @@ describe('PR30 torch', () => {
       south: (b: { min: readonly number[]; max: readonly number[] }) =>
         b.min[2] === 1 - 10 * PX && b.max[2] === 1,
     } as const;
+    const wallBroadFaces = {
+      west: ['north', 'south'],
+      east: ['north', 'south'],
+      north: ['east', 'west'],
+      south: ['east', 'west'],
+    } as const;
     for (const dir of ['west', 'east', 'north', 'south'] as const) {
       const wall = torchModel({
         name: 'minecraft:torch',
@@ -162,6 +171,11 @@ describe('PR30 torch', () => {
       });
       assert.equal(wall.renderBoxes.length, 1, dir);
       assert.ok(against[dir](wall.renderBoxes[0]!), `${dir} must sit on attachment face`);
+      assert.deepEqual(
+        Object.keys(wall.renderBoxes[0]!.faces).sort(),
+        [...wallBroadFaces[dir]].sort(),
+        `${dir} wall stub must texture only broad faces`,
+      );
     }
   });
 });
