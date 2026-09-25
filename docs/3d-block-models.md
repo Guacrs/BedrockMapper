@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR35 frozen · PR36 levers in progress · Next: rails, then light propagation.
+**Status:** PR19–PR36 frozen · PR37 rails in progress · Next: tripwire/signs/… then light propagation.
 
 **Frozen predecessors:**
 
