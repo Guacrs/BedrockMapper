@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR36 frozen · PR37 rails in progress · Next: tripwire/signs/… then light propagation.
+**Status:** PR19–PR37 frozen · PR38 coverage audit next · Then remaining model families; lighting only after model-coverage milestone.
 
 **Frozen predecessors:**
 
@@ -585,9 +585,9 @@ Bedrock has no separate floor Y-rotation — footprint orientation is fixed. Tex
 
 **Powered:** `rail_data_bit` selects powered vs unpowered **texture** (appearance up vs down); geometry is shared.
 
-**Validation:** `test/block-models-pr37.test.ts` (439 suite) + fixture (incl. chunk-boundary EW at x=15/16) + `report-model-fixture --assert`. Visual: flat / ascending / corner / powered gold+detector plates confirmed after terrain `alphaTest` cutout.
+**Validation:** `test/block-models-pr37.test.ts` + fixture (incl. chunk-boundary EW at x=15/16) + `report-model-fixture --assert`. Visual: flat / ascending / corner / powered variants confirmed. Terrain cutout `alphaTest` required for rail/cross sprites.
 
-**Next:** tripwire hooks / signs / chains / candles, then BlockLight/SkyLight.
+**Frozen.** Landed on `beta` via fast-forward (`71b3a7b`). Stored `rail_direction` authoritative; no generic rail connectivity framework. Next: **PR38** systematic non-full-cube coverage audit (evidence-driven roadmap) — not ad-hoc tripwire/signs picks, and not BlockLight yet.
 
 ---
 ## 1. Current architecture
@@ -616,7 +616,7 @@ Three.js (terrain material + emissive material)
 **PR34:** lantern floor/hanging models.
 **PR35:** button face-attached plates.
 **PR36:** lever base + angled handle (`lever_direction` / `open_bit`).
-**PR37:** rails from stored `rail_direction` (+ `rail_data_bit` texture); narrow neighbour fallback only.
+**PR37:** rails from stored `rail_direction` (+ `rail_data_bit` texture); narrow neighbour fallback only. **Frozen on beta.**
 
 ---
 
