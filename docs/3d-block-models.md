@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR32 frozen in beta · **PR33** rendered lighting + emissive materials (this PR).
+**Status:** PR19–PR33 frozen in beta · Next: coverage pass (lanterns, buttons, …) then light propagation.
 
 **Frozen predecessors:**
 
@@ -23,7 +23,7 @@
 | **PR30** | Coverage-driven common geometry (carpet, plate, snow, ladder, torch, cactus) (**frozen**, in beta) |
 | **PR31** | Accurate per-face textures (cardinals, facing, UV density, tint safety) (**frozen**, in beta) |
 | **PR32** | Complete stair corner models (`minecraft:corner`) (**frozen**, in beta) |
-| **PR33** | Rendered lighting + emissive materials (no light propagation) |
+| **PR33** | Rendered lighting + emissive materials (no light propagation) (**frozen**, in beta) |
 ### PR20 implemented
 
 - `ChunkBlocks` palette stores immutable `BlockRef { name, states }` (NBT `version` still dropped)
@@ -425,7 +425,7 @@ All corner stairs keep `isFullCube: false`. Occlusion uses existing PR29 shared-
 
 ---
 
-## 25. Rendered lighting + emissive materials (PR33)
+## 25. Rendered lighting + emissive materials (PR33) — **frozen**
 
 **Goal:** make self-lit blocks (torch, glowstone, …) visibly glow in the Three.js viewer. Establish the lighting pipeline without Minecraft BlockLight / SkyLight propagation.
 
@@ -450,11 +450,13 @@ MeshStandardMaterial   MeshStandardMaterial
 | Non-emissive | `unlit_redstone_torch` (emission 0) stays on terrain |
 | Wall torch | Canonical west-attached 2×10×2 stick at −22.5° (ModelBox `rotation`), `rotateModelY` for N/E/S/W; sprite UV crop; not an AABB stub |
 
+**Known minor imperfection (accepted):** wall-torch vertical faces only — the small top/inside face of the canted stick is untextured, so a thin open edge can show at some angles. Correct cantilevered orientation matters more; closing that face is deferred (not worth holding the freeze).
+
 **Out of scope:** BlockLight / SkyLight propagation, per-face light maps, water caustics, LOD, inventing glow for decorative blocks without Bedrock emission evidence.
 
-**Validation:** `test/block-models-pr33.test.ts`.
+**Validation:** `test/block-models-pr33.test.ts` + wall-torch cantilever visual check.
 
-**Next:** PR34 light propagation (chunk light data → baked or dynamic illumination).
+**Next:** coverage pass for remaining common non-cubes (lanterns, buttons, levers, rails, …) — evidence-driven family PRs, no lighting architecture changes — then BlockLight/SkyLight propagation.
 
 ---
 ## 1. Current architecture
