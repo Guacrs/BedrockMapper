@@ -119,10 +119,78 @@ const FUTURE_SHORT_IDS: ReadonlySet<string> = new Set([
   'ender_chest',
   'tripwire_hook',
   'cactus_flower',
+  // PR38 audit — high-frequency non-cubes still on full-cube mesh
+  'campfire',
+  'soul_campfire',
+  'candle',
+  'brewing_stand',
+  'enchanting_table',
+  'grindstone',
+  'composter',
+  'barrel',
+  'cauldron',
+  'flower_pot',
+  'decorated_pot',
+  'chiseled_bookshelf',
+  'daylight_detector',
+  'daylight_detector_inverted',
+  'redstone_wire',
+  'unpowered_repeater',
+  'powered_repeater',
+  'unpowered_comparator',
+  'powered_comparator',
+  'piston',
+  'sticky_piston',
+  'waterlily',
+  'lily_pad',
+  'cake',
+  'conduit',
+  'frame',
+  'glow_frame',
+  'end_portal_frame',
+  'bamboo_sapling',
+  'turtle_egg',
+  'sniffer_egg',
+  'frog_spawn',
+  'heavy_core',
+  'vault',
+  'crafter',
+  'trial_spawner',
+  'spawner',
+  'mob_spawner',
 ]);
 
 function looksLikeCoralWallFan(short: string): boolean {
   return short.includes('coral_wall_fan') || short.endsWith('_wall_fan');
+}
+
+function looksLikeSign(short: string): boolean {
+  return (
+    short.includes('wall_sign') ||
+    short.includes('standing_sign') ||
+    short.includes('hanging_sign') ||
+    short === 'wall_sign' ||
+    short === 'standing_sign' ||
+    (short.endsWith('_sign') && !short.includes('hanging'))
+  );
+}
+
+function looksLikeCandle(short: string): boolean {
+  return short === 'candle' || short.endsWith('_candle') || short.includes('candle_cake');
+}
+
+function looksLikeShulkerOrBedOrBanner(short: string): boolean {
+  return (
+    short === 'shulker_box' ||
+    short.endsWith('_shulker_box') ||
+    short === 'bed' ||
+    short.endsWith('_bed') ||
+    short.includes('banner') ||
+    short.includes('skull') ||
+    short.endsWith('_head') ||
+    short.endsWith('_wall_head') ||
+    short.startsWith('potted_')
+  );
 }
 
 /**
@@ -223,8 +291,17 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
   if (
     FUTURE_SHORT_IDS.has(short) ||
     looksLikeCoralWallFan(short) ||
-    short.includes('wall_sign') ||
-    short.includes('copper_chest')
+    looksLikeSign(short) ||
+    looksLikeCandle(short) ||
+    looksLikeShulkerOrBedOrBanner(short) ||
+    short.includes('copper_chest') ||
+    short.endsWith('_chain') ||
+    short.endsWith('_cauldron') ||
+    short.endsWith('_lightning_rod') ||
+    short.includes('piston_arm') ||
+    short.includes('pistonArm') ||
+    short.includes('hanging_moss') ||
+    short === 'pale_hanging_moss'
   ) {
     return {
       name,

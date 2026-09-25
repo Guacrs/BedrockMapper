@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR37 frozen · PR38 coverage audit next · Then remaining model families; lighting only after model-coverage milestone.
+**Status:** PR19–PR37 frozen · **PR38 coverage audit in progress** · Next: evidence-driven model families (p0+); lighting only after model-coverage milestone.
 
 **Frozen predecessors:**
 
@@ -24,6 +24,10 @@
 | **PR31** | Accurate per-face textures (cardinals, facing, UV density, tint safety) (**frozen**, in beta) |
 | **PR32** | Complete stair corner models (`minecraft:corner`) (**frozen**, in beta) |
 | **PR33** | Rendered lighting + emissive materials (no light propagation) (**frozen**, in beta) |
+| **PR34** | Lantern floor/hanging models (**frozen**, in beta) |
+| **PR35** | Button face-attached models (**frozen**, in beta) |
+| **PR36** | Lever base + angled handle (**frozen**, in beta) |
+| **PR37** | Rail flat/ascending/corner (**frozen**, in beta) |
 ### PR20 implemented
 
 - `ChunkBlocks` palette stores immutable `BlockRef { name, states }` (NBT `version` still dropped)
@@ -617,6 +621,7 @@ Three.js (terrain material + emissive material)
 **PR35:** button face-attached plates.
 **PR36:** lever base + angled handle (`lever_direction` / `open_bit`).
 **PR37:** rails from stored `rail_direction` (+ `rail_data_bit` texture); narrow neighbour fallback only. **Frozen on beta.**
+**PR38:** geometry correctness audit — incorrect full-cube backlog + prioritized family roadmap (`docs/model-coverage-audit.md`).
 
 ---
 

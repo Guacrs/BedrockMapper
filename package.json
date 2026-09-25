@@ -21,7 +21,8 @@
     "block-colors:world": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/world-block-colors.ts",
     "textures:build": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/build-texture-atlas.ts",
     "make-model-fixture-world": "node --experimental-strip-types --disable-warning=ExperimentalWarning scripts/make-model-fixture-world.ts",
-    "report-model-fixture": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/report-model-fixture.ts"
+    "report-model-fixture": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/report-model-fixture.ts",
+    "report-model-coverage": "node --experimental-strip-types --disable-warning=ExperimentalWarning server/cli/report-model-coverage.ts"
   },
   "dependencies": {
     "@8crafter/leveldb-zlib": "^1.6.0",
