@@ -1,8 +1,13 @@
 /**
  * Conservative axis-aligned face occlusion (PR20 Option A).
  *
- * A face quad is dropped only when a neighbour occlusion box fully covers it
- * on the shared plane. Partial coverage keeps the entire face (no holes).
+ * A face quad is dropped only when:
+ * 1. It lies on the shared unit-cell plane toward the neighbour, and
+ * 2. A neighbour occlusion box fully covers it on that plane.
+ *
+ * Partial coverage keeps the entire face (no holes). Faces that sit inside
+ * the cell (slab tops at y=0.5, door/cross/fence/pane sides, …) are never
+ * culled by a neighbour in an adjacent cell — even a full cube.
  */
 
 import type { BlockModel, FaceId, ModelBox } from './types.ts';
@@ -30,6 +35,30 @@ function opposite(face: FaceId): FaceId {
       return 'west';
     case 'west':
       return 'east';
+  }
+}
+
+/**
+ * True when `emitBox`'s `face` lies on the unit-cell plane shared with the
+ * neighbour in that direction. Interior faces (thin panels, half slabs, …)
+ * return false and must not be culled by adjacent cells.
+ */
+export function faceLiesOnUnitSharedPlane(box: ModelBox, face: FaceId): boolean {
+  const [x0, y0, z0] = box.min;
+  const [x1, y1, z1] = box.max;
+  switch (face) {
+    case 'east':
+      return Math.abs(x1 - 1) <= EPS;
+    case 'west':
+      return Math.abs(x0 - 0) <= EPS;
+    case 'up':
+      return Math.abs(y1 - 1) <= EPS;
+    case 'down':
+      return Math.abs(y0 - 0) <= EPS;
+    case 'south':
+      return Math.abs(z1 - 1) <= EPS;
+    case 'north':
+      return Math.abs(z0 - 0) <= EPS;
   }
 }
 
@@ -73,6 +102,9 @@ export function isFaceFullyOccluded(
   neighbour: BlockModel | null | undefined,
 ): boolean {
   if (!neighbour) return false;
+
+  // Interior faces never meet the neighbour cell's shared plane.
+  if (!faceLiesOnUnitSharedPlane(emitBox, face)) return false;
 
   const target = faceRect(emitBox, face);
   if (!target) return false;
