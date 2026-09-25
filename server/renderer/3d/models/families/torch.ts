@@ -19,7 +19,7 @@
  *   stub. Bedrock state semantics unchanged; lean uses rotated-cuboid form
  *   (Java 1.8+; Bedrock uses a related cantilevered/skewed wall torch).
  * - **No emissive / light emission here** — that is PR33 lighting catalog.
- * - Lanterns / chains stay in coverage category K (not this family).
+ * - Lantern geometry is a separate family (`families/lantern.ts`, PR34).
  */
 
 import { fullCubeFaceTexture } from '../../textures/models.ts';

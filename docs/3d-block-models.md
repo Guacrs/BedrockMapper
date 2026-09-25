@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR33 frozen in beta · Next: coverage pass (lanterns, buttons, …) then light propagation.
+**Status:** PR19–PR34 frozen in beta · Next: coverage pass (buttons, levers, rails, …) then light propagation.
 
 **Frozen predecessors:**
 
@@ -354,15 +354,15 @@ decodeSubChunk → ChunkBlocks → contextual resolve → mesh → Three.js view
 | Pressure plate | `families/pressure-plate.ts` | `redstone_signal` → pressed height | inset 14×14 footprint |
 | Snow layer | `families/snow-layer.ts` | `height` 0..7 → layers 1..8 × 2px | `covered_bit` ignored; not `minecraft:snow` |
 | Ladder | `families/ladder.ts` | `facing_direction` 2..5 | 0/1/missing → full-cube fallback |
-| Torch | `families/torch.ts` | `torch_facing_direction` | floor cross + wall stub on **attachment** face (Microsoft); **no emissive** (PR33); lanterns stay **K** |
+| Torch | `families/torch.ts` | `torch_facing_direction` | floor cross + wall stub on **attachment** face (Microsoft); **no emissive** (PR33) |
 | Cactus | `families/cactus.ts` | `age` ignored for geometry | 1px side inset; `cactus_flower` stays research |
 
 **Still J (fallback):** fence gates (attach-only).  
-**Still K (future):** lanterns, chains, buttons, rails, beds, chests, vines, double plants, wall signs, …
+**Still K (future):** chains, buttons, rails, beds, chests, vines, double plants, wall signs, …
 
 **Validation:** `test/block-models-pr30.test.ts` + fixture cells at z=36 + coverage inventory.
 
-**Not in PR30:** per-face texture redesign (PR31), stair corners (PR32), lighting/emissive (PR33), light propagation (PR34).
+**Not in PR30:** per-face texture redesign (PR31), stair corners (PR32), lighting/emissive (PR33), lanterns (PR34).
 
 ---
 
@@ -456,7 +456,37 @@ MeshStandardMaterial   MeshStandardMaterial
 
 **Validation:** `test/block-models-pr33.test.ts` + wall-torch cantilever visual check.
 
-**Next:** coverage pass for remaining common non-cubes (lanterns, buttons, levers, rails, …) — evidence-driven family PRs, no lighting architecture changes — then BlockLight/SkyLight propagation.
+---
+
+## 26. Lantern models (PR34) — **frozen**
+
+**Goal:** stop rendering lanterns as full cubes. Floor vs hanging geometry with Java-parity AABBs + 45° hangers. Reuse PR33 emission — no BlockLight / SkyLight work.
+
+### Bedrock state research
+
+| State | Domain | Evidence |
+|-------|--------|----------|
+| `hanging` | bool | Microsoft Learn block-state listings; Wiki Bedrock table (metadata 0x1) |
+| `hanging_bit` | bool | Microsoft intrinsic block-states list (same meaning) |
+
+Missing / false → floor. Either key accepted (`hanging` preferred when both present — either true wins).
+
+### Geometry (Java `template_lantern` / `template_hanging_lantern` parity)
+
+| Variant | Body | Cap | Hangers |
+|---------|------|-----|---------|
+| Floor | [5,0,5]–[11,7,11] | [6,7,6]–[10,9,10] | two 1px planes @ 45° Y, y=9..11 |
+| Hanging | [5,1,5]–[11,8,11] | [6,8,6]–[10,10,10] | longer hangers (NS→15, EW→16) |
+
+Sprite UVs cropped via `tileUv` from the lantern atlas tile. Occlusion uses body+cap only (`isFullCube: false`). No neighbourhood connectivity.
+
+**Ids:** `lantern`, `soul_lantern`, `*_copper_lantern` (including waxed). Not `sea_lantern` / `jack_o_lantern`.
+
+**Emission:** unchanged PR33 catalog levels (15 / 10); copper lanterns share level 15. Lighting discrepancies (propagation, BlockLight) are **out of scope** — document only.
+
+**Validation:** `test/block-models-pr34.test.ts` + fixture cells at z=44 + `report-model-fixture --assert`.
+
+**Next:** buttons → levers → rails → tripwire hooks → signs → chains → candles (evidence-driven family PRs), then BlockLight/SkyLight propagation.
 
 ---
 ## 1. Current architecture

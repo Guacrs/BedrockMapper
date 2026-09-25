@@ -314,6 +314,39 @@ export function modelFixtureCells(): readonly FixtureCell[] {
   );
   place('cactus', 18, 36, b('minecraft:cactus', { age: 0 }), 'cactus inset');
 
+  // --- PR34 lanterns (z=44) ---
+  place(
+    'lantern-floor',
+    2,
+    44,
+    b('minecraft:lantern', { hanging: false }),
+    'floor lantern',
+  );
+  place(
+    'lantern-hanging',
+    4,
+    44,
+    b('minecraft:lantern', { hanging: true }),
+    'hanging lantern',
+  );
+  place(
+    'soul-lantern-floor',
+    6,
+    44,
+    b('minecraft:soul_lantern', { hanging_bit: false }),
+    'soul lantern floor (hanging_bit)',
+  );
+  place(
+    'soul-lantern-hanging',
+    8,
+    44,
+    b('minecraft:soul_lantern', { hanging_bit: true }),
+    'soul lantern hanging (hanging_bit)',
+  );
+  // Ceiling support above hanging lanterns (visual/fixture context only)
+  place('lantern-hanging-support', 4, 44, b('minecraft:stone'), undefined, y + 1);
+  place('soul-lantern-hanging-support', 8, 44, b('minecraft:stone'), undefined, y + 1);
+
   // --- PR32 stair corners (z=40) ---
   // Straight facings already live at z=4; this pad covers corner shapes.
   place(
@@ -480,6 +513,10 @@ export function modelFixtureExpectations(): readonly FixtureExpectation[] {
     { id: 'torch-floor', family: 'torch', isFullCube: false, modelKeyPrefix: 'torch:top:' },
     { id: 'torch-wall', family: 'torch', isFullCube: false, modelKeyPrefix: 'torch:wall:west:' },
     { id: 'cactus', family: 'cactus', isFullCube: false, modelKeyPrefix: 'cactus:' },
+    { id: 'lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },
+    { id: 'lantern-hanging', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:hanging:' },
+    { id: 'soul-lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },
+    { id: 'soul-lantern-hanging', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:hanging:' },
     { id: 'stair-corner-outer-r', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:outer_right:' },
     { id: 'stair-corner-outer-l', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:outer_left:' },
     { id: 'stair-corner-inner-r', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:inner_right:' },

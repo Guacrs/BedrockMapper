@@ -24,6 +24,7 @@ import { isPressurePlateName } from './families/pressure-plate.ts';
 import { isDoubleSlabName, isSingleSlabName } from './families/slab.ts';
 import { isSnowLayerName } from './families/snow-layer.ts';
 import { isStairName } from './families/stair.ts';
+import { isLanternName } from './families/lantern.ts';
 import { isTorchName } from './families/torch.ts';
 import { isTrapdoorName } from './families/trapdoor.ts';
 import { isWallName } from './families/wall.ts';
@@ -45,6 +46,7 @@ export type ModelFamilyId =
   | 'ladder' // PR30
   | 'torch' // PR30
   | 'cactus' // PR30
+  | 'lantern' // PR34
   | 'fallback' // J — safe full-cube used as stand-in
   | 'future'; // K — researched as needing custom geo later
 
@@ -89,8 +91,6 @@ const FUTURE_SHORT_IDS: ReadonlySet<string> = new Set([
   'damaged_anvil',
   'hopper',
   'bell',
-  'lantern',
-  'soul_lantern',
   'chain',
   'lightning_rod',
   'end_rod',
@@ -201,6 +201,9 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
   if (isTorchName(name)) {
     return { name, family: 'torch', implementation: 'explicit' };
   }
+  if (isLanternName(name)) {
+    return { name, family: 'lantern', implementation: 'explicit' };
+  }
   if (isCactusName(name)) {
     return { name, family: 'cactus', implementation: 'explicit' };
   }
@@ -245,6 +248,7 @@ export function summarizeCoverage(entries: readonly ModelCoverageEntry[]): Cover
     ladder: 0,
     torch: 0,
     cactus: 0,
+    lantern: 0,
     fallback: 0,
     future: 0,
   } satisfies Record<ModelFamilyId, number>;

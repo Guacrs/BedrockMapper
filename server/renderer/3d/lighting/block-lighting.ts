@@ -73,9 +73,18 @@ const EMITTERS: ReadonlyMap<string, BlockLighting> = new Map([
   ['beacon', Object.freeze({ emission: level(15), lightColor: rgb(0xa0ffff) })],
   ['conduit', Object.freeze({ emission: level(15), lightColor: rgb(0x70e0ff) })],
 
-  // Campfires / lanterns — ids that exist even if geometry is still full-cube (K)
+  // Campfires / lanterns — lantern *geometry* is PR34; emission levels here (PR33)
   ['lantern', Object.freeze({ emission: level(15), lightColor: rgb(0xffd28a) })],
   ['soul_lantern', Object.freeze({ emission: level(10), lightColor: rgb(0x6fe0ff) })],
+  // Copper lanterns share Bedrock light level 15 with iron lanterns
+  ['copper_lantern', Object.freeze({ emission: level(15), lightColor: rgb(0xffd28a) })],
+  ['exposed_copper_lantern', Object.freeze({ emission: level(15), lightColor: rgb(0xffd28a) })],
+  ['weathered_copper_lantern', Object.freeze({ emission: level(15), lightColor: rgb(0xffd28a) })],
+  ['oxidized_copper_lantern', Object.freeze({ emission: level(15), lightColor: rgb(0xffd28a) })],
+  ['waxed_copper_lantern', Object.freeze({ emission: level(15), lightColor: rgb(0xffd28a) })],
+  ['waxed_exposed_copper_lantern', Object.freeze({ emission: level(15), lightColor: rgb(0xffd28a) })],
+  ['waxed_weathered_copper_lantern', Object.freeze({ emission: level(15), lightColor: rgb(0xffd28a) })],
+  ['waxed_oxidized_copper_lantern', Object.freeze({ emission: level(15), lightColor: rgb(0xffd28a) })],
   ['campfire', Object.freeze({ emission: level(15), lightColor: rgb(0xffa040) })],
   ['soul_campfire', Object.freeze({ emission: level(10), lightColor: rgb(0x6fe0ff) })],
 

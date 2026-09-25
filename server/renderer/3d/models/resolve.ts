@@ -26,6 +26,7 @@ import { isPressurePlateName, pressurePlateIsPressed, pressurePlateModel } from 
 import { isDoubleSlabName, isSingleSlabName, slabModel } from './families/slab.ts';
 import { isSnowLayerName, snowLayerModel } from './families/snow-layer.ts';
 import { isStairName, tryBuildStraightStair } from './families/stair.ts';
+import { isLanternName, lanternIsHanging, lanternModel } from './families/lantern.ts';
 import { isTorchName, torchFacingFromStates, torchModel } from './families/torch.ts';
 import { isTrapdoorName, tryBuildTrapdoor } from './families/trapdoor.ts';
 import {
@@ -79,6 +80,9 @@ function cacheKey(
   }
   if (isTorchName(ref.name)) {
     return `torch:${torchFacingFromStates(ref.states)}:${ref.name}`;
+  }
+  if (isLanternName(ref.name)) {
+    return `lantern:${lanternIsHanging(ref.states) ? 'hanging' : 'floor'}:${ref.name}`;
   }
   if (isCactusName(ref.name)) {
     return `cactus:${ref.name}`;
@@ -178,6 +182,8 @@ export function resolveBlockModel(
     model = built.ok ? built.model : fullCubeModel(ref.name);
   } else if (isTorchName(ref.name)) {
     model = torchModel(ref);
+  } else if (isLanternName(ref.name)) {
+    model = lanternModel(ref);
   } else if (isCactusName(ref.name)) {
     model = cactusModel(ref.name);
   } else if (isDoorName(ref.name)) {
@@ -223,6 +229,7 @@ export function neighbourIsFullCubeForConnection(ref: BlockRef | null): boolean 
     isSnowLayerName(ref.name) ||
     isLadderName(ref.name) ||
     isTorchName(ref.name) ||
+    isLanternName(ref.name) ||
     isCactusName(ref.name)
   ) {
     return false;
