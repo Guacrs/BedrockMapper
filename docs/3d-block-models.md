@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR34 frozen · PR35 buttons in progress · Next: levers, rails, … then light propagation.
+**Status:** PR19–PR35 frozen · PR36 levers in progress · Next: rails, then light propagation.
 
 **Frozen predecessors:**
 
@@ -358,7 +358,7 @@ decodeSubChunk → ChunkBlocks → contextual resolve → mesh → Three.js view
 | Cactus | `families/cactus.ts` | `age` ignored for geometry | 1px side inset; `cactus_flower` stays research |
 
 **Still J (fallback):** fence gates (attach-only).  
-**Still K (future):** chains, levers, rails, beds, chests, vines, double plants, wall signs, …
+**Still K (future):** chains, rails, beds, chests, vines, double plants, wall signs, …
 
 **Validation:** `test/block-models-pr30.test.ts` + fixture cells at z=36 + coverage inventory.
 
@@ -573,7 +573,7 @@ SubChunk { layers[].palette: BlockState{name, states}[], indices }
 ChunkBlocks
     ↓
 VoxelNeighborhood
-    ↓  resolveBlockModel(BlockRef[, ConnectionMask[, WallShape]]) → full_cube | slab | stair | fence | pane | door | trapdoor | cross | wall | carpet | pressure_plate | snow_layer | ladder | torch | cactus | lantern | button
+    ↓  resolveBlockModel(BlockRef[, ConnectionMask[, WallShape]]) → full_cube | slab | stair | fence | pane | door | trapdoor | cross | wall | carpet | pressure_plate | snow_layer | ladder | torch | cactus | lantern | button | lever
     ↓  isFaceFullyOccluded (Option A)
 box-face mesher (voxel-mesh-builder.ts)
     ↓  PR17: appearance → atlas UVs (side UV crop for half-height boxes)
@@ -587,6 +587,7 @@ Three.js (terrain material + emissive material)
 **PR33 lighting:** researched emitters only; no light propagation.
 **PR34:** lantern floor/hanging models.
 **PR35:** button face-attached plates.
+**PR36:** lever base + angled handle (`lever_direction` / `open_bit`).
 
 ---
 

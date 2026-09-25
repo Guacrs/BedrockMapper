@@ -409,6 +409,46 @@ export function modelFixtureCells(): readonly FixtureCell[] {
     'wall button east pressed',
   );
 
+  // --- PR36 levers (z=38) ---
+  place(
+    'lever-floor-off',
+    2,
+    38,
+    b('minecraft:lever', { lever_direction: 'up_north_south', open_bit: false }),
+    'floor lever off',
+  );
+  place(
+    'lever-floor-on',
+    4,
+    38,
+    b('minecraft:lever', { lever_direction: 'up_east_west', open_bit: true }),
+    'floor lever on EW',
+  );
+  place(
+    'lever-ceiling',
+    6,
+    38,
+    b('minecraft:lever', { lever_direction: 'down_north_south', open_bit: false }),
+    'ceiling lever',
+  );
+  place('lever-ceiling-support', 6, 38, b('minecraft:stone'), undefined, y + 1);
+  place('lever-wall-n-support', 10, 37, b('minecraft:stone'));
+  place(
+    'lever-wall-n',
+    10,
+    38,
+    b('minecraft:lever', { lever_direction: 'north', open_bit: false }),
+    'wall lever north off',
+  );
+  place('lever-wall-w-support', 13, 38, b('minecraft:stone'));
+  place(
+    'lever-wall-w',
+    14,
+    38,
+    b('minecraft:lever', { lever_direction: 'west', open_bit: true }),
+    'wall lever west on',
+  );
+
   // --- PR32 stair corners (z=40) ---
   // Straight facings already live at z=4; this pad covers corner shapes.
   place(
@@ -586,6 +626,11 @@ export function modelFixtureExpectations(): readonly FixtureExpectation[] {
     { id: 'button-wall-s', family: 'button', isFullCube: false, modelKeyPrefix: 'button:south:up:' },
     { id: 'button-wall-w', family: 'button', isFullCube: false, modelKeyPrefix: 'button:west:up:' },
     { id: 'button-wall-e', family: 'button', isFullCube: false, modelKeyPrefix: 'button:east:down:' },
+    { id: 'lever-floor-off', family: 'lever', isFullCube: false, modelKeyPrefix: 'lever:up_north_south:off' },
+    { id: 'lever-floor-on', family: 'lever', isFullCube: false, modelKeyPrefix: 'lever:up_east_west:on' },
+    { id: 'lever-ceiling', family: 'lever', isFullCube: false, modelKeyPrefix: 'lever:down_north_south:off' },
+    { id: 'lever-wall-n', family: 'lever', isFullCube: false, modelKeyPrefix: 'lever:wall:north:off' },
+    { id: 'lever-wall-w', family: 'lever', isFullCube: false, modelKeyPrefix: 'lever:wall:west:on' },
     { id: 'stair-corner-outer-r', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:outer_right:' },
     { id: 'stair-corner-outer-l', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:outer_left:' },
     { id: 'stair-corner-inner-r', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:inner_right:' },

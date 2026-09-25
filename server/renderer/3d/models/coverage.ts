@@ -21,6 +21,7 @@ import { isDoorName } from './families/door.ts';
 import { isFenceGateName, isFenceName, shortBlockId } from './families/fence.ts';
 import { isLadderName } from './families/ladder.ts';
 import { isLanternName } from './families/lantern.ts';
+import { isLeverName } from './families/lever.ts';
 import { isPaneName } from './families/pane.ts';
 import { isPressurePlateName } from './families/pressure-plate.ts';
 import { isDoubleSlabName, isSingleSlabName } from './families/slab.ts';
@@ -49,6 +50,7 @@ export type ModelFamilyId =
   | 'cactus' // PR30
   | 'lantern' // PR34
   | 'button' // PR35
+  | 'lever' // PR36
   | 'fallback' // J — safe full-cube used as stand-in
   | 'future'; // K — researched as needing custom geo later
 
@@ -117,7 +119,6 @@ const FUTURE_SHORT_IDS: ReadonlySet<string> = new Set([
   'golden_rail',
   'detector_rail',
   'activator_rail',
-  'lever',
   'tripwire_hook',
   'cactus_flower',
 ]);
@@ -205,6 +206,9 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
   if (isButtonName(name)) {
     return { name, family: 'button', implementation: 'explicit' };
   }
+  if (isLeverName(name)) {
+    return { name, family: 'lever', implementation: 'explicit' };
+  }
   if (isCactusName(name)) {
     return { name, family: 'cactus', implementation: 'explicit' };
   }
@@ -250,6 +254,7 @@ export function summarizeCoverage(entries: readonly ModelCoverageEntry[]): Cover
     cactus: 0,
     lantern: 0,
     button: 0,
+    lever: 0,
     fallback: 0,
     future: 0,
   } satisfies Record<ModelFamilyId, number>;

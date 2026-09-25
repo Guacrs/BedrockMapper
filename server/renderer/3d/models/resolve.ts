@@ -23,6 +23,7 @@ import { fenceModel, isFenceGateName, isFenceName } from './families/fence.ts';
 import { fullCubeModel, fullCubeModelForRef, fullCubeOrientationKey } from './families/full-cube.ts';
 import { isLadderName, tryBuildLadder } from './families/ladder.ts';
 import { isLanternName, lanternIsHanging, lanternModel } from './families/lantern.ts';
+import { isLeverName, leverDirectionFromStates, leverIsOpen, tryBuildLever } from './families/lever.ts';
 import { isPaneName, paneModel } from './families/pane.ts';
 import { isPressurePlateName, pressurePlateIsPressed, pressurePlateModel } from './families/pressure-plate.ts';
 import { isDoubleSlabName, isSingleSlabName, slabModel } from './families/slab.ts';
@@ -89,6 +90,10 @@ function cacheKey(
     const facing = buttonFacingFromStates(ref.states) ?? '?';
     const pressed = buttonIsPressed(ref.states) ? 'down' : 'up';
     return `button:${facing}:${pressed}:${ref.name}`;
+  }
+  if (isLeverName(ref.name)) {
+    const dir = leverDirectionFromStates(ref.states) ?? '?';
+    return `lever:${dir}:${leverIsOpen(ref.states) ? 'on' : 'off'}`;
   }
   if (isCactusName(ref.name)) {
     return `cactus:${ref.name}`;
@@ -193,6 +198,9 @@ export function resolveBlockModel(
   } else if (isButtonName(ref.name)) {
     const built = tryBuildButton(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
+  } else if (isLeverName(ref.name)) {
+    const built = tryBuildLever(ref);
+    model = built.ok ? built.model : fullCubeModel(ref.name);
   } else if (isCactusName(ref.name)) {
     model = cactusModel(ref.name);
   } else if (isDoorName(ref.name)) {
@@ -240,6 +248,7 @@ export function neighbourIsFullCubeForConnection(ref: BlockRef | null): boolean 
     isTorchName(ref.name) ||
     isLanternName(ref.name) ||
     isButtonName(ref.name) ||
+    isLeverName(ref.name) ||
     isCactusName(ref.name)
   ) {
     return false;
