@@ -3,9 +3,12 @@
  *
  * Rotations are around the block centre looking down (+Y): positive steps are
  * 90° counter-clockwise in the XZ plane — (x,z) → (1−z, x).
+ *
+ * PR33: boxes may also carry an element `rotation` (Minecraft model angles).
+ * `rotateModelY` remaps that descriptor so wall-torch lean stays correct.
  */
 
-import type { BlockModel, FaceId, ModelBox } from './types.ts';
+import type { BlockModel, FaceId, ModelBox, ModelBoxRotation } from './types.ts';
 
 const FACE_CCW: readonly FaceId[] = ['east', 'south', 'west', 'north'];
 
@@ -30,6 +33,108 @@ function rotatePointXZ(
     cz = nz;
   }
   return [cx, cz];
+}
+
+/** Direction vector under the same CCW-Y quarter turns (not point-in-cube). */
+function rotateAxisY(
+  axis: ModelBoxRotation['axis'],
+  quarterTurns: number,
+): { axis: ModelBoxRotation['axis']; sign: 1 | -1 } {
+  const turns = ((quarterTurns % 4) + 4) % 4;
+  if (axis === 'y') return { axis: 'y', sign: 1 };
+  // Must match rotatePointXZ's linear part about the block centre:
+  // (dx, dz) → (−dz, dx) per quarter turn.
+  let vx = axis === 'x' ? 1 : 0;
+  let vz = axis === 'z' ? 1 : 0;
+  for (let i = 0; i < turns; i++) {
+    const nx = -vz;
+    const nz = vx;
+    vx = nx;
+    vz = nz;
+  }
+  if (Math.abs(vx) >= Math.abs(vz)) {
+    return { axis: 'x', sign: vx >= 0 ? 1 : -1 };
+  }
+  return { axis: 'z', sign: vz >= 0 ? 1 : -1 };
+}
+
+/**
+ * Apply a ModelBox element rotation to a local-space point.
+ * Exported for mesher + tests.
+ */
+export function applyModelBoxRotation(
+  x: number,
+  y: number,
+  z: number,
+  rotation: ModelBoxRotation | undefined,
+): [number, number, number] {
+  if (!rotation || rotation.angle === 0) return [x, y, z];
+  const [ox, oy, oz] = rotation.origin;
+  let px = x - ox;
+  let py = y - oy;
+  let pz = z - oz;
+  const rad = (rotation.angle * Math.PI) / 180;
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+  switch (rotation.axis) {
+    case 'x': {
+      const ny = py * c - pz * s;
+      const nz = py * s + pz * c;
+      py = ny;
+      pz = nz;
+      break;
+    }
+    case 'y': {
+      const nx = px * c + pz * s;
+      const nz = -px * s + pz * c;
+      px = nx;
+      pz = nz;
+      break;
+    }
+    case 'z': {
+      const nx = px * c - py * s;
+      const ny = px * s + py * c;
+      px = nx;
+      py = ny;
+      break;
+    }
+  }
+  return [px + ox, py + oy, pz + oz];
+}
+
+/** Rotate a unit normal by the same element rotation (origin irrelevant). */
+export function applyModelBoxRotationToNormal(
+  nx: number,
+  ny: number,
+  nz: number,
+  rotation: ModelBoxRotation | undefined,
+): [number, number, number] {
+  if (!rotation || rotation.angle === 0) return [nx, ny, nz];
+  const [rx, ry, rz] = applyModelBoxRotation(nx, ny, nz, {
+    origin: [0, 0, 0],
+    axis: rotation.axis,
+    angle: rotation.angle,
+  });
+  const len = Math.hypot(rx, ry, rz);
+  if (len < 1e-12) return [nx, ny, nz];
+  return [rx / len, ry / len, rz / len];
+}
+
+function rotateRotationY(
+  rotation: ModelBoxRotation | undefined,
+  quarterTurns: number,
+): ModelBoxRotation | undefined {
+  if (!rotation) return undefined;
+  const turns = ((quarterTurns % 4) + 4) % 4;
+  if (turns === 0) return rotation;
+  const [ox, oy, oz] = rotation.origin;
+  const [rx, rz] = rotatePointXZ(ox, oz, turns);
+  const { axis, sign } = rotateAxisY(rotation.axis, turns);
+  return Object.freeze({
+    origin: Object.freeze([rx, oy, rz] as const),
+    axis,
+    angle: rotation.angle * sign,
+  });
 }
 
 function rotateBoxY(box: ModelBox, quarterTurns: number): ModelBox {
@@ -68,10 +173,12 @@ function rotateBoxY(box: ModelBox, quarterTurns: number): ModelBox {
     faces[rotateFaceId(face, turns)] = mat;
   }
 
+  const rotation = rotateRotationY(box.rotation, turns);
   return Object.freeze({
     min: Object.freeze([minX, minY, minZ] as const),
     max: Object.freeze([maxX, maxY, maxZ] as const),
     faces: Object.freeze(faces),
+    ...(rotation ? { rotation } : {}),
   });
 }
 
@@ -81,10 +188,23 @@ function flipBoxY(box: ModelBox): ModelBox {
   const down = faces.down;
   faces.up = down;
   faces.down = up;
+  let rotation = box.rotation;
+  if (rotation) {
+    // Mirror through y=0.5: origin flips; X/Z angles negate (right-hand).
+    const [ox, oy, oz] = rotation.origin;
+    const angle =
+      rotation.axis === 'y' ? rotation.angle : -rotation.angle;
+    rotation = Object.freeze({
+      origin: Object.freeze([ox, 1 - oy, oz] as const),
+      axis: rotation.axis,
+      angle,
+    });
+  }
   return Object.freeze({
     min: Object.freeze([box.min[0], 1 - box.max[1], box.min[2]] as const),
     max: Object.freeze([box.max[0], 1 - box.min[1], box.max[2]] as const),
     faces: Object.freeze(faces),
+    ...(rotation ? { rotation } : {}),
   });
 }
 

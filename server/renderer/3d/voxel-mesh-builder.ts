@@ -28,7 +28,11 @@ import {
 import { isWallName, wallShapeKey } from './models/families/wall.ts';
 import { isFaceFullyOccluded } from './models/occlude.ts';
 import { resolveBlockModel } from './models/resolve.ts';
-import type { BlockModel, BlockRef, FaceId, ModelBox } from './models/types.ts';
+import {
+  applyModelBoxRotation,
+  applyModelBoxRotationToNormal,
+} from './models/transform.ts';
+import type { BlockModel, BlockRef, FaceId, FaceMaterial, ModelBox } from './models/types.ts';
 import { loadAtlasMetadata, type AtlasUvRect, uvRectForKey } from './textures/atlas.ts';
 import type { CubeFace } from './textures/models.ts';
 import { isOverlayCompositedTextureKey } from './textures/overlay.ts';
@@ -150,20 +154,28 @@ function cornerWorld(
 ): [number, number, number] {
   const [x0, y0, z0] = box.min;
   const [x1, y1, z1] = box.max;
+  let local: [number, number, number];
   switch (face) {
     case 'up':
-      return [x0 + a * (x1 - x0), y1, z0 + b * (z1 - z0)];
+      local = [x0 + a * (x1 - x0), y1, z0 + b * (z1 - z0)];
+      break;
     case 'down':
-      return [x0 + a * (x1 - x0), y0, z0 + b * (z1 - z0)];
+      local = [x0 + a * (x1 - x0), y0, z0 + b * (z1 - z0)];
+      break;
     case 'south':
-      return [x0 + a * (x1 - x0), y0 + b * (y1 - y0), z1];
+      local = [x0 + a * (x1 - x0), y0 + b * (y1 - y0), z1];
+      break;
     case 'north':
-      return [x0 + a * (x1 - x0), y0 + b * (y1 - y0), z0];
+      local = [x0 + a * (x1 - x0), y0 + b * (y1 - y0), z0];
+      break;
     case 'east':
-      return [x1, y0 + a * (y1 - y0), z0 + b * (z1 - z0)];
+      local = [x1, y0 + a * (y1 - y0), z0 + b * (z1 - z0)];
+      break;
     case 'west':
-      return [x0, y0 + a * (y1 - y0), z0 + b * (z1 - z0)];
+      local = [x0, y0 + a * (y1 - y0), z0 + b * (z1 - z0)];
+      break;
   }
+  return applyModelBoxRotation(local[0], local[1], local[2], box.rotation);
 }
 
 /**
@@ -237,6 +249,45 @@ export function faceCornerUvsForBox(
   }
 }
 
+/**
+ * Map FaceDef corner params (a,b) onto a sub-rect of the atlas tile.
+ * Order matches `face.corners` / `cornerWorld` winding.
+ */
+export function faceCornerUvsFromTile(
+  rect: AtlasUvRect,
+  tileUv: readonly [number, number, number, number],
+  corners: readonly (readonly [number, number])[],
+): readonly (readonly [number, number])[] {
+  const [tu0, tv0, tu1, tv1] = tileUv;
+  const uSpan = rect.u1 - rect.u0;
+  const vSpan = rect.v1 - rect.v0;
+  return corners.map(([a, b]) => {
+    const tu = tu0 + a * (tu1 - tu0);
+    // b=0 → base (tv1), b=1 → tip/flame (tv0) — matches unit-cell vAt.
+    const tv = tv0 + (1 - b) * (tv1 - tv0);
+    return [rect.u0 + tu * uSpan, rect.v0 + tv * vSpan] as const;
+  });
+}
+
+function cornerUvsForFace(
+  rect: AtlasUvRect | null,
+  face: FaceDef,
+  box: ModelBox,
+  material: FaceMaterial,
+): readonly (readonly [number, number])[] {
+  if (!rect) {
+    return [
+      [0, 0],
+      [0, 0],
+      [0, 0],
+      [0, 0],
+    ] as const;
+  }
+  if (material.tileUv) {
+    return faceCornerUvsFromTile(rect, material.tileUv, face.corners);
+  }
+  return faceCornerUvsForBox(rect, face.id, box);
+}
 function vertexRgb(
   blockName: string,
   hasTexture: boolean,
@@ -280,12 +331,18 @@ function emitFace(
   cornerUvs: readonly (readonly [number, number])[],
 ): void {
   const base = target.positions.length / 3;
+  const [nnx, nny, nnz] = applyModelBoxRotationToNormal(
+    face.nx,
+    face.ny,
+    face.nz,
+    box.rotation,
+  );
   for (let i = 0; i < 4; i++) {
     const [a, bParam] = face.corners[i]!;
     const [lx2, ly2, lz2] = cornerWorld(box, face.id, a, bParam);
     const [u, v] = cornerUvs[i]!;
     target.positions.push(worldX + lx2, worldY + ly2, worldZ + lz2);
-    target.normals.push(face.nx, face.ny, face.nz);
+    target.normals.push(nnx, nny, nnz);
     target.colors.push(r, g, b);
     target.uvs.push(u, v);
   }
@@ -429,20 +486,14 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
               if (isFaceFullyOccluded(box, face.id, neighbour)) continue;
 
               const textureKey = box.faces[face.id]!.textureKey;
+              const material = box.faces[face.id]!;
               const rect =
                 atlas && textureKey ? uvRectForKey(atlas, textureKey) : null;
               const hasTexture = rect != null;
               const [r, g, b] = selfLit
                 ? emissiveVertexRgb(ref.name)
                 : vertexRgb(ref.name, hasTexture, textureKey);
-              const cornerUvs = rect
-                ? faceCornerUvsForBox(rect, face.id, box)
-                : ([
-                    [0, 0],
-                    [0, 0],
-                    [0, 0],
-                    [0, 0],
-                  ] as const);
+              const cornerUvs = cornerUvsForFace(rect, face, box, material);
 
               emitFace(target, worldX, worldY, worldZ, box, face, r, g, b, cornerUvs);
             }

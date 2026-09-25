@@ -16,8 +16,12 @@ import {
   isEmissiveBlock,
 } from '../server/renderer/3d/lighting/block-lighting.ts';
 import { assertMeshInvariants, isEmptyMesh } from '../server/renderer/3d/mesh-types.ts';
-import { torchModel } from '../server/renderer/3d/models/families/torch.ts';
+import { torchModel, TORCH_WALL_LEAN_DEG } from '../server/renderer/3d/models/families/torch.ts';
 import { resetBlockModelCache } from '../server/renderer/3d/models/resolve.ts';
+import {
+  applyModelBoxRotation,
+  rotateModelY,
+} from '../server/renderer/3d/models/transform.ts';
 import {
   buildVoxelMesh,
   countEmissiveFaces,
@@ -215,29 +219,179 @@ describe('PR33 torch cross-plane faces', () => {
     }
   });
 
-  it('wall torch textures only broad stub faces; keeps attachment orientation', () => {
-    resetBlockModelCache();
-    const east = torchModel({
-      name: 'minecraft:torch',
-      states: { torch_facing_direction: 'east' },
-    });
-    assert.equal(east.renderBoxes.length, 1);
-    assert.deepEqual(faceIds(east.renderBoxes[0]!), ['north', 'south']);
-    assert.ok(east.renderBoxes[0]!.max[0] === 1);
-
-    const north = torchModel({
-      name: 'minecraft:soul_torch',
-      states: { torch_facing_direction: 'west' },
-    });
-    assert.equal(north.renderBoxes.length, 1);
-    assert.deepEqual(faceIds(north.renderBoxes[0]!), ['north', 'south']);
-    assert.equal(north.renderBoxes[0]!.min[0], 0);
-  });
-
   it('floor torch emissive mesh emits exactly four faces (2 planes × 2)', () => {
     const self = volumeFromStates(0, 0, (x, y, z): BlockState | null =>
       x === 4 && y === 64 && z === 4
         ? { name: 'minecraft:torch', states: { torch_facing_direction: 'top' } }
+        : null,
+    );
+    const mesh = buildVoxelMesh(0, 0, emptyNeighborhood(self));
+    assertMeshInvariants(mesh);
+    assert.equal(countFaces(mesh), 0);
+    assert.equal(countEmissiveFaces(mesh), 4);
+  });
+});
+
+describe('PR33 wall torch cantilever geometry', () => {
+  const PX = 1 / 16;
+  /** Old incorrect horizontal stub length — must not reappear. */
+  const OLD_STUB_LEN = 10 * PX;
+
+  function rotatedCorners(box: {
+    min: readonly [number, number, number];
+    max: readonly [number, number, number];
+    rotation?: {
+      origin: readonly [number, number, number];
+      axis: 'x' | 'y' | 'z';
+      angle: number;
+    };
+  }): [number, number, number][] {
+    const corners: [number, number, number][] = [];
+    for (const x of [box.min[0], box.max[0]]) {
+      for (const y of [box.min[1], box.max[1]]) {
+        for (const z of [box.min[2], box.max[2]]) {
+          corners.push(applyModelBoxRotation(x, y, z, box.rotation));
+        }
+      }
+    }
+    return corners;
+  }
+
+  function bounds(corners: [number, number, number][]) {
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    for (const c of corners) {
+      for (let i = 0; i < 3; i++) {
+        min[i] = Math.min(min[i]!, c[i]!);
+        max[i] = Math.max(max[i]!, c[i]!);
+      }
+    }
+    return { min, max };
+  }
+
+  it('west wall torch leans +X with flame opposite the attachment face', () => {
+    resetBlockModelCache();
+    const wall = torchModel({
+      name: 'minecraft:torch',
+      states: { torch_facing_direction: 'west' },
+    });
+    assert.equal(wall.isFullCube, false);
+    assert.equal(wall.renderBoxes.length, 1);
+    const box = wall.renderBoxes[0]!;
+    assert.ok(box.rotation);
+    assert.equal(box.rotation!.angle, TORCH_WALL_LEAN_DEG);
+    assert.equal(box.rotation!.axis, 'z');
+    // Not the old axis-aligned stub (would span 10/16 along X without lean).
+    assert.ok(box.rotation!.angle !== 0);
+    assert.notEqual(box.max[0]! - box.min[0]!, OLD_STUB_LEN);
+
+    const { min, max } = bounds(rotatedCorners(box));
+    // Attachment near west (x≈0); flame/end reaches further +X and higher Y.
+    assert.ok(min[0]! < 0.05, 'base near west face');
+    assert.ok(max[0]! > min[0]! + 0.15, 'leans into +X');
+    assert.ok(max[1]! > min[1]! + 0.4, 'has vertical extent');
+    // Tip (max Y corner set) is outward (+X) relative to base.
+    const tipX = Math.max(
+      ...rotatedCorners(box)
+        .filter((c) => c[1]! > (min[1]! + max[1]!) / 2)
+        .map((c) => c[0]!),
+    );
+    const baseX = Math.min(
+      ...rotatedCorners(box)
+        .filter((c) => c[1]! < (min[1]! + max[1]!) / 2)
+        .map((c) => c[0]!),
+    );
+    assert.ok(tipX > baseX, 'flame end opposite west attachment');
+  });
+
+  it('all four wall orientations are rotationally equivalent cantilevers', () => {
+    resetBlockModelCache();
+    // Face cycle under rotateModelY: west → north → east → south
+    const dirs = ['west', 'north', 'east', 'south'] as const;
+    const models = dirs.map((dir) =>
+      torchModel({ name: 'minecraft:torch', states: { torch_facing_direction: dir } }),
+    );
+    for (let i = 0; i < dirs.length; i++) {
+      const box = models[i]!.renderBoxes[0]!;
+      assert.ok(box.rotation, dirs[i]);
+      assert.equal(Math.abs(box.rotation!.angle), 22.5, dirs[i]);
+      assert.deepEqual(Object.keys(box.faces).sort(), ['east', 'north', 'south', 'west']);
+      assert.equal(box.faces.up, undefined);
+      assert.equal(box.faces.down, undefined);
+      assert.ok(box.faces.north?.tileUv, 'wall torch uses torch sprite UV crop');
+    }
+
+    // Rotating west→north→east→south by +1 Y turn each matches the next state.
+    let cursor = models[0]!;
+    for (let i = 1; i < dirs.length; i++) {
+      cursor = rotateModelY(cursor, 1);
+      const expected = models[i]!.renderBoxes[0]!;
+      const got = cursor.renderBoxes[0]!;
+      assert.equal(got.rotation!.axis, expected.rotation!.axis, dirs[i]);
+      assert.ok(
+        Math.abs(got.rotation!.angle - expected.rotation!.angle) < 1e-9,
+        dirs[i],
+      );
+      for (let c = 0; c < 3; c++) {
+        assert.ok(Math.abs(got.min[c]! - expected.min[c]!) < 1e-9, `${dirs[i]} min`);
+        assert.ok(Math.abs(got.max[c]! - expected.max[c]!) < 1e-9, `${dirs[i]} max`);
+      }
+    }
+  });
+
+  it('east/north/south attachment put the torch on the correct cell face', () => {
+    resetBlockModelCache();
+    const cases = [
+      {
+        dir: 'east' as const,
+        onFace: (b: ReturnType<typeof bounds>) => b.max[0]! > 0.95,
+        intoCell: (high: number, low: number) => high < low, // tip x < base x
+        axis: 0,
+      },
+      {
+        dir: 'west' as const,
+        onFace: (b: ReturnType<typeof bounds>) => b.min[0]! < 0.05,
+        intoCell: (high: number, low: number) => high > low,
+        axis: 0,
+      },
+      {
+        dir: 'south' as const,
+        onFace: (b: ReturnType<typeof bounds>) => b.max[2]! > 0.95,
+        intoCell: (high: number, low: number) => high < low,
+        axis: 2,
+      },
+      {
+        dir: 'north' as const,
+        onFace: (b: ReturnType<typeof bounds>) => b.min[2]! < 0.05,
+        intoCell: (high: number, low: number) => high > low,
+        axis: 2,
+      },
+    ];
+    for (const c of cases) {
+      const wall = torchModel({
+        name: 'minecraft:soul_torch',
+        states: { torch_facing_direction: c.dir },
+      });
+      const box = wall.renderBoxes[0]!;
+      const corners = rotatedCorners(box);
+      const b = bounds(corners);
+      assert.ok(c.onFace(b), `${c.dir} attachment on cell face`);
+      const midY = (b.min[1]! + b.max[1]!) / 2;
+      const high = corners.filter((p) => p[1]! >= midY);
+      const low = corners.filter((p) => p[1]! < midY);
+      const avg = (pts: [number, number, number][]) =>
+        pts.reduce((s, p) => s + p[c.axis]!, 0) / pts.length;
+      assert.ok(
+        c.intoCell(avg(high), avg(low)),
+        `${c.dir} flame leans into the cell`,
+      );
+    }
+  });
+
+  it('wall torch emissive mesh keeps four vertical faces', () => {
+    const self = volumeFromStates(0, 0, (x, y, z): BlockState | null =>
+      x === 4 && y === 64 && z === 4
+        ? { name: 'minecraft:torch', states: { torch_facing_direction: 'west' } }
         : null,
     );
     const mesh = buildVoxelMesh(0, 0, emptyNeighborhood(self));

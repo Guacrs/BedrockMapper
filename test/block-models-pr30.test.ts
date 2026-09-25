@@ -146,35 +146,21 @@ describe('PR30 torch', () => {
     assert.deepEqual(Object.keys(floor.renderBoxes[0]!.faces).sort(), ['north', 'south']);
     assert.deepEqual(Object.keys(floor.renderBoxes[1]!.faces).sort(), ['east', 'west']);
 
-    // Microsoft: torch_facing_direction = "block the torch is attached to"
-    // relative to its position → stub sits on that face of the cell.
-    const against = {
-      west: (b: { min: readonly number[]; max: readonly number[] }) =>
-        b.min[0] === 0 && b.max[0] === 10 * PX,
-      east: (b: { min: readonly number[]; max: readonly number[] }) =>
-        b.min[0] === 1 - 10 * PX && b.max[0] === 1,
-      north: (b: { min: readonly number[]; max: readonly number[] }) =>
-        b.min[2] === 0 && b.max[2] === 10 * PX,
-      south: (b: { min: readonly number[]; max: readonly number[] }) =>
-        b.min[2] === 1 - 10 * PX && b.max[2] === 1,
-    } as const;
-    const wallBroadFaces = {
-      west: ['north', 'south'],
-      east: ['north', 'south'],
-      north: ['east', 'west'],
-      south: ['east', 'west'],
-    } as const;
+    // Wall: cantilevered stick (not the old horizontal AABB stub).
     for (const dir of ['west', 'east', 'north', 'south'] as const) {
       const wall = torchModel({
         name: 'minecraft:torch',
         states: { torch_facing_direction: dir },
       });
       assert.equal(wall.renderBoxes.length, 1, dir);
-      assert.ok(against[dir](wall.renderBoxes[0]!), `${dir} must sit on attachment face`);
+      assert.equal(wall.isFullCube, false, dir);
+      assert.ok(wall.renderBoxes[0]!.rotation, `${dir} must carry element rotation`);
+      assert.equal(Math.abs(wall.renderBoxes[0]!.rotation!.angle), 22.5, dir);
+      // Vertical faces only (no up/down caps).
       assert.deepEqual(
         Object.keys(wall.renderBoxes[0]!.faces).sort(),
-        [...wallBroadFaces[dir]].sort(),
-        `${dir} wall stub must texture only broad faces`,
+        ['east', 'north', 'south', 'west'],
+        dir,
       );
     }
   });
