@@ -227,10 +227,14 @@ describe('PR37 rail geometry', () => {
     assert.equal(built.shape, 'north_south');
   });
 
-  it('rails do not occlude as full cubes', () => {
+  it('rails are not full-cube occluders and do not cull supporting stone tops', () => {
     const model = resolveBlockModel(ref('minecraft:rail', { rail_direction: 0 }))!;
     assert.equal(model.isFullCube, false);
-    assert.equal(isFaceFullyOccluded(model, 'up'), false);
+    assert.ok(model.occlusionBoxes.every((b) => b.max[1] - b.min[1] < 0.1));
+    const stone = resolveBlockModel(ref('minecraft:stone'))!;
+    // Rail plane at y=1/16 must not cull the stone below (shared plane is y=0).
+    assert.equal(isFaceFullyOccluded(stone.renderBoxes[0]!, 'up', model), false);
+    assert.equal(isFaceFullyOccluded(stone.renderBoxes[0]!, 'north', model), false);
   });
 });
 

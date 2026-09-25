@@ -116,6 +116,9 @@ export function isFaceFullyOccluded(
 
   const back = opposite(face);
   for (const nbox of neighbour.occlusionBoxes) {
+    // Neighbour cover must also lie on the shared unit plane (y=0/1 etc).
+    // Interior plates (rail at y=1/16, slab tops, …) must not cull adjacent cells.
+    if (!faceLiesOnUnitSharedPlane(nbox, back)) continue;
     const cover = faceRect(nbox, back);
     if (cover && rectCovers(cover, target)) return true;
   }

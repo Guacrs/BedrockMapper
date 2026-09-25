@@ -585,7 +585,7 @@ Bedrock has no separate floor Y-rotation — footprint orientation is fixed. Tex
 
 **Powered:** `rail_data_bit` selects powered vs unpowered **texture** (appearance up vs down); geometry is shared.
 
-**Validation:** `test/block-models-pr37.test.ts` + fixture (incl. chunk-boundary) + `report-model-fixture --assert`.
+**Validation:** `test/block-models-pr37.test.ts` (439 suite) + fixture (incl. chunk-boundary EW at x=15/16) + `report-model-fixture --assert`. Visual: flat / ascending / corner / powered gold+detector plates confirmed after terrain `alphaTest` cutout.
 
 **Next:** tripwire hooks / signs / chains / candles, then BlockLight/SkyLight.
 
