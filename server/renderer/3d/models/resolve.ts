@@ -102,12 +102,23 @@ function cacheKey(
   }
   if (isStairName(ref.name)) {
     const corner = ref.states['minecraft:corner'];
-    if (corner !== undefined && corner !== 'none') {
-      return `full_cube:fallback_corner:${ref.name}`;
-    }
+    const cornerKey =
+      corner === undefined || corner === 'none' ? 'none' : String(corner);
     const weirdo = ref.states['weirdo_direction'];
     const up = ref.states['upside_down_bit'] === true ? 'top' : 'bottom';
-    return `stair:${String(weirdo)}:${up}:${ref.name}`;
+    // Unknown corners still resolve via tryBuildStair → full-cube fallback;
+    // cache key must include the raw corner so retries stay distinct.
+    if (
+      corner !== undefined &&
+      corner !== 'none' &&
+      corner !== 'inner_left' &&
+      corner !== 'inner_right' &&
+      corner !== 'outer_left' &&
+      corner !== 'outer_right'
+    ) {
+      return `full_cube:fallback_corner:${cornerKey}:${ref.name}`;
+    }
+    return `stair:${String(weirdo)}:${up}:${cornerKey}:${ref.name}`;
   }
   return `full_cube:${ref.name}`;
 }

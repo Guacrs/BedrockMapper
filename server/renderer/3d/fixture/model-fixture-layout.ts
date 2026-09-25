@@ -314,6 +314,110 @@ export function modelFixtureCells(): readonly FixtureCell[] {
   );
   place('cactus', 18, 36, b('minecraft:cactus', { age: 0 }), 'cactus inset');
 
+  // --- PR32 stair corners (z=40) ---
+  // Straight facings already live at z=4; this pad covers corner shapes.
+  place(
+    'stair-corner-outer-r',
+    2,
+    40,
+    b('minecraft:oak_stairs', {
+      weirdo_direction: 0,
+      upside_down_bit: false,
+      'minecraft:corner': 'outer_right',
+    }),
+    'stair outer_right east',
+  );
+  place(
+    'stair-corner-outer-l',
+    4,
+    40,
+    b('minecraft:oak_stairs', {
+      weirdo_direction: 0,
+      upside_down_bit: false,
+      'minecraft:corner': 'outer_left',
+    }),
+    'stair outer_left east',
+  );
+  place(
+    'stair-corner-inner-r',
+    6,
+    40,
+    b('minecraft:oak_stairs', {
+      weirdo_direction: 0,
+      upside_down_bit: false,
+      'minecraft:corner': 'inner_right',
+    }),
+    'stair inner_right east',
+  );
+  place(
+    'stair-corner-inner-l',
+    8,
+    40,
+    b('minecraft:oak_stairs', {
+      weirdo_direction: 0,
+      upside_down_bit: false,
+      'minecraft:corner': 'inner_left',
+    }),
+    'stair inner_left east',
+  );
+  place(
+    'stair-corner-outer-r-s',
+    10,
+    40,
+    b('minecraft:oak_stairs', {
+      weirdo_direction: 2,
+      upside_down_bit: false,
+      'minecraft:corner': 'outer_right',
+    }),
+    'stair outer_right south',
+  );
+  place(
+    'stair-corner-outer-r-up',
+    12,
+    40,
+    b('minecraft:oak_stairs', {
+      weirdo_direction: 0,
+      upside_down_bit: true,
+      'minecraft:corner': 'outer_right',
+    }),
+    'stair outer_right upside-down',
+  );
+  // Corner adjacent to full cube (east of corner)
+  place(
+    'stair-corner-to-cube',
+    14,
+    40,
+    b('minecraft:oak_stairs', {
+      weirdo_direction: 0,
+      upside_down_bit: false,
+      'minecraft:corner': 'outer_left',
+    }),
+    'stair corner → stone',
+  );
+  place('stair-corner-to-cube-n', 15, 40, b('minecraft:stone'));
+  // Corner adjacent to another stair (straight)
+  place(
+    'stair-corner-to-stair',
+    18,
+    40,
+    b('minecraft:oak_stairs', {
+      weirdo_direction: 0,
+      upside_down_bit: false,
+      'minecraft:corner': 'inner_right',
+    }),
+    'stair corner → straight stair',
+  );
+  place(
+    'stair-corner-to-stair-e',
+    19,
+    40,
+    b('minecraft:oak_stairs', {
+      weirdo_direction: 0,
+      upside_down_bit: false,
+      'minecraft:corner': 'none',
+    }),
+  );
+
   // --- Mixed neighborhood showcase (z=32), straddling x=16 ---
   //
   //           wall
@@ -346,7 +450,7 @@ export function modelFixtureExpectations(): readonly FixtureExpectation[] {
     { id: 'slab-bottom', family: 'slab', isFullCube: false, modelKeyPrefix: 'slab:bottom:' },
     { id: 'slab-top', family: 'slab', isFullCube: false, modelKeyPrefix: 'slab:top:' },
     { id: 'slab-double', family: 'full_cube', isFullCube: true, modelKeyPrefix: 'full_cube:' },
-    { id: 'stair-east', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:' },
+    { id: 'stair-east', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:none:' },
     { id: 'fence-isolated', family: 'fence', isFullCube: false, mask: { north: false, east: false, south: false, west: false }, modelKeyPrefix: 'fence:n0e0s0w0:' },
     { id: 'fence-n-post', family: 'fence', isFullCube: false, mask: { north: true, east: false, south: false, west: false }, modelKeyPrefix: 'fence:n1e0s0w0:' },
     { id: 'fence-corner', family: 'fence', isFullCube: false, mask: { north: true, east: true, south: false, west: false } },
@@ -376,6 +480,14 @@ export function modelFixtureExpectations(): readonly FixtureExpectation[] {
     { id: 'torch-floor', family: 'torch', isFullCube: false, modelKeyPrefix: 'torch:top:' },
     { id: 'torch-wall', family: 'torch', isFullCube: false, modelKeyPrefix: 'torch:west:' },
     { id: 'cactus', family: 'cactus', isFullCube: false, modelKeyPrefix: 'cactus:' },
+    { id: 'stair-corner-outer-r', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:outer_right:' },
+    { id: 'stair-corner-outer-l', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:outer_left:' },
+    { id: 'stair-corner-inner-r', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:inner_right:' },
+    { id: 'stair-corner-inner-l', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:inner_left:' },
+    { id: 'stair-corner-outer-r-s', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:south:bottom:outer_right:' },
+    { id: 'stair-corner-outer-r-up', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:top:outer_right:' },
+    { id: 'stair-corner-to-cube', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:outer_left:' },
+    { id: 'stair-corner-to-stair', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:inner_right:' },
   ]);
 }
 

@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR29 frozen in beta · **PR30** coverage-driven common geometry (this PR).
+**Status:** PR19–PR30 frozen in beta · PR31 textures draft (separate) · **PR32** complete stair corners (this PR).
 
 **Frozen predecessors:**
 
@@ -20,7 +20,8 @@
 | **PR27** | Model-system audit + coverage inventory A–K (**frozen**, in beta) |
 | **PR28** | Constructed Bedrock fixture world + model-resolution report (**frozen**, in beta) |
 | **PR29** | Occlusion shared-plane gate + fixture-driven visual/integration fixes (**frozen**, in beta) |
-| **PR30** | Coverage-driven common geometry (carpet, plate, snow, ladder, torch, cactus) |
+| **PR30** | Coverage-driven common geometry (carpet, plate, snow, ladder, torch, cactus) (**frozen**, in beta) |
+| **PR32** | Complete stair corner models (`minecraft:corner`) |
 
 ### PR20 implemented
 
@@ -41,7 +42,7 @@
   - Evidence: Minecraft Wiki Stairs/BS (Bedrock table); cairn-lang-formats cites the same listing; Bedrock `/fill` recipes use +X/−X/+Z/−Z
   - Sample JSON only lists ints 0–3 — labels are **not** in mojang-blocks.json
 - Geometry: base east bottom stair (lower slab + east upper step) → `rotateModelY` → optional `flipModelY`
-- Unsupported `minecraft:corner` ≠ `none` → **full-cube fallback** (no silent wrong straight stair)
+- Corner shapes (`minecraft:corner` ≠ `none`) → **PR32** (no longer full-cube fallback for supported values)
 - UVs: unit-cell density crop on partial box faces (shared helper with slabs)
 - Occlusion: unchanged PR20 Option A
 
@@ -263,7 +264,7 @@ Automated report: `server/renderer/3d/models/coverage.ts` + `test/block-model-co
 |------|----------|---------|
 | A | Full cube | Explicit default cube model |
 | B | Slab | Explicit single-slab model |
-| C | Stair | Explicit straight stair (corners → full-cube fallback) |
+| C | Stair | Explicit straight + corner stairs (`minecraft:corner`) |
 | D | Fence | Explicit connected fence |
 | E | Pane / iron bar | Explicit connected pane |
 | F | Door | Explicit state-driven door |
@@ -360,10 +361,45 @@ decodeSubChunk → ChunkBlocks → contextual resolve → mesh → Three.js view
 
 **Validation:** `test/block-models-pr30.test.ts` + fixture cells at z=36 + coverage inventory.
 
-**Not in PR30:** per-face texture redesign (PR31), lighting/emissive (PR32), light propagation (PR33).
+**Not in PR30:** per-face texture redesign (PR31), stair corners (PR32), lighting/emissive (PR33), light propagation (PR34).
 
 ---
 
+## 23. Complete stair corner models (PR32)
+
+**Goal:** replace the PR21 full-cube fallback for `minecraft:corner` ≠ `none` with correct Bedrock corner geometry. No texture/lighting work.
+
+### Bedrock state research
+
+| State | Domain | Evidence |
+|-------|--------|----------|
+| `weirdo_direction` | 0=east, 1=west, 2=south, 3=north | Wiki Stairs/BS Bedrock table; PR21 |
+| `upside_down_bit` | bool | Wiki + mojang-blocks |
+| `minecraft:corner` | `none`, `inner_left`, `inner_right`, `outer_left`, `outer_right` | mojang-blocks.json enum; Wiki Stairs/BS Bedrock (Preview 26.50+); Microsoft Learn `placement_direction` trait |
+
+Left/right are relative to looking along the `weirdo_direction` facing (Java-parity convention Bedrock adopted when exposing the corner state): facing east → left = north (−Z), right = south (+Z).
+
+Missing `minecraft:corner` → treat as `none` (straight). Unknown string values → full-cube fallback (never silent wrong corners).
+
+### Geometry strategy
+
+Canonical **east + bottom** boxes per shape, then `rotateModelY` / `flipModelY`:
+
+| Corner | Boxes (east-bottom) |
+|--------|---------------------|
+| `none` | lower slab + east upper half |
+| `outer_left` | lower + NE upper quarter |
+| `outer_right` | lower + SE upper quarter |
+| `inner_left` | lower + east upper half + NW west quarter |
+| `inner_right` | lower + east upper half + SW west quarter |
+
+All corner stairs keep `isFullCube: false`. Occlusion uses existing PR29 shared-plane Option A — no ThinBlock.
+
+**Validation:** `test/block-models-stair.test.ts` (PR32 suite) + fixture cells at z=40 + `report-model-fixture --assert`.
+
+**Out of scope:** textures (PR31), lighting, water, LOD, unrelated families.
+
+---
 ## 1. Current architecture
 
 
@@ -384,7 +420,7 @@ MeshChunk { positions, normals, colors, uvs, indices }
 Three.js
 ```
 
-**PR20–26 geometry:** full cubes + slabs + straight stairs + fences + panes/bars + doors + trapdoors + cross plants + walls. Double plants / vines / etc. still use the full-cube fallback. Corner stairs fall back to full cube.
+**PR20–32 geometry:** full cubes + slabs + straight **and corner** stairs + fences + panes/bars + doors + trapdoors + cross plants + walls + PR30 thin families. Double plants / vines / etc. still use the full-cube fallback.
 
 ---
 
