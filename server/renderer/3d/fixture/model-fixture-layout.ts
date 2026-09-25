@@ -273,6 +273,47 @@ export function modelFixtureCells(): readonly FixtureCell[] {
   place('cross-mix-wall', 17, 28, b('minecraft:cobblestone_wall'));
   place('cross-mix-pane', 18, 28, b('minecraft:glass_pane'));
 
+  // --- PR30 common geometry pad (z=36) ---
+  place('carpet-red', 2, 36, b('minecraft:red_carpet'), 'carpet 1px');
+  place(
+    'plate-up',
+    4,
+    36,
+    b('minecraft:stone_pressure_plate', { redstone_signal: 0 }),
+    'pressure plate up',
+  );
+  place(
+    'plate-down',
+    6,
+    36,
+    b('minecraft:oak_pressure_plate', { redstone_signal: 1 }),
+    'pressure plate pressed',
+  );
+  place('snow-1', 8, 36, b('minecraft:snow_layer', { height: 0 }), 'snow 1 layer');
+  place('snow-4', 10, 36, b('minecraft:snow_layer', { height: 3 }), 'snow 4 layers');
+  place(
+    'ladder-n',
+    12,
+    36,
+    b('minecraft:ladder', { facing_direction: 2 }),
+    'ladder facing north',
+  );
+  place(
+    'torch-floor',
+    14,
+    36,
+    b('minecraft:torch', { torch_facing_direction: 'top' }),
+    'floor torch',
+  );
+  place(
+    'torch-wall',
+    16,
+    36,
+    b('minecraft:soul_torch', { torch_facing_direction: 'west' }),
+    'wall torch',
+  );
+  place('cactus', 18, 36, b('minecraft:cactus', { age: 0 }), 'cactus inset');
+
   // --- Mixed neighborhood showcase (z=32), straddling x=16 ---
   //
   //           wall
@@ -326,6 +367,15 @@ export function modelFixtureExpectations(): readonly FixtureExpectation[] {
     { id: 'wall-boundary-w', family: 'wall', isFullCube: false, mask: { north: false, east: true, south: false, west: false } },
     { id: 'cross-grass', family: 'cross', isFullCube: false, modelKeyPrefix: 'cross:' },
     { id: 'mix-centre', family: 'wall', isFullCube: false, mask: { north: true, east: true, south: true, west: false }, post: true, tall: false },
+    { id: 'carpet-red', family: 'carpet', isFullCube: false, modelKeyPrefix: 'carpet:' },
+    { id: 'plate-up', family: 'pressure_plate', isFullCube: false, modelKeyPrefix: 'pressure_plate:up:' },
+    { id: 'plate-down', family: 'pressure_plate', isFullCube: false, modelKeyPrefix: 'pressure_plate:down:' },
+    { id: 'snow-1', family: 'snow_layer', isFullCube: false, modelKeyPrefix: 'snow_layer:h1:' },
+    { id: 'snow-4', family: 'snow_layer', isFullCube: false, modelKeyPrefix: 'snow_layer:h4:' },
+    { id: 'ladder-n', family: 'ladder', isFullCube: false, modelKeyPrefix: 'ladder:north:' },
+    { id: 'torch-floor', family: 'torch', isFullCube: false, modelKeyPrefix: 'torch:top:' },
+    { id: 'torch-wall', family: 'torch', isFullCube: false, modelKeyPrefix: 'torch:west:' },
+    { id: 'cactus', family: 'cactus', isFullCube: false, modelKeyPrefix: 'cactus:' },
   ]);
 }
 

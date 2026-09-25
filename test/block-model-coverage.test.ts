@@ -32,6 +32,9 @@ describe('model family coverage inventory', () => {
     assert.equal(classifyBlockModelCoverage('minecraft:cobblestone_wall')?.family, 'wall');
     assert.equal(classifyBlockModelCoverage('minecraft:short_grass')?.family, 'cross');
     assert.equal(classifyBlockModelCoverage('minecraft:short_grass')?.implementation, 'explicit');
+    assert.equal(classifyBlockModelCoverage('minecraft:red_carpet')?.family, 'carpet');
+    assert.equal(classifyBlockModelCoverage('minecraft:torch')?.family, 'torch');
+    assert.equal(classifyBlockModelCoverage('minecraft:snow_layer')?.family, 'snow_layer');
     assert.equal(classifyBlockModelCoverage('minecraft:tall_grass')?.family, 'future');
     assert.equal(classifyBlockModelCoverage('minecraft:lectern')?.family, 'future');
     assert.equal(classifyBlockModelCoverage('minecraft:air'), null);
@@ -49,6 +52,9 @@ describe('model family coverage inventory', () => {
     assert.ok(summary.byFamily.fence >= 5);
     assert.ok(summary.byFamily.pane >= 1);
     assert.ok(summary.byFamily.cross >= 10, 'PR25 allowlist plants');
+    assert.ok(summary.byFamily.carpet >= 10, 'PR30 carpets');
+    assert.ok(summary.byFamily.pressure_plate >= 5, 'PR30 pressure plates');
+    assert.ok(summary.byFamily.torch >= 1, 'PR30 torches');
     assert.ok(summary.byFamily.full_cube >= 50);
     assert.ok(summary.byFamily.future >= 5);
     // Explicit families include cube/slab/stair/fence/pane/door/trapdoor/wall/cross

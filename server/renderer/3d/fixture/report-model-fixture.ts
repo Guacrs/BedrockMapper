@@ -11,12 +11,18 @@ import {
   isContextualConnectedName,
   wallShapeAtWorld,
 } from '../models/contextual.ts';
+import { isCactusName } from '../models/families/cactus.ts';
+import { isCarpetName } from '../models/families/carpet.ts';
 import { isCrossName } from '../models/families/cross.ts';
 import { isDoorName } from '../models/families/door.ts';
 import { isFenceName } from '../models/families/fence.ts';
+import { isLadderName } from '../models/families/ladder.ts';
 import { isPaneName } from '../models/families/pane.ts';
+import { isPressurePlateName } from '../models/families/pressure-plate.ts';
 import { isSingleSlabName } from '../models/families/slab.ts';
+import { isSnowLayerName } from '../models/families/snow-layer.ts';
 import { isStairName } from '../models/families/stair.ts';
+import { isTorchName } from '../models/families/torch.ts';
 import { isTrapdoorName } from '../models/families/trapdoor.ts';
 import { isWallName } from '../models/families/wall.ts';
 import { resolveBlockModel, resetBlockModelCache } from '../models/resolve.ts';
@@ -61,6 +67,12 @@ function familyOf(name: string): string {
   if (isSingleSlabName(name)) return 'slab';
   if (isStairName(name)) return 'stair';
   if (isCrossName(name)) return 'cross';
+  if (isCarpetName(name)) return 'carpet';
+  if (isPressurePlateName(name)) return 'pressure_plate';
+  if (isSnowLayerName(name)) return 'snow_layer';
+  if (isLadderName(name)) return 'ladder';
+  if (isTorchName(name)) return 'torch';
+  if (isCactusName(name)) return 'cactus';
   if (name.includes('double_slab') || name.includes('double_cut_')) return 'full_cube';
   return 'full_cube';
 }
