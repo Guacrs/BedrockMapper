@@ -521,7 +521,7 @@ Bedrock has no separate floor Y-rotation — footprint orientation is fixed. Tex
 
 **Support neighbours:** geometry does **not** depend on neighbour solidity. Floating buttons (support removed) still render from stored state — out of scope for a generalized attach system.
 
-**Validation:** `test/block-models-pr35.test.ts` + fixture cells at z=48 + `report-model-fixture --assert`.
+**Validation:** `test/block-models-pr35.test.ts` + fixture cells at z=46 + `report-model-fixture --assert`.
 
 **Next:** PR36 levers → PR37 rails, then BlockLight/SkyLight propagation.
 

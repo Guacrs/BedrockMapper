@@ -347,19 +347,19 @@ export function modelFixtureCells(): readonly FixtureCell[] {
   place('lantern-hanging-support', 4, 44, b('minecraft:stone'), undefined, y + 1);
   place('soul-lantern-hanging-support', 8, 44, b('minecraft:stone'), undefined, y + 1);
 
-  // --- PR35 buttons (z=48) ---
+  // --- PR35 buttons (z=46, still within chunk Z=0..2) ---
   // Floor (facing_direction=1): unpressed oak + pressed stone
   place(
     'button-floor-up',
     2,
-    48,
+    46,
     b('minecraft:wooden_button', { facing_direction: 1, button_pressed_bit: false }),
     'floor button unpressed',
   );
   place(
     'button-floor-down',
     4,
-    48,
+    46,
     b('minecraft:stone_button', { facing_direction: 1, button_pressed_bit: true }),
     'floor button pressed',
   );
@@ -367,41 +367,41 @@ export function modelFixtureCells(): readonly FixtureCell[] {
   place(
     'button-ceiling',
     6,
-    48,
+    46,
     b('minecraft:spruce_button', { facing_direction: 0, button_pressed_bit: false }),
     'ceiling button',
   );
-  place('button-ceiling-support', 6, 48, b('minecraft:stone'), undefined, y + 1);
+  place('button-ceiling-support', 6, 46, b('minecraft:stone'), undefined, y + 1);
   // Wall facings 2..5 on the sides of stone pillars
-  place('button-wall-n-support', 10, 47, b('minecraft:stone'));
+  place('button-wall-n-support', 10, 45, b('minecraft:stone'));
   place(
     'button-wall-n',
     10,
-    48,
+    46,
     b('minecraft:acacia_button', { facing_direction: 2, button_pressed_bit: false }),
     'wall button north',
   );
-  place('button-wall-s-support', 12, 49, b('minecraft:stone'));
+  place('button-wall-s-support', 12, 47, b('minecraft:stone'));
   place(
     'button-wall-s',
     12,
-    48,
+    46,
     b('minecraft:birch_button', { facing_direction: 3, button_pressed_bit: false }),
     'wall button south',
   );
-  place('button-wall-w-support', 13, 48, b('minecraft:stone'));
+  place('button-wall-w-support', 13, 46, b('minecraft:stone'));
   place(
     'button-wall-w',
     14,
-    48,
+    46,
     b('minecraft:stone_button', { facing_direction: 4, button_pressed_bit: false }),
     'wall button west',
   );
-  place('button-wall-e-support', 17, 48, b('minecraft:stone'));
+  place('button-wall-e-support', 17, 46, b('minecraft:stone'));
   place(
     'button-wall-e',
     16,
-    48,
+    46,
     b('minecraft:polished_blackstone_button', {
       facing_direction: 5,
       button_pressed_bit: true,
