@@ -73,6 +73,25 @@ export function applyModelBoxRotation(
   let px = x - ox;
   let py = y - oy;
   let pz = z - oz;
+  if (rotation.rescale) {
+    // Vanilla ±45° element rescale: stretch the plane so a unit square still
+    // spans the block after rotation (avoids cracks / short slopes).
+    const rs = Math.SQRT2;
+    switch (rotation.axis) {
+      case 'x':
+        py *= rs;
+        pz *= rs;
+        break;
+      case 'y':
+        px *= rs;
+        pz *= rs;
+        break;
+      case 'z':
+        px *= rs;
+        py *= rs;
+        break;
+    }
+  }
   const rad = (rotation.angle * Math.PI) / 180;
   const c = Math.cos(rad);
   const s = Math.sin(rad);
@@ -114,6 +133,7 @@ export function applyModelBoxRotationToNormal(
     origin: [0, 0, 0],
     axis: rotation.axis,
     angle: rotation.angle,
+    ...(rotation.rescale ? { rescale: true } : {}),
   });
   const len = Math.hypot(rx, ry, rz);
   if (len < 1e-12) return [nx, ny, nz];
@@ -134,6 +154,7 @@ function rotateRotationY(
     origin: Object.freeze([rx, oy, rz] as const),
     axis,
     angle: rotation.angle * sign,
+    ...(rotation.rescale ? { rescale: true } : {}),
   });
 }
 
@@ -198,6 +219,7 @@ function flipBoxY(box: ModelBox): ModelBox {
       origin: Object.freeze([ox, 1 - oy, oz] as const),
       axis: rotation.axis,
       angle,
+      ...(rotation.rescale ? { rescale: true } : {}),
     });
   }
   return Object.freeze({

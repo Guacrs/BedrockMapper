@@ -42,6 +42,12 @@ export interface ModelBoxRotation {
   readonly origin: readonly [number, number, number];
   readonly axis: 'x' | 'y' | 'z';
   readonly angle: number;
+  /**
+   * Minecraft model-element `rescale`: scale the two axes perpendicular to
+   * `axis` by √2 about the origin before rotating. Used by ±45° raised rails
+   * so the plane spans a full block after rotation.
+   */
+  readonly rescale?: boolean;
 }
 
 /**

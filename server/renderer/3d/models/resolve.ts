@@ -25,6 +25,13 @@ import { isLadderName, tryBuildLadder } from './families/ladder.ts';
 import { isLanternName, lanternIsHanging, lanternModel } from './families/lantern.ts';
 import { isLeverName, leverDirectionFromStates, leverIsOpen, tryBuildLever } from './families/lever.ts';
 import { isPaneName, paneModel } from './families/pane.ts';
+import {
+  isRailName,
+  railAllowsCorners,
+  railIsPowered,
+  railShapeFromStates,
+  tryBuildRail,
+} from './families/rail.ts';
 import { isPressurePlateName, pressurePlateIsPressed, pressurePlateModel } from './families/pressure-plate.ts';
 import { isDoubleSlabName, isSingleSlabName, slabModel } from './families/slab.ts';
 import { isSnowLayerName, snowLayerModel } from './families/snow-layer.ts';
@@ -94,6 +101,17 @@ function cacheKey(
   if (isLeverName(ref.name)) {
     const dir = leverDirectionFromStates(ref.states) ?? '?';
     return `lever:${dir}:${leverIsOpen(ref.states) ? 'on' : 'off'}`;
+  }
+  if (isRailName(ref.name)) {
+    const allowCorners = railAllowsCorners(ref.name);
+    const shape = railShapeFromStates(ref.states, allowCorners) ?? 'north_south';
+    // Match model key: powered-family uses on/off; normal rail is `plain`.
+    const poweredTag = allowCorners
+      ? 'plain'
+      : railIsPowered(ref.states)
+        ? 'on'
+        : 'off';
+    return `rail:${shape}:${poweredTag}:${ref.name}`;
   }
   if (isCactusName(ref.name)) {
     return `cactus:${ref.name}`;
@@ -201,6 +219,9 @@ export function resolveBlockModel(
   } else if (isLeverName(ref.name)) {
     const built = tryBuildLever(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
+  } else if (isRailName(ref.name)) {
+    const built = tryBuildRail(ref);
+    model = built.ok ? built.model : fullCubeModel(ref.name);
   } else if (isCactusName(ref.name)) {
     model = cactusModel(ref.name);
   } else if (isDoorName(ref.name)) {
@@ -249,6 +270,7 @@ export function neighbourIsFullCubeForConnection(ref: BlockRef | null): boolean 
     isLanternName(ref.name) ||
     isButtonName(ref.name) ||
     isLeverName(ref.name) ||
+    isRailName(ref.name) ||
     isCactusName(ref.name)
   ) {
     return false;

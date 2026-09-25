@@ -449,6 +449,105 @@ export function modelFixtureCells(): readonly FixtureCell[] {
     'wall lever west on',
   );
 
+  // --- PR37 rails (z=42) ---
+  // Stored rail_direction is authoritative. Neighbours illustrate adjacency /
+  // chunk-boundary cases for verification — they do not rewrite geometry.
+  place(
+    'rail-flat-ns',
+    2,
+    42,
+    b('minecraft:rail', { rail_direction: 0 }),
+    'flat north-south rail',
+  );
+  place(
+    'rail-flat-ew',
+    4,
+    42,
+    b('minecraft:rail', { rail_direction: 1 }),
+    'flat east-west rail',
+  );
+  place(
+    'rail-asc-e',
+    6,
+    42,
+    b('minecraft:rail', { rail_direction: 2 }),
+    'ascending east',
+  );
+  place(
+    'rail-asc-n',
+    8,
+    42,
+    b('minecraft:rail', { rail_direction: 4 }),
+    'ascending north',
+  );
+  place(
+    'rail-corner-se',
+    10,
+    42,
+    b('minecraft:rail', { rail_direction: 6 }),
+    'corner south-east',
+  );
+  place(
+    'rail-corner-nw',
+    12,
+    42,
+    b('minecraft:rail', { rail_direction: 8 }),
+    'corner north-west',
+  );
+  place(
+    'rail-powered-off',
+    24,
+    42,
+    b('minecraft:golden_rail', { rail_direction: 0, rail_data_bit: false }),
+    'golden rail unpowered NS',
+  );
+  place(
+    'rail-powered-on',
+    26,
+    42,
+    b('minecraft:golden_rail', { rail_direction: 1, rail_data_bit: true }),
+    'golden rail powered EW',
+  );
+  place(
+    'rail-detector',
+    28,
+    42,
+    b('minecraft:detector_rail', { rail_direction: 0, rail_data_bit: true }),
+    'detector rail powered',
+  );
+  place(
+    'rail-activator',
+    30,
+    42,
+    b('minecraft:activator_rail', { rail_direction: 5, rail_data_bit: false }),
+    'activator ascending south',
+  );
+  // Straight NS pair across chunk X boundary — stored direction keeps NS even
+  // when the opposite chunk is absent from a single-chunk neighborhood probe.
+  place(
+    'rail-boundary-w',
+    15,
+    42,
+    b('minecraft:rail', { rail_direction: 1 }),
+    'rail chunk boundary west (EW)',
+  );
+  place(
+    'rail-boundary-e',
+    16,
+    42,
+    b('minecraft:rail', { rail_direction: 1 }),
+    'rail chunk boundary east (EW)',
+  );
+  // Adjacent rail + non-rail: geometry still from stored state (not fence attach).
+  place(
+    'rail-beside-stone',
+    20,
+    42,
+    b('minecraft:rail', { rail_direction: 0 }),
+    'rail beside stone (non-rail adjacency)',
+  );
+  place('rail-beside-stone-cube', 21, 42, b('minecraft:stone'));
+
   // --- PR32 stair corners (z=40) ---
   // Straight facings already live at z=4; this pad covers corner shapes.
   place(
@@ -631,6 +730,19 @@ export function modelFixtureExpectations(): readonly FixtureExpectation[] {
     { id: 'lever-ceiling', family: 'lever', isFullCube: false, modelKeyPrefix: 'lever:down_north_south:off' },
     { id: 'lever-wall-n', family: 'lever', isFullCube: false, modelKeyPrefix: 'lever:wall:north:off' },
     { id: 'lever-wall-w', family: 'lever', isFullCube: false, modelKeyPrefix: 'lever:wall:west:on' },
+    { id: 'rail-flat-ns', family: 'rail', isFullCube: false, modelKeyPrefix: 'rail:north_south:plain:' },
+    { id: 'rail-flat-ew', family: 'rail', isFullCube: false, modelKeyPrefix: 'rail:east_west:plain:' },
+    { id: 'rail-asc-e', family: 'rail', isFullCube: false, modelKeyPrefix: 'rail:ascending_east:plain:' },
+    { id: 'rail-asc-n', family: 'rail', isFullCube: false, modelKeyPrefix: 'rail:ascending_north:plain:' },
+    { id: 'rail-corner-se', family: 'rail', isFullCube: false, modelKeyPrefix: 'rail:south_east:plain:' },
+    { id: 'rail-corner-nw', family: 'rail', isFullCube: false, modelKeyPrefix: 'rail:north_west:plain:' },
+    { id: 'rail-powered-off', family: 'rail', isFullCube: false, modelKeyPrefix: 'rail:north_south:off:' },
+    { id: 'rail-powered-on', family: 'rail', isFullCube: false, modelKeyPrefix: 'rail:east_west:on:' },
+    { id: 'rail-detector', family: 'rail', isFullCube: false, modelKeyPrefix: 'rail:north_south:on:' },
+    { id: 'rail-activator', family: 'rail', isFullCube: false, modelKeyPrefix: 'rail:ascending_south:off:' },
+    { id: 'rail-boundary-w', family: 'rail', isFullCube: false, modelKeyPrefix: 'rail:east_west:plain:' },
+    { id: 'rail-boundary-e', family: 'rail', isFullCube: false, modelKeyPrefix: 'rail:east_west:plain:' },
+    { id: 'rail-beside-stone', family: 'rail', isFullCube: false, modelKeyPrefix: 'rail:north_south:plain:' },
     { id: 'stair-corner-outer-r', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:outer_right:' },
     { id: 'stair-corner-outer-l', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:outer_left:' },
     { id: 'stair-corner-inner-r', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:inner_right:' },

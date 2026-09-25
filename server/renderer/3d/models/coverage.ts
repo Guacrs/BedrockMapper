@@ -24,6 +24,7 @@ import { isLanternName } from './families/lantern.ts';
 import { isLeverName } from './families/lever.ts';
 import { isPaneName } from './families/pane.ts';
 import { isPressurePlateName } from './families/pressure-plate.ts';
+import { isRailName } from './families/rail.ts';
 import { isDoubleSlabName, isSingleSlabName } from './families/slab.ts';
 import { isSnowLayerName } from './families/snow-layer.ts';
 import { isStairName } from './families/stair.ts';
@@ -51,6 +52,7 @@ export type ModelFamilyId =
   | 'lantern' // PR34
   | 'button' // PR35
   | 'lever' // PR36
+  | 'rail' // PR37
   | 'fallback' // J — safe full-cube used as stand-in
   | 'future'; // K — researched as needing custom geo later
 
@@ -115,10 +117,6 @@ const FUTURE_SHORT_IDS: ReadonlySet<string> = new Set([
   'chest',
   'trapped_chest',
   'ender_chest',
-  'rail',
-  'golden_rail',
-  'detector_rail',
-  'activator_rail',
   'tripwire_hook',
   'cactus_flower',
 ]);
@@ -209,6 +207,16 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
   if (isLeverName(name)) {
     return { name, family: 'lever', implementation: 'explicit' };
   }
+  if (isRailName(name)) {
+    return {
+      name,
+      family: 'rail',
+      implementation: 'explicit',
+      note: short === 'rail'
+        ? 'stored rail_direction authoritative; corners 6–9'
+        : 'rail_direction 0–5 + rail_data_bit texture; no corners',
+    };
+  }
   if (isCactusName(name)) {
     return { name, family: 'cactus', implementation: 'explicit' };
   }
@@ -255,6 +263,7 @@ export function summarizeCoverage(entries: readonly ModelCoverageEntry[]): Cover
     lantern: 0,
     button: 0,
     lever: 0,
+    rail: 0,
     fallback: 0,
     future: 0,
   } satisfies Record<ModelFamilyId, number>;

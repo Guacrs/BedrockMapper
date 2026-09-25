@@ -22,6 +22,7 @@ import { isLanternName } from '../models/families/lantern.ts';
 import { isLeverName } from '../models/families/lever.ts';
 import { isPaneName } from '../models/families/pane.ts';
 import { isPressurePlateName } from '../models/families/pressure-plate.ts';
+import { isRailName } from '../models/families/rail.ts';
 import { isSingleSlabName } from '../models/families/slab.ts';
 import { isSnowLayerName } from '../models/families/snow-layer.ts';
 import { isStairName } from '../models/families/stair.ts';
@@ -78,6 +79,7 @@ function familyOf(name: string): string {
   if (isLanternName(name)) return 'lantern';
   if (isButtonName(name)) return 'button';
   if (isLeverName(name)) return 'lever';
+  if (isRailName(name)) return 'rail';
   if (isCactusName(name)) return 'cactus';
   if (name.includes('double_slab') || name.includes('double_cut_')) return 'full_cube';
   return 'full_cube';
