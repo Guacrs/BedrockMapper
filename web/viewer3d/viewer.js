@@ -111,12 +111,15 @@ export class TerrainViewer3D {
     this.scene.add(this.terrainGroup);
 
     // Shared terrain material — vertex colours tint textures (or paint alone when no atlas).
+    // alphaTest discards cutout texels (cross plants, rails, …) so transparent
+    // atlas pixels do not shade black / write opaque depth.
     this.material = new THREE.MeshStandardMaterial({
       vertexColors: true,
       roughness: 0.92,
       metalness: 0.02,
       flatShading: false,
-      side: THREE.FrontSide,
+      side: THREE.DoubleSide,
+      alphaTest: 0.1,
     });
 
     // PR33: self-lit emitters (torch, glowstone, …). Strong emissive channel so
