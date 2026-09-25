@@ -2,9 +2,15 @@
  * Experimental Three.js voxel terrain viewer.
  *
  * Consumes GET /api/mesh/:dimension/:chunkX/:chunkZ and streams chunks around
- * the camera. One Mesh per Minecraft chunk, shared material. When a texture
- * atlas is available (`/api/textures/atlas.*`), faces are textured; otherwise
- * the viewer keeps the vertex-colour fallback.
+ * the camera. One Group per Minecraft chunk (terrain mesh + optional emissive
+ * sibling). Shared materials. When a texture atlas is available
+ * (`/api/textures/atlas.*`), faces are textured; otherwise the viewer keeps
+ * the vertex-colour fallback.
+ *
+ * PR33: emissive blocks (torch, glowstone, …) arrive on `mesh.emissive` and
+ * use a MeshStandardMaterial with an emissive channel so they visibly glow
+ * without baking light into terrain vertex colours. No Minecraft light
+ * propagation yet.
  *
  * Extension points for later PRs: players3d / markers3d can place objects using
  * minecraftToThree() without changing the terrain coordinate system.
@@ -35,6 +41,14 @@ export function meshToGeometry(mesh) {
   geometry.setIndex(mesh.indices);
   geometry.computeBoundingSphere();
   return geometry;
+}
+
+/**
+ * @param {object | null | undefined} buffers
+ * @returns {boolean}
+ */
+function hasMeshBuffers(buffers) {
+  return Boolean(buffers?.positions?.length && buffers?.indices?.length);
 }
 
 export class TerrainViewer3D {
@@ -96,7 +110,7 @@ export class TerrainViewer3D {
     this.terrainGroup.name = 'terrain';
     this.scene.add(this.terrainGroup);
 
-    // Shared material — vertex colours tint textures (or paint alone when no atlas).
+    // Shared terrain material — vertex colours tint textures (or paint alone when no atlas).
     this.material = new THREE.MeshStandardMaterial({
       vertexColors: true,
       roughness: 0.92,
@@ -105,11 +119,26 @@ export class TerrainViewer3D {
       side: THREE.FrontSide,
     });
 
+    // PR33: self-lit emitters (torch, glowstone, …). Emissive channel + warmer
+    // roughness so they read as glowing under the same hemisphere/sun lights.
+    this.emissiveMaterial = new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.55,
+      metalness: 0,
+      flatShading: false,
+      side: THREE.FrontSide,
+      emissive: new THREE.Color(0xffffff),
+      emissiveIntensity: 0.9,
+    });
+
     const hemi = new THREE.HemisphereLight(0xb1e1ff, 0x444422, 0.55);
     this.scene.add(hemi);
     const sun = new THREE.DirectionalLight(0xffffff, 0.95);
     sun.position.set(80, 120, 40);
     this.scene.add(sun);
+    // Soft fill so shadowed faces of emitters still show their emissive tint.
+    const fill = new THREE.AmbientLight(0x2a3040, 0.25);
+    this.scene.add(fill);
 
     this.controls = new OrbitControls(this.camera, this.renderer.domElement);
     this.controls.enableDamping = true;
@@ -119,7 +148,7 @@ export class TerrainViewer3D {
     this.controls.maxDistance = 1200;
     this.controls.screenSpacePanning = true;
 
-    /** @type {Map<string, THREE.Mesh>} */
+    /** @type {Map<string, THREE.Object3D>} */
     this._meshes = new Map();
 
     const center = options.center ?? { x: 0, z: 0 };
@@ -188,6 +217,8 @@ export class TerrainViewer3D {
         this._atlasTexture = texture;
         this.material.map = texture;
         this.material.needsUpdate = true;
+        this.emissiveMaterial.map = texture;
+        this.emissiveMaterial.needsUpdate = true;
         return true;
       } catch (error) {
         console.warn('[3d] texture atlas unavailable; using vertex colours', error);
@@ -273,20 +304,37 @@ export class TerrainViewer3D {
       // Non-empty but invalid JSON is a real failure — do not silently discard.
       throw new Error(`mesh JSON parse failed: ${error instanceof Error ? error.message : error}`);
     }
-    if (!mesh?.positions?.length || !mesh?.indices?.length) return false;
+    const hasTerrain = hasMeshBuffers(mesh);
+    const hasEmissive = hasMeshBuffers(mesh?.emissive);
+    if (!hasTerrain && !hasEmissive) return false;
     if (this._meshes.has(key)) return true;
 
-    const geometry = meshToGeometry(mesh);
-    const object = new THREE.Mesh(geometry, this.material);
-    object.name = `chunk:${key}`;
-    object.frustumCulled = true;
-    this.terrainGroup.add(object);
-    this._meshes.set(key, object);
+    const group = new THREE.Group();
+    group.name = `chunk:${key}`;
+
+    if (hasTerrain) {
+      const geometry = meshToGeometry(mesh);
+      const object = new THREE.Mesh(geometry, this.material);
+      object.name = `terrain:${key}`;
+      object.frustumCulled = true;
+      group.add(object);
+    }
+
+    if (hasEmissive) {
+      const geometry = meshToGeometry(mesh.emissive);
+      const object = new THREE.Mesh(geometry, this.emissiveMaterial);
+      object.name = `emissive:${key}`;
+      object.frustumCulled = true;
+      group.add(object);
+    }
+
+    this.terrainGroup.add(group);
+    this._meshes.set(key, group);
 
     if (this.debug) {
-      const helper = new THREE.BoxHelper(object, 0x30363d);
+      const helper = new THREE.BoxHelper(group, 0x30363d);
       helper.name = `bounds:${key}`;
-      object.userData.helper = helper;
+      group.userData.helper = helper;
       this.terrainGroup.add(helper);
     }
     return true;
@@ -301,7 +349,11 @@ export class TerrainViewer3D {
     const object = this._meshes.get(key);
     if (!object) return;
     this.terrainGroup.remove(object);
-    object.geometry.dispose();
+    object.traverse((child) => {
+      if (child.isMesh) {
+        child.geometry?.dispose();
+      }
+    });
     if (object.userData.helper) {
       this.terrainGroup.remove(object.userData.helper);
       object.userData.helper.geometry?.dispose();
@@ -363,6 +415,8 @@ export class TerrainViewer3D {
     }
     this.material.map = null;
     this.material.dispose();
+    this.emissiveMaterial.map = null;
+    this.emissiveMaterial.dispose();
     this._atlasTexture?.dispose();
     this._atlasTexture = null;
     this.controls.dispose();

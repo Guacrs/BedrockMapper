@@ -17,7 +17,8 @@ import {
   blockRefAtWorld,
   type VoxelNeighborhood,
 } from './chunk-blocks.ts';
-import { type MeshChunk } from './mesh-types.ts';
+import { blockLightingFor, isEmissiveBlock } from './lighting/block-lighting.ts';
+import { emptyMeshBuffers, type MeshBuffers, type MeshChunk } from './mesh-types.ts';
 import type { ConnectionMask } from './models/connection.ts';
 import {
   connectionMaskAtWorld,
@@ -253,6 +254,45 @@ function vertexRgb(
 }
 
 /**
+ * Vertex colours for the emissive mesh layer.
+ * Uses researched lightColor, scaled by emission so weak emitters (magma)
+ * read dimmer than glowstone without a custom shader.
+ */
+function emissiveVertexRgb(blockName: string): [number, number, number] {
+  const lit = blockLightingFor(blockName);
+  if (!lit || lit.emission <= 0) return [1, 1, 1];
+  const [lr, lg, lb] = lit.lightColor ?? ([1, 1, 1] as const);
+  // Keep a floor so low-emission blocks still tint; scale up to full at emission=1.
+  const scale = 0.35 + 0.65 * lit.emission;
+  return [lr * scale, lg * scale, lb * scale];
+}
+
+function emitFace(
+  target: MeshBuffers,
+  worldX: number,
+  worldY: number,
+  worldZ: number,
+  box: ModelBox,
+  face: FaceDef,
+  r: number,
+  g: number,
+  b: number,
+  cornerUvs: readonly (readonly [number, number])[],
+): void {
+  const base = target.positions.length / 3;
+  for (let i = 0; i < 4; i++) {
+    const [a, bParam] = face.corners[i]!;
+    const [lx2, ly2, lz2] = cornerWorld(box, face.id, a, bParam);
+    const [u, v] = cornerUvs[i]!;
+    target.positions.push(worldX + lx2, worldY + ly2, worldZ + lz2);
+    target.normals.push(face.nx, face.ny, face.nz);
+    target.colors.push(r, g, b);
+    target.uvs.push(u, v);
+  }
+  target.indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+}
+
+/**
  * Resolve the model at a world cell. Intrinsic models are cached by BlockRef
  * identity (palette-stable). Contextual connected models (fence/pane) are
  * cached by name+mask because the same palette entry can differ per cell.
@@ -330,17 +370,17 @@ function neighbourModel(
 /**
  * Build an indexed box-face mesh for one chunk. Empty when there is nothing
  * solid to draw.
+ *
+ * PR33: faces of emissive blocks (`isEmissiveBlock`) go into `mesh.emissive`
+ * so the viewer can apply a separate emissive material. Occlusion is unchanged.
  */
 export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: VoxelNeighborhood): MeshChunk {
-  const positions: number[] = [];
-  const normals: number[] = [];
-  const colors: number[] = [];
-  const uvs: number[] = [];
-  const indices: number[] = [];
+  const terrain = emptyMeshBuffers();
+  const emissive = emptyMeshBuffers();
 
   const self = neighborhood.self;
   if (!self) {
-    return { chunkX, chunkZ, positions, normals, colors, uvs, indices };
+    return { chunkX, chunkZ, ...terrain };
   }
 
   const atlas = loadAtlasMetadata();
@@ -370,6 +410,9 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
           );
           if (!model) continue;
 
+          const selfLit = isEmissiveBlock(ref.name);
+          const target = selfLit ? emissive : terrain;
+
           for (const box of model.renderBoxes) {
             for (const face of FACES) {
               if (!box.faces[face.id]) continue;
@@ -389,7 +432,9 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
               const rect =
                 atlas && textureKey ? uvRectForKey(atlas, textureKey) : null;
               const hasTexture = rect != null;
-              const [r, g, b] = vertexRgb(ref.name, hasTexture, textureKey);
+              const [r, g, b] = selfLit
+                ? emissiveVertexRgb(ref.name)
+                : vertexRgb(ref.name, hasTexture, textureKey);
               const cornerUvs = rect
                 ? faceCornerUvsForBox(rect, face.id, box)
                 : ([
@@ -399,17 +444,7 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
                     [0, 0],
                   ] as const);
 
-              const base = positions.length / 3;
-              for (let i = 0; i < 4; i++) {
-                const [a, bParam] = face.corners[i]!;
-                const [lx2, ly2, lz2] = cornerWorld(box, face.id, a, bParam);
-                const [u, v] = cornerUvs[i]!;
-                positions.push(worldX + lx2, worldY + ly2, worldZ + lz2);
-                normals.push(face.nx, face.ny, face.nz);
-                colors.push(r, g, b);
-                uvs.push(u, v);
-              }
-              indices.push(base, base + 1, base + 2, base, base + 2, base + 3);
+              emitFace(target, worldX, worldY, worldZ, box, face, r, g, b, cornerUvs);
             }
           }
         }
@@ -417,12 +452,29 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
     }
   }
 
-  return { chunkX, chunkZ, positions, normals, colors, uvs, indices };
+  const mesh: MeshChunk = {
+    chunkX,
+    chunkZ,
+    positions: terrain.positions,
+    normals: terrain.normals,
+    colors: terrain.colors,
+    uvs: terrain.uvs,
+    indices: terrain.indices,
+  };
+  if (emissive.positions.length > 0) {
+    mesh.emissive = emissive;
+  }
+  return mesh;
 }
 
-/** Exported for tests — face count helpers. */
+/** Exported for tests — terrain face count (emissive layer excluded). */
 export function countFaces(mesh: MeshChunk): number {
   return mesh.indices.length / 6;
+}
+
+/** Exported for tests — emissive-layer face count. */
+export function countEmissiveFaces(mesh: MeshChunk): number {
+  return mesh.emissive ? mesh.emissive.indices.length / 6 : 0;
 }
 
 export { FACES as VOXEL_FACES, blockAtWorld, blockRefAtWorld };

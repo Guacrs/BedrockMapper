@@ -136,7 +136,7 @@ describe('PR30 torch', () => {
     assert.equal(torchFacingFromStates({}), 'top');
 
     resetBlockModelCache();
-    // Floor: upright cross, height 10/16 — no emissive (PR32).
+    // Floor: upright cross, height 10/16 — no emissive (PR33).
     const floor = torchModel({ name: 'minecraft:torch', states: { torch_facing_direction: 'top' } });
     assert.equal(floor.renderBoxes.length, 2);
     assert.equal(floor.isFullCube, false);

@@ -13,7 +13,7 @@
  * - Floor geometry: two thin vertical planes (same footprint idea as
  *   `minecraft:geometry.cross`, height 10/16 for the stick).
  * - Wall geometry: thin stick protruding inward from the attachment face.
- * - **No emissive / light emission here** — that is PR32.
+ * - **No emissive / light emission here** — that is PR33.
  * - Lanterns / chains stay in coverage category K (not this family).
  */
 
