@@ -478,7 +478,7 @@ export function modelFixtureExpectations(): readonly FixtureExpectation[] {
     { id: 'snow-4', family: 'snow_layer', isFullCube: false, modelKeyPrefix: 'snow_layer:h4:' },
     { id: 'ladder-n', family: 'ladder', isFullCube: false, modelKeyPrefix: 'ladder:north:' },
     { id: 'torch-floor', family: 'torch', isFullCube: false, modelKeyPrefix: 'torch:top:' },
-    { id: 'torch-wall', family: 'torch', isFullCube: false, modelKeyPrefix: 'torch:west:' },
+    { id: 'torch-wall', family: 'torch', isFullCube: false, modelKeyPrefix: 'torch:wall:west:' },
     { id: 'cactus', family: 'cactus', isFullCube: false, modelKeyPrefix: 'cactus:' },
     { id: 'stair-corner-outer-r', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:outer_right:' },
     { id: 'stair-corner-outer-l', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:outer_left:' },

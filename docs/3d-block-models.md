@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR31 frozen in beta · **PR32** complete stair corners (this PR).
+**Status:** PR19–PR33 frozen in beta · Next: coverage pass (lanterns, buttons, …) then light propagation.
 
 **Frozen predecessors:**
 
@@ -22,7 +22,8 @@
 | **PR29** | Occlusion shared-plane gate + fixture-driven visual/integration fixes (**frozen**, in beta) |
 | **PR30** | Coverage-driven common geometry (carpet, plate, snow, ladder, torch, cactus) (**frozen**, in beta) |
 | **PR31** | Accurate per-face textures (cardinals, facing, UV density, tint safety) (**frozen**, in beta) |
-| **PR32** | Complete stair corner models (`minecraft:corner`) |
+| **PR32** | Complete stair corner models (`minecraft:corner`) (**frozen**, in beta) |
+| **PR33** | Rendered lighting + emissive materials (no light propagation) (**frozen**, in beta) |
 ### PR20 implemented
 
 - `ChunkBlocks` palette stores immutable `BlockRef { name, states }` (NBT `version` still dropped)
@@ -353,7 +354,7 @@ decodeSubChunk → ChunkBlocks → contextual resolve → mesh → Three.js view
 | Pressure plate | `families/pressure-plate.ts` | `redstone_signal` → pressed height | inset 14×14 footprint |
 | Snow layer | `families/snow-layer.ts` | `height` 0..7 → layers 1..8 × 2px | `covered_bit` ignored; not `minecraft:snow` |
 | Ladder | `families/ladder.ts` | `facing_direction` 2..5 | 0/1/missing → full-cube fallback |
-| Torch | `families/torch.ts` | `torch_facing_direction` | floor cross + wall stub on **attachment** face (Microsoft); **no emissive** (PR32); lanterns stay **K** |
+| Torch | `families/torch.ts` | `torch_facing_direction` | floor cross + wall stub on **attachment** face (Microsoft); **no emissive** (PR33); lanterns stay **K** |
 | Cactus | `families/cactus.ts` | `age` ignored for geometry | 1px side inset; `cactus_flower` stays research |
 
 **Still J (fallback):** fence gates (attach-only).  
@@ -388,7 +389,7 @@ BlockRef → model family → ModelFace → Bedrock texture → atlas frame → 
 
 ---
 
-## 24. Complete stair corner models (PR32)
+## 24. Complete stair corner models (PR32) — **frozen**
 
 **Goal:** replace the PR21 full-cube fallback for `minecraft:corner` ≠ `none` with correct Bedrock corner geometry. No texture/lighting work.
 
@@ -422,7 +423,40 @@ All corner stairs keep `isFullCube: false`. Occlusion uses existing PR29 shared-
 
 **Out of scope:** textures (PR31), lighting, water, LOD, unrelated families.
 
-**Next:** PR33 lighting + emissive (rendered lights; not full Minecraft light propagation yet).
+---
+
+## 25. Rendered lighting + emissive materials (PR33) — **frozen**
+
+**Goal:** make self-lit blocks (torch, glowstone, …) visibly glow in the Three.js viewer. Establish the lighting pipeline without Minecraft BlockLight / SkyLight propagation.
+
+```text
+BlockRef.name
+    ↓  blockLightingFor / isEmissiveBlock
+emission + lightColor
+    ↓  voxel-mesh-builder routes faces
+MeshChunk.terrain  |  MeshChunk.emissive?
+    ↓                      ↓
+MeshStandardMaterial   MeshStandardMaterial
+(no emissive)          (emissiveIntensity > 0)
+```
+
+| Change | Detail |
+|--------|--------|
+| Catalog | `lighting/block-lighting.ts` — Bedrock light levels 0–15 → emission 0..1; optional RGB tint |
+| Mesher | Emissive faces → `mesh.emissive` sibling; terrain stays separate; occlusion unchanged |
+| Vertex colours | Emissive layer uses `lightColor` scaled by emission (not map tint bake) |
+| Viewer | Shared `emissiveMaterial` (MeshStandardMaterial + emissive channel); per-chunk Group |
+| Lights | Existing hemisphere + directional; soft AmbientLight fill for shadowed emitter faces |
+| Non-emissive | `unlit_redstone_torch` (emission 0) stays on terrain |
+| Wall torch | Canonical west-attached 2×10×2 stick at −22.5° (ModelBox `rotation`), `rotateModelY` for N/E/S/W; sprite UV crop; not an AABB stub |
+
+**Known minor imperfection (accepted):** wall-torch vertical faces only — the small top/inside face of the canted stick is untextured, so a thin open edge can show at some angles. Correct cantilevered orientation matters more; closing that face is deferred (not worth holding the freeze).
+
+**Out of scope:** BlockLight / SkyLight propagation, per-face light maps, water caustics, LOD, inventing glow for decorative blocks without Bedrock emission evidence.
+
+**Validation:** `test/block-models-pr33.test.ts` + wall-torch cantilever visual check.
+
+**Next:** coverage pass for remaining common non-cubes (lanterns, buttons, levers, rails, …) — evidence-driven family PRs, no lighting architecture changes — then BlockLight/SkyLight propagation.
 
 ---
 ## 1. Current architecture
@@ -440,12 +474,14 @@ VoxelNeighborhood
     ↓  isFaceFullyOccluded (Option A)
 box-face mesher (voxel-mesh-builder.ts)
     ↓  PR17: appearance → atlas UVs (side UV crop for half-height boxes)
-MeshChunk { positions, normals, colors, uvs, indices }
+    ↓  PR33: isEmissiveBlock → MeshChunk.emissive sibling
+MeshChunk { positions…, indices, emissive? }
     ↓
-Three.js
+Three.js (terrain material + emissive material)
 ```
 
 **PR20–32 geometry:** full cubes + slabs + straight **and corner** stairs + fences + panes/bars + doors + trapdoors + cross plants + walls + PR30 thin families. Double plants / vines / etc. still use the full-cube fallback.
+**PR33 lighting:** researched emitters only; no light propagation.
 
 ---
 
