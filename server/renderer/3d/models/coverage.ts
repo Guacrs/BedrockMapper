@@ -13,18 +13,19 @@
  */
 
 import { isInvisible } from '../../../world/blocks.ts';
+import { isButtonName } from './families/button.ts';
 import { isCactusName } from './families/cactus.ts';
 import { isCarpetName } from './families/carpet.ts';
 import { isCrossName } from './families/cross.ts';
 import { isDoorName } from './families/door.ts';
 import { isFenceGateName, isFenceName, shortBlockId } from './families/fence.ts';
 import { isLadderName } from './families/ladder.ts';
+import { isLanternName } from './families/lantern.ts';
 import { isPaneName } from './families/pane.ts';
 import { isPressurePlateName } from './families/pressure-plate.ts';
 import { isDoubleSlabName, isSingleSlabName } from './families/slab.ts';
 import { isSnowLayerName } from './families/snow-layer.ts';
 import { isStairName } from './families/stair.ts';
-import { isLanternName } from './families/lantern.ts';
 import { isTorchName } from './families/torch.ts';
 import { isTrapdoorName } from './families/trapdoor.ts';
 import { isWallName } from './families/wall.ts';
@@ -47,6 +48,7 @@ export type ModelFamilyId =
   | 'torch' // PR30
   | 'cactus' // PR30
   | 'lantern' // PR34
+  | 'button' // PR35
   | 'fallback' // J — safe full-cube used as stand-in
   | 'future'; // K — researched as needing custom geo later
 
@@ -122,10 +124,6 @@ const FUTURE_SHORT_IDS: ReadonlySet<string> = new Set([
 
 function looksLikeCoralWallFan(short: string): boolean {
   return short.includes('coral_wall_fan') || short.endsWith('_wall_fan');
-}
-
-function looksLikeButton(short: string): boolean {
-  return short.endsWith('_button') || short === 'button' || short === 'wooden_button' || short === 'stone_button';
 }
 
 /**
@@ -204,6 +202,9 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
   if (isLanternName(name)) {
     return { name, family: 'lantern', implementation: 'explicit' };
   }
+  if (isButtonName(name)) {
+    return { name, family: 'button', implementation: 'explicit' };
+  }
   if (isCactusName(name)) {
     return { name, family: 'cactus', implementation: 'explicit' };
   }
@@ -211,7 +212,6 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
     FUTURE_SHORT_IDS.has(short) ||
     looksLikeCoralWallFan(short) ||
     short.includes('wall_sign') ||
-    looksLikeButton(short) ||
     short.includes('copper_chest')
   ) {
     return {
@@ -249,6 +249,7 @@ export function summarizeCoverage(entries: readonly ModelCoverageEntry[]): Cover
     torch: 0,
     cactus: 0,
     lantern: 0,
+    button: 0,
     fallback: 0,
     future: 0,
   } satisfies Record<ModelFamilyId, number>;

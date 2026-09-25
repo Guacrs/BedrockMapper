@@ -192,6 +192,6 @@ describe('PR30 coverage inventory', () => {
     assert.equal(classifyBlockModelCoverage('minecraft:cactus')?.family, 'cactus');
     assert.equal(classifyBlockModelCoverage('minecraft:oak_fence_gate')?.family, 'fallback');
     assert.equal(classifyBlockModelCoverage('minecraft:lantern')?.family, 'lantern');
-    assert.equal(classifyBlockModelCoverage('minecraft:stone_button')?.family, 'future');
+    assert.equal(classifyBlockModelCoverage('minecraft:stone_button')?.family, 'button');
   });
 });

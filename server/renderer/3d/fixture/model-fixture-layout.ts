@@ -347,6 +347,68 @@ export function modelFixtureCells(): readonly FixtureCell[] {
   place('lantern-hanging-support', 4, 44, b('minecraft:stone'), undefined, y + 1);
   place('soul-lantern-hanging-support', 8, 44, b('minecraft:stone'), undefined, y + 1);
 
+  // --- PR35 buttons (z=48) ---
+  // Floor (facing_direction=1): unpressed oak + pressed stone
+  place(
+    'button-floor-up',
+    2,
+    48,
+    b('minecraft:wooden_button', { facing_direction: 1, button_pressed_bit: false }),
+    'floor button unpressed',
+  );
+  place(
+    'button-floor-down',
+    4,
+    48,
+    b('minecraft:stone_button', { facing_direction: 1, button_pressed_bit: true }),
+    'floor button pressed',
+  );
+  // Ceiling (0) under a stone support
+  place(
+    'button-ceiling',
+    6,
+    48,
+    b('minecraft:spruce_button', { facing_direction: 0, button_pressed_bit: false }),
+    'ceiling button',
+  );
+  place('button-ceiling-support', 6, 48, b('minecraft:stone'), undefined, y + 1);
+  // Wall facings 2..5 on the sides of stone pillars
+  place('button-wall-n-support', 10, 47, b('minecraft:stone'));
+  place(
+    'button-wall-n',
+    10,
+    48,
+    b('minecraft:acacia_button', { facing_direction: 2, button_pressed_bit: false }),
+    'wall button north',
+  );
+  place('button-wall-s-support', 12, 49, b('minecraft:stone'));
+  place(
+    'button-wall-s',
+    12,
+    48,
+    b('minecraft:birch_button', { facing_direction: 3, button_pressed_bit: false }),
+    'wall button south',
+  );
+  place('button-wall-w-support', 13, 48, b('minecraft:stone'));
+  place(
+    'button-wall-w',
+    14,
+    48,
+    b('minecraft:stone_button', { facing_direction: 4, button_pressed_bit: false }),
+    'wall button west',
+  );
+  place('button-wall-e-support', 17, 48, b('minecraft:stone'));
+  place(
+    'button-wall-e',
+    16,
+    48,
+    b('minecraft:polished_blackstone_button', {
+      facing_direction: 5,
+      button_pressed_bit: true,
+    }),
+    'wall button east pressed',
+  );
+
   // --- PR32 stair corners (z=40) ---
   // Straight facings already live at z=4; this pad covers corner shapes.
   place(
@@ -517,6 +579,13 @@ export function modelFixtureExpectations(): readonly FixtureExpectation[] {
     { id: 'lantern-hanging', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:hanging:' },
     { id: 'soul-lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },
     { id: 'soul-lantern-hanging', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:hanging:' },
+    { id: 'button-floor-up', family: 'button', isFullCube: false, modelKeyPrefix: 'button:up:up:' },
+    { id: 'button-floor-down', family: 'button', isFullCube: false, modelKeyPrefix: 'button:up:down:' },
+    { id: 'button-ceiling', family: 'button', isFullCube: false, modelKeyPrefix: 'button:down:up:' },
+    { id: 'button-wall-n', family: 'button', isFullCube: false, modelKeyPrefix: 'button:north:up:' },
+    { id: 'button-wall-s', family: 'button', isFullCube: false, modelKeyPrefix: 'button:south:up:' },
+    { id: 'button-wall-w', family: 'button', isFullCube: false, modelKeyPrefix: 'button:west:up:' },
+    { id: 'button-wall-e', family: 'button', isFullCube: false, modelKeyPrefix: 'button:east:down:' },
     { id: 'stair-corner-outer-r', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:outer_right:' },
     { id: 'stair-corner-outer-l', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:outer_left:' },
     { id: 'stair-corner-inner-r', family: 'stair', isFullCube: false, modelKeyPrefix: 'stair:east:bottom:inner_right:' },

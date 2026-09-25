@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR34 frozen in beta · Next: coverage pass (buttons, levers, rails, …) then light propagation.
+**Status:** PR19–PR34 frozen · PR35 buttons in progress · Next: levers, rails, … then light propagation.
 
 **Frozen predecessors:**
 
@@ -358,7 +358,7 @@ decodeSubChunk → ChunkBlocks → contextual resolve → mesh → Three.js view
 | Cactus | `families/cactus.ts` | `age` ignored for geometry | 1px side inset; `cactus_flower` stays research |
 
 **Still J (fallback):** fence gates (attach-only).  
-**Still K (future):** chains, buttons, rails, beds, chests, vines, double plants, wall signs, …
+**Still K (future):** chains, levers, rails, beds, chests, vines, double plants, wall signs, …
 
 **Validation:** `test/block-models-pr30.test.ts` + fixture cells at z=36 + coverage inventory.
 
@@ -488,7 +488,42 @@ Sprite UVs cropped via `tileUv` from the lantern atlas tile. Occlusion uses body
 
 **Frozen.** Visual check confirmed floor vs hanging cages + warm/cool emissive; hanging body stays low in-cell with hangers to Y=16 (Java-parity — not raised to the ceiling). No further geometry or lighting changes in this PR.
 
-**Next:** PR35 buttons → PR36 levers → PR37 rails (evidence-driven family PRs), then BlockLight/SkyLight propagation.
+---
+
+## 27. Button models (PR35)
+
+**Goal:** stop rendering buttons as full cubes. Face-attached thin plates with pressed/unpressed depth. Intrinsic BlockRef geometry only — no attachment-system refactor.
+
+### Bedrock state research
+
+| State | Domain | Evidence |
+|-------|--------|----------|
+| `facing_direction` | 0..5 int (also string down/up/N/S/W/E) | Wiki Bedrock Button/BS; Microsoft listings / intrinsic list |
+| `button_pressed_bit` | bool | Wiki + Microsoft |
+
+| Value | Meaning |
+|-------|---------|
+| 0 | ceiling — plate faces down |
+| 1 | floor — plate faces up |
+| 2..5 | wall N/S/W/E (ladder-style cell face) |
+
+Missing/invalid facing → full-cube fallback (same policy as ladder).
+
+### Geometry (Java `button` / `button_pressed` parity)
+
+| State | AABB (pixels) |
+|-------|----------------|
+| Floor unpressed | [5,0,6]–[11,2,10] |
+| Floor pressed | [5,0,6]–[11,1,10] |
+| Ceiling / wall | same 6×4×depth plate remapped to the face |
+
+Bedrock has no separate floor Y-rotation — footprint orientation is fixed. Textures use appearance `all` (planks / stone / polished_blackstone).
+
+**Support neighbours:** geometry does **not** depend on neighbour solidity. Floating buttons (support removed) still render from stored state — out of scope for a generalized attach system.
+
+**Validation:** `test/block-models-pr35.test.ts` + fixture cells at z=48 + `report-model-fixture --assert`.
+
+**Next:** PR36 levers → PR37 rails, then BlockLight/SkyLight propagation.
 
 ---
 ## 1. Current architecture
@@ -502,7 +537,7 @@ SubChunk { layers[].palette: BlockState{name, states}[], indices }
 ChunkBlocks
     ↓
 VoxelNeighborhood
-    ↓  resolveBlockModel(BlockRef[, ConnectionMask[, WallShape]]) → full_cube | slab | stair | fence | pane | door | trapdoor | cross | wall | carpet | pressure_plate | snow_layer | ladder | torch | cactus | lantern
+    ↓  resolveBlockModel(BlockRef[, ConnectionMask[, WallShape]]) → full_cube | slab | stair | fence | pane | door | trapdoor | cross | wall | carpet | pressure_plate | snow_layer | ladder | torch | cactus | lantern | button
     ↓  isFaceFullyOccluded (Option A)
 box-face mesher (voxel-mesh-builder.ts)
     ↓  PR17: appearance → atlas UVs (side UV crop for half-height boxes)
@@ -515,6 +550,7 @@ Three.js (terrain material + emissive material)
 **PR20–32 geometry:** full cubes + slabs + straight **and corner** stairs + fences + panes/bars + doors + trapdoors + cross plants + walls + PR30 thin families. Double plants / vines / etc. still use the full-cube fallback.
 **PR33 lighting:** researched emitters only; no light propagation.
 **PR34:** lantern floor/hanging models.
+**PR35:** button face-attached plates.
 
 ---
 

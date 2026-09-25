@@ -14,6 +14,7 @@
 
 import { isInvisible } from '../../../world/blocks.ts';
 import { connectionMaskKey, type ConnectionMask } from './connection.ts';
+import { buttonFacingFromStates, buttonIsPressed, isButtonName, tryBuildButton } from './families/button.ts';
 import { cactusModel, isCactusName } from './families/cactus.ts';
 import { carpetModel, isCarpetName } from './families/carpet.ts';
 import { crossModel, isCrossName } from './families/cross.ts';
@@ -21,12 +22,12 @@ import { isDoorName, tryBuildDoor } from './families/door.ts';
 import { fenceModel, isFenceGateName, isFenceName } from './families/fence.ts';
 import { fullCubeModel, fullCubeModelForRef, fullCubeOrientationKey } from './families/full-cube.ts';
 import { isLadderName, tryBuildLadder } from './families/ladder.ts';
+import { isLanternName, lanternIsHanging, lanternModel } from './families/lantern.ts';
 import { isPaneName, paneModel } from './families/pane.ts';
 import { isPressurePlateName, pressurePlateIsPressed, pressurePlateModel } from './families/pressure-plate.ts';
 import { isDoubleSlabName, isSingleSlabName, slabModel } from './families/slab.ts';
 import { isSnowLayerName, snowLayerModel } from './families/snow-layer.ts';
 import { isStairName, tryBuildStraightStair } from './families/stair.ts';
-import { isLanternName, lanternIsHanging, lanternModel } from './families/lantern.ts';
 import { isTorchName, torchFacingFromStates, torchModel } from './families/torch.ts';
 import { isTrapdoorName, tryBuildTrapdoor } from './families/trapdoor.ts';
 import {
@@ -83,6 +84,11 @@ function cacheKey(
   }
   if (isLanternName(ref.name)) {
     return `lantern:${lanternIsHanging(ref.states) ? 'hanging' : 'floor'}:${ref.name}`;
+  }
+  if (isButtonName(ref.name)) {
+    const facing = buttonFacingFromStates(ref.states) ?? '?';
+    const pressed = buttonIsPressed(ref.states) ? 'down' : 'up';
+    return `button:${facing}:${pressed}:${ref.name}`;
   }
   if (isCactusName(ref.name)) {
     return `cactus:${ref.name}`;
@@ -184,6 +190,9 @@ export function resolveBlockModel(
     model = torchModel(ref);
   } else if (isLanternName(ref.name)) {
     model = lanternModel(ref);
+  } else if (isButtonName(ref.name)) {
+    const built = tryBuildButton(ref);
+    model = built.ok ? built.model : fullCubeModel(ref.name);
   } else if (isCactusName(ref.name)) {
     model = cactusModel(ref.name);
   } else if (isDoorName(ref.name)) {
@@ -230,6 +239,7 @@ export function neighbourIsFullCubeForConnection(ref: BlockRef | null): boolean 
     isLadderName(ref.name) ||
     isTorchName(ref.name) ||
     isLanternName(ref.name) ||
+    isButtonName(ref.name) ||
     isCactusName(ref.name)
   ) {
     return false;
