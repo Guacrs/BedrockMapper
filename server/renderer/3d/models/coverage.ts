@@ -1,30 +1,34 @@
 /**
- * Model-family coverage inventory (Phase 3 audit).
+ * Model-family coverage inventory (PR27 + PR30 extensions).
  *
- * Classifies block ids into the A–K report buckets. Distinguishes
+ * Classifies block ids into A–K report buckets. Distinguishes
  * **explicit model implementation** from **safe full-cube fallback** and
  * **known-future / research**.
  *
- * Canonical ownership after PR25/PR26 in beta:
+ * Canonical ownership:
  *
  * ```text
- * coverage.ts → families/cross.ts (`isCrossName`)
- *             → families/wall.ts  (`isWallName`)
- *             → fence / pane / door / …
+ * coverage.ts → families/* (`is*Name`)
  * ```
  */
 
 import { isInvisible } from '../../../world/blocks.ts';
+import { isCactusName } from './families/cactus.ts';
+import { isCarpetName } from './families/carpet.ts';
 import { isCrossName } from './families/cross.ts';
 import { isDoorName } from './families/door.ts';
 import { isFenceGateName, isFenceName, shortBlockId } from './families/fence.ts';
+import { isLadderName } from './families/ladder.ts';
 import { isPaneName } from './families/pane.ts';
+import { isPressurePlateName } from './families/pressure-plate.ts';
 import { isDoubleSlabName, isSingleSlabName } from './families/slab.ts';
+import { isSnowLayerName } from './families/snow-layer.ts';
 import { isStairName } from './families/stair.ts';
+import { isTorchName } from './families/torch.ts';
 import { isTrapdoorName } from './families/trapdoor.ts';
 import { isWallName } from './families/wall.ts';
 
-/** Report categories from the Phase 3 audit brief. */
+/** Report categories from the Phase 3 audit brief (+ PR30 additions). */
 export type ModelFamilyId =
   | 'full_cube' // A
   | 'slab' // B
@@ -35,6 +39,12 @@ export type ModelFamilyId =
   | 'trapdoor' // G
   | 'cross' // H
   | 'wall' // I
+  | 'carpet' // PR30
+  | 'pressure_plate' // PR30
+  | 'snow_layer' // PR30
+  | 'ladder' // PR30
+  | 'torch' // PR30
+  | 'cactus' // PR30
   | 'fallback' // J — safe full-cube used as stand-in
   | 'future'; // K — researched as needing custom geo later
 
@@ -96,10 +106,26 @@ const FUTURE_SHORT_IDS: ReadonlySet<string> = new Set([
   'fire_coral_fan',
   'horn_coral_fan',
   'tube_coral_fan',
+  // Still research / complex — not PR30
+  'bed',
+  'chest',
+  'trapped_chest',
+  'ender_chest',
+  'rail',
+  'golden_rail',
+  'detector_rail',
+  'activator_rail',
+  'lever',
+  'tripwire_hook',
+  'cactus_flower',
 ]);
 
 function looksLikeCoralWallFan(short: string): boolean {
   return short.includes('coral_wall_fan') || short.endsWith('_wall_fan');
+}
+
+function looksLikeButton(short: string): boolean {
+  return short.endsWith('_button') || short === 'button' || short === 'wooden_button' || short === 'stone_button';
 }
 
 /**
@@ -150,7 +176,36 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
   if (isCrossName(name)) {
     return { name, family: 'cross', implementation: 'explicit' };
   }
-  if (FUTURE_SHORT_IDS.has(short) || looksLikeCoralWallFan(short) || short.includes('wall_sign')) {
+  if (isCarpetName(name)) {
+    return {
+      name,
+      family: 'carpet',
+      implementation: 'explicit',
+      note: short === 'pale_moss_carpet' ? 'floor plate only; side flaps deferred' : undefined,
+    };
+  }
+  if (isPressurePlateName(name)) {
+    return { name, family: 'pressure_plate', implementation: 'explicit' };
+  }
+  if (isSnowLayerName(name)) {
+    return { name, family: 'snow_layer', implementation: 'explicit' };
+  }
+  if (isLadderName(name)) {
+    return { name, family: 'ladder', implementation: 'explicit' };
+  }
+  if (isTorchName(name)) {
+    return { name, family: 'torch', implementation: 'explicit' };
+  }
+  if (isCactusName(name)) {
+    return { name, family: 'cactus', implementation: 'explicit' };
+  }
+  if (
+    FUTURE_SHORT_IDS.has(short) ||
+    looksLikeCoralWallFan(short) ||
+    short.includes('wall_sign') ||
+    looksLikeButton(short) ||
+    short.includes('copper_chest')
+  ) {
     return {
       name,
       family: 'future',
@@ -179,6 +234,12 @@ export function summarizeCoverage(entries: readonly ModelCoverageEntry[]): Cover
     trapdoor: 0,
     cross: 0,
     wall: 0,
+    carpet: 0,
+    pressure_plate: 0,
+    snow_layer: 0,
+    ladder: 0,
+    torch: 0,
+    cactus: 0,
     fallback: 0,
     future: 0,
   } satisfies Record<ModelFamilyId, number>;

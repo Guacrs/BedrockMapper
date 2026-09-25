@@ -88,7 +88,23 @@ describe('PR28 model fixture layout', () => {
 
   it('covers every implemented model family in expectations', () => {
     const families = new Set(modelFixtureExpectations().map((e) => e.family));
-    for (const need of ['slab', 'stair', 'fence', 'pane', 'door', 'trapdoor', 'wall', 'cross', 'full_cube']) {
+    for (const need of [
+      'slab',
+      'stair',
+      'fence',
+      'pane',
+      'door',
+      'trapdoor',
+      'wall',
+      'cross',
+      'full_cube',
+      'carpet',
+      'pressure_plate',
+      'snow_layer',
+      'ladder',
+      'torch',
+      'cactus',
+    ]) {
       assert.ok(families.has(need), `missing family ${need}`);
     }
   });

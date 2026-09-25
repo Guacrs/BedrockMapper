@@ -14,13 +14,19 @@
 
 import { isInvisible } from '../../../world/blocks.ts';
 import { connectionMaskKey, type ConnectionMask } from './connection.ts';
+import { cactusModel, isCactusName } from './families/cactus.ts';
+import { carpetModel, isCarpetName } from './families/carpet.ts';
 import { crossModel, isCrossName } from './families/cross.ts';
 import { isDoorName, tryBuildDoor } from './families/door.ts';
 import { fenceModel, isFenceGateName, isFenceName } from './families/fence.ts';
 import { fullCubeModel } from './families/full-cube.ts';
+import { isLadderName, tryBuildLadder } from './families/ladder.ts';
 import { isPaneName, paneModel } from './families/pane.ts';
+import { isPressurePlateName, pressurePlateIsPressed, pressurePlateModel } from './families/pressure-plate.ts';
 import { isDoubleSlabName, isSingleSlabName, slabModel } from './families/slab.ts';
+import { isSnowLayerName, snowLayerModel } from './families/snow-layer.ts';
 import { isStairName, tryBuildStraightStair } from './families/stair.ts';
+import { isTorchName, torchFacingFromStates, torchModel } from './families/torch.ts';
 import { isTrapdoorName, tryBuildTrapdoor } from './families/trapdoor.ts';
 import {
   isWallName,
@@ -58,6 +64,24 @@ function cacheKey(
   }
   if (isCrossName(ref.name)) {
     return `cross:${ref.name}`;
+  }
+  if (isCarpetName(ref.name)) {
+    return `carpet:${ref.name}`;
+  }
+  if (isPressurePlateName(ref.name)) {
+    return `pressure_plate:${pressurePlateIsPressed(ref.states) ? 'down' : 'up'}:${ref.name}`;
+  }
+  if (isSnowLayerName(ref.name)) {
+    return `snow_layer:${String(ref.states['height'] ?? 0)}:${ref.name}`;
+  }
+  if (isLadderName(ref.name)) {
+    return `ladder:${String(ref.states['facing_direction'] ?? '?')}:${ref.name}`;
+  }
+  if (isTorchName(ref.name)) {
+    return `torch:${torchFacingFromStates(ref.states)}:${ref.name}`;
+  }
+  if (isCactusName(ref.name)) {
+    return `cactus:${ref.name}`;
   }
   if (isDoorName(ref.name)) {
     const facing = String(ref.states['minecraft:cardinal_direction'] ?? ref.states['direction'] ?? '?');
@@ -132,6 +156,19 @@ export function resolveBlockModel(
     model = paneModel(ref.name, mask);
   } else if (isCrossName(ref.name)) {
     model = crossModel(ref.name);
+  } else if (isCarpetName(ref.name)) {
+    model = carpetModel(ref.name);
+  } else if (isPressurePlateName(ref.name)) {
+    model = pressurePlateModel(ref);
+  } else if (isSnowLayerName(ref.name)) {
+    model = snowLayerModel(ref);
+  } else if (isLadderName(ref.name)) {
+    const built = tryBuildLadder(ref);
+    model = built.ok ? built.model : fullCubeModel(ref.name);
+  } else if (isTorchName(ref.name)) {
+    model = torchModel(ref);
+  } else if (isCactusName(ref.name)) {
+    model = cactusModel(ref.name);
   } else if (isDoorName(ref.name)) {
     const built = tryBuildDoor(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
@@ -146,7 +183,7 @@ export function resolveBlockModel(
     const built = tryBuildStraightStair(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
   } else {
-    // Unsupported partials (double plants, …) stay full cubes — conservative.
+    // Unsupported partials stay full cubes — conservative.
     model = fullCubeModel(ref.name);
   }
 
@@ -168,7 +205,13 @@ export function neighbourIsFullCubeForConnection(ref: BlockRef | null): boolean 
     isWallName(ref.name) ||
     isCrossName(ref.name) ||
     isDoorName(ref.name) ||
-    isTrapdoorName(ref.name)
+    isTrapdoorName(ref.name) ||
+    isCarpetName(ref.name) ||
+    isPressurePlateName(ref.name) ||
+    isSnowLayerName(ref.name) ||
+    isLadderName(ref.name) ||
+    isTorchName(ref.name) ||
+    isCactusName(ref.name)
   ) {
     return false;
   }

@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR28 frozen in beta · **PR29** occlusion shared-plane / visual integration fixes (this PR).
+**Status:** PR19–PR29 frozen in beta · **PR30** coverage-driven common geometry (this PR).
 
 **Frozen predecessors:**
 
@@ -19,7 +19,8 @@
 | **PR26** | Wall models — contextual ConnectionMask + post/tall (**frozen**) |
 | **PR27** | Model-system audit + coverage inventory A–K (**frozen**, in beta) |
 | **PR28** | Constructed Bedrock fixture world + model-resolution report (**frozen**, in beta) |
-| **PR29** | Occlusion shared-plane gate + fixture-driven visual/integration fixes |
+| **PR29** | Occlusion shared-plane gate + fixture-driven visual/integration fixes (**frozen**, in beta) |
+| **PR30** | Coverage-driven common geometry (carpet, plate, snow, ladder, torch, cactus) |
 
 ### PR20 implemented
 
@@ -237,6 +238,12 @@ Duplicated local `isWall` helpers in fence/pane remain intentional circular-impo
 | Trapdoor | state-driven | `families/trapdoor.ts` | no |
 | Cross / plant | geometric | `families/cross.ts` (**PR25**) | no |
 | Wall | contextual | `families/wall.ts` (**PR26**) | yes (`ConnectionMask` + `WallShape`) |
+| Carpet | geometric | `families/carpet.ts` (**PR30**) | no |
+| Pressure plate | state-driven | `families/pressure-plate.ts` (**PR30**) | no |
+| Snow layer | state-driven | `families/snow-layer.ts` (**PR30**) | no |
+| Ladder | state-driven | `families/ladder.ts` (**PR30**) | no |
+| Torch | state-driven | `families/torch.ts` (**PR30**) | no |
+| Cactus | geometric | `families/cactus.ts` (**PR30**) | no |
 
 ### 19.3 Geometry / transform / texture contracts
 
@@ -263,6 +270,7 @@ Automated report: `server/renderer/3d/models/coverage.ts` + `test/block-model-co
 | G | Trapdoor | Explicit state-driven trapdoor |
 | H | Cross / plant | Explicit allowlist + geometry in `cross.ts` (PR25, in beta) |
 | I | Wall | Explicit connected wall (PR26) |
+| — | Carpet / plate / snow / ladder / torch / cactus | Explicit PR30 families (see §22) |
 | J | Fallback | Safe full-cube stand-in (e.g. fence gates — attach only) |
 | K | Future | Known custom geometry / research required |
 
@@ -334,6 +342,28 @@ decodeSubChunk → ChunkBlocks → contextual resolve → mesh → Three.js view
 
 ---
 
+## 22. Coverage-driven common geometry (PR30)
+
+**Goal:** stop rendering common non-cubes as full cubes when Bedrock evidence is sufficient. No texture redesign, no lighting, no ThinBlock abstraction.
+
+| Family | Module | Bedrock evidence (states / geo) | Notes |
+|--------|--------|----------------------------------|-------|
+| Carpet | `families/carpet.ts` | no geo states; 1px floor plate | `pale_moss_carpet` side flaps **deferred** |
+| Pressure plate | `families/pressure-plate.ts` | `redstone_signal` → pressed height | inset 14×14 footprint |
+| Snow layer | `families/snow-layer.ts` | `height` 0..7 → layers 1..8 × 2px | `covered_bit` ignored; not `minecraft:snow` |
+| Ladder | `families/ladder.ts` | `facing_direction` 2..5 | 0/1/missing → full-cube fallback |
+| Torch | `families/torch.ts` | `torch_facing_direction` | floor cross + wall stub on **attachment** face (Microsoft); **no emissive** (PR32); lanterns stay **K** |
+| Cactus | `families/cactus.ts` | `age` ignored for geometry | 1px side inset; `cactus_flower` stays research |
+
+**Still J (fallback):** fence gates (attach-only).  
+**Still K (future):** lanterns, chains, buttons, rails, beds, chests, vines, double plants, wall signs, …
+
+**Validation:** `test/block-models-pr30.test.ts` + fixture cells at z=36 + coverage inventory.
+
+**Not in PR30:** per-face texture redesign (PR31), lighting/emissive (PR32), light propagation (PR33).
+
+---
+
 ## 1. Current architecture
 
 
@@ -345,7 +375,7 @@ SubChunk { layers[].palette: BlockState{name, states}[], indices }
 ChunkBlocks
     ↓
 VoxelNeighborhood
-    ↓  resolveBlockModel(BlockRef[, ConnectionMask[, WallShape]]) → full_cube | slab | stair | fence | pane | door | trapdoor | cross | wall
+    ↓  resolveBlockModel(BlockRef[, ConnectionMask[, WallShape]]) → full_cube | slab | stair | fence | pane | door | trapdoor | cross | wall | carpet | pressure_plate | snow_layer | ladder | torch | cactus
     ↓  isFaceFullyOccluded (Option A)
 box-face mesher (voxel-mesh-builder.ts)
     ↓  PR17: appearance → atlas UVs (side UV crop for half-height boxes)
