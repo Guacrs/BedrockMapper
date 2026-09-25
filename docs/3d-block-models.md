@@ -352,7 +352,7 @@ decodeSubChunk → ChunkBlocks → contextual resolve → mesh → Three.js view
 | Pressure plate | `families/pressure-plate.ts` | `redstone_signal` → pressed height | inset 14×14 footprint |
 | Snow layer | `families/snow-layer.ts` | `height` 0..7 → layers 1..8 × 2px | `covered_bit` ignored; not `minecraft:snow` |
 | Ladder | `families/ladder.ts` | `facing_direction` 2..5 | 0/1/missing → full-cube fallback |
-| Torch | `families/torch.ts` | `torch_facing_direction` | floor cross + wall stub; lanterns stay **K** |
+| Torch | `families/torch.ts` | `torch_facing_direction` | floor cross + wall stub on **attachment** face (Microsoft); **no emissive** (PR32); lanterns stay **K** |
 | Cactus | `families/cactus.ts` | `age` ignored for geometry | 1px side inset; `cactus_flower` stays research |
 
 **Still J (fallback):** fence gates (attach-only).  

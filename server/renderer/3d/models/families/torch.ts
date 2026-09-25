@@ -6,12 +6,14 @@
  * - Microsoft listings: `torch`, `soul_torch`, `redstone_torch`,
  *   `unlit_redstone_torch`, `copper_torch`, colored torches →
  *   `torch_facing_direction` ∈ {unknown, west, east, north, south, top}.
+ * - Microsoft: state "**Determines the block that a torch is attached to** in
+ *   relation to its position" — so `west` means support is west of the torch
+ *   cell → stub sits on the cell's west face (x=0). Flame points opposite.
  * - `top` / `unknown` → upright (standing on floor).
- * - Cardinal → attached to that side of a supporting block (torch sits against
- *   that face of its own cell).
  * - Floor geometry: two thin vertical planes (same footprint idea as
  *   `minecraft:geometry.cross`, height 10/16 for the stick).
- * - Wall geometry: thin stick protruding from the attachment face.
+ * - Wall geometry: thin stick protruding inward from the attachment face.
+ * - **No emissive / light emission here** — that is PR32.
  * - Lanterns / chains stay in coverage category K (not this family).
  */
 
