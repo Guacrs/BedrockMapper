@@ -171,7 +171,12 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
     };
   }
   if (isStairName(name)) {
-    return { name, family: 'stair', implementation: 'explicit' };
+    return {
+      name,
+      family: 'stair',
+      implementation: 'explicit',
+      note: 'straight + minecraft:corner shapes (PR32); invalid corner → full-cube fallback',
+    };
   }
   if (isCrossName(name)) {
     return { name, family: 'cross', implementation: 'explicit' };

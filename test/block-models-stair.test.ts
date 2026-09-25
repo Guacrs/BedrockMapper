@@ -129,6 +129,7 @@ describe('straight stair geometry', () => {
     if (!built.ok) return;
     assert.equal(built.facing, 'east');
     assert.equal(built.upsideDown, false);
+    assert.equal(built.corner, 'none');
     assert.equal(built.model.renderBoxes.length, 2);
     const lower = built.model.renderBoxes[0]!;
     const upper = built.model.renderBoxes[1]!;
@@ -136,6 +137,7 @@ describe('straight stair geometry', () => {
     assert.deepEqual([...lower.max], [1, 0.5, 1]);
     assert.deepEqual([...upper.min], [0.5, 0.5, 0]);
     assert.deepEqual([...upper.max], [1, 1, 1]);
+    assert.match(built.model.key, /^stair:east:bottom:none:/);
   });
 
   it('orients all four weirdo_direction values', () => {
@@ -210,10 +212,25 @@ describe('straight stair geometry', () => {
 
   it('falls back to full cube for unsupported corner shapes', () => {
     resetBlockModelCache();
-    const built = tryBuildStraightStair(stairRef(0, false, 'inner_left'));
+    const built = tryBuildStraightStair(stairRef(0, false, 'diagonal_nonsense'));
     assert.equal(built.ok, false);
-    const model = resolveBlockModel(stairRef(0, false, 'inner_left'))!;
+    const model = resolveBlockModel(stairRef(0, false, 'diagonal_nonsense'))!;
     assert.equal(model.isFullCube, true);
+  });
+
+  it('resolves supported corner shapes as non-full-cube stairs', () => {
+    resetBlockModelCache();
+    for (const corner of ['inner_left', 'inner_right', 'outer_left', 'outer_right'] as const) {
+      const built = tryBuildStraightStair(stairRef(0, false, corner));
+      assert.equal(built.ok, true, corner);
+      if (!built.ok) continue;
+      assert.equal(built.corner, corner);
+      assert.equal(built.model.isFullCube, false);
+      assert.match(built.model.key, new RegExp(`:${corner}:`));
+      const resolved = resolveBlockModel(stairRef(0, false, corner))!;
+      assert.equal(resolved.isFullCube, false);
+      assert.equal(resolved.key, built.model.key);
+    }
   });
 
   it('falls back to full cube for invalid weirdo_direction', () => {
@@ -309,5 +326,131 @@ describe('straight stair geometry', () => {
     assert.equal(quarterTurnsForFacing('south'), 1);
     assert.equal(quarterTurnsForFacing('west'), 2);
     assert.equal(quarterTurnsForFacing('north'), 3);
+  });
+});
+
+describe('PR32 stair corner geometry', () => {
+  it('outer corners use one upper quarter (east-bottom canonical)', () => {
+    const left = tryBuildStraightStair(stairRef(0, false, 'outer_left'));
+    const right = tryBuildStraightStair(stairRef(0, false, 'outer_right'));
+    assert.equal(left.ok, true);
+    assert.equal(right.ok, true);
+    if (!left.ok || !right.ok) return;
+    assert.equal(left.model.renderBoxes.length, 2);
+    assert.equal(right.model.renderBoxes.length, 2);
+    const lu = left.model.renderBoxes[1]!;
+    const ru = right.model.renderBoxes[1]!;
+    // left → NE: Z 0..0.5; right → SE: Z 0.5..1
+    assert.deepEqual([...lu.min], [0.5, 0.5, 0]);
+    assert.deepEqual([...lu.max], [1, 1, 0.5]);
+    assert.deepEqual([...ru.min], [0.5, 0.5, 0.5]);
+    assert.deepEqual([...ru.max], [1, 1, 1]);
+  });
+
+  it('inner corners use three boxes (lower + east half + west quarter)', () => {
+    const left = tryBuildStraightStair(stairRef(0, false, 'inner_left'));
+    const right = tryBuildStraightStair(stairRef(0, false, 'inner_right'));
+    assert.equal(left.ok, true);
+    assert.equal(right.ok, true);
+    if (!left.ok || !right.ok) return;
+    assert.equal(left.model.renderBoxes.length, 3);
+    assert.equal(right.model.renderBoxes.length, 3);
+    // West quarters: left = NW, right = SW
+    assert.deepEqual([...left.model.renderBoxes[2]!.min], [0, 0.5, 0]);
+    assert.deepEqual([...left.model.renderBoxes[2]!.max], [0.5, 1, 0.5]);
+    assert.deepEqual([...right.model.renderBoxes[2]!.min], [0, 0.5, 0.5]);
+    assert.deepEqual([...right.model.renderBoxes[2]!.max], [0.5, 1, 1]);
+  });
+
+  it('orients all four facings for outer_right without becoming full cube', () => {
+    for (const weirdo of [0, 1, 2, 3]) {
+      const built = tryBuildStraightStair(stairRef(weirdo, false, 'outer_right'));
+      assert.equal(built.ok, true, `weirdo=${weirdo}`);
+      if (!built.ok) continue;
+      assert.equal(built.model.isFullCube, false);
+      assert.equal(built.model.renderBoxes.length, 2);
+      const bounds = boxBounds(built.model);
+      assert.ok(bounds.maxX - bounds.minX <= 1 + 1e-9);
+      assert.ok(bounds.maxY - bounds.minY <= 1 + 1e-9);
+      // Outer corner upper volume is a quarter → not a full upper slab.
+      const upper = built.model.renderBoxes.find((b) => b.min[1]! >= 0.5 - 1e-9)!;
+      const ux = upper.max[0]! - upper.min[0]!;
+      const uz = upper.max[2]! - upper.min[2]!;
+      assert.ok(ux * uz < 0.5 + 1e-9, `outer upper footprint weirdo=${weirdo}`);
+    }
+  });
+
+  it('upside-down outer_left flips vertically', () => {
+    const built = tryBuildStraightStair(stairRef(0, true, 'outer_left'));
+    assert.equal(built.ok, true);
+    if (!built.ok) return;
+    assert.equal(built.upsideDown, true);
+    assert.equal(built.model.isFullCube, false);
+    // After flip, the small step hangs below y=0.5 on the east-north side.
+    const hanging = built.model.renderBoxes.find((b) => b.max[1]! <= 0.5 + 1e-9 && b.min[1]! < 0.5)!;
+    assert.ok(hanging);
+    assert.ok(hanging.min[0]! >= 0.5 - 1e-9);
+    assert.ok(hanging.max[2]! <= 0.5 + 1e-9);
+  });
+
+  it('rotational equivalence: east outer_right + rotY = south outer_right', () => {
+    const east = tryBuildStraightStair(stairRef(0, false, 'outer_right'));
+    const south = tryBuildStraightStair(stairRef(2, false, 'outer_right'));
+    assert.equal(east.ok && south.ok, true);
+    if (!east.ok || !south.ok) return;
+    const rotated = rotateModelY(east.model, 1);
+    assert.equal(rotated.renderBoxes.length, south.model.renderBoxes.length);
+    for (let i = 0; i < south.model.renderBoxes.length; i++) {
+      for (let c = 0; c < 3; c++) {
+        assert.ok(
+          Math.abs(rotated.renderBoxes[i]!.min[c]! - south.model.renderBoxes[i]!.min[c]!) < 1e-9,
+          `min[${c}] box ${i}`,
+        );
+        assert.ok(
+          Math.abs(rotated.renderBoxes[i]!.max[c]! - south.model.renderBoxes[i]!.max[c]!) < 1e-9,
+          `max[${c}] box ${i}`,
+        );
+      }
+    }
+  });
+
+  it('missing corner state defaults to straight', () => {
+    const built = tryBuildStraightStair({
+      name: 'minecraft:oak_stairs',
+      states: { weirdo_direction: 0, upside_down_bit: false },
+    });
+    assert.equal(built.ok, true);
+    if (!built.ok) return;
+    assert.equal(built.corner, 'none');
+    assert.equal(built.model.renderBoxes.length, 2);
+  });
+
+  it('corner against full cube does not fully occlude the cube side', () => {
+    resetBlockModelCache();
+    const stone = resolveBlockModel({ name: 'minecraft:stone', states: {} })!;
+    const corner = resolveBlockModel(stairRef(0, false, 'outer_right'))!;
+    assert.equal(corner.isFullCube, false);
+    assert.equal(isFaceFullyOccluded(stone.renderBoxes[0]!, 'west', corner), false);
+  });
+
+  it('meshes an inner corner without full-cube face count', () => {
+    resetBlockModelCache();
+    const self = volumeFromStates(0, 0, (x, y, z) => {
+      if (x === 2 && y === 70 && z === 3) {
+        return {
+          name: 'minecraft:oak_stairs',
+          states: {
+            weirdo_direction: 0,
+            upside_down_bit: false,
+            'minecraft:corner': 'inner_left',
+          },
+        };
+      }
+      return null;
+    });
+    const mesh = buildVoxelMesh(0, 0, emptyNeighborhood(self));
+    assertMeshInvariants(mesh);
+    // Inner = 3 boxes → more faces than a lone cube's 6, but not a solid cube mesh.
+    assert.ok(countFaces(mesh) > 6);
   });
 });
