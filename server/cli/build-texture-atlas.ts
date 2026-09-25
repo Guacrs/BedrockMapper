@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { decode as decodePng, encode as encodePng } from 'fast-png';
 
 import type { BlockAppearance, BlockAppearanceDatabase } from '../renderer/3d/textures/appearance.ts';
+import { appearanceTextureKeys } from '../renderer/3d/textures/appearance.ts';
 import type { AtlasFrame, AtlasMetadata } from '../renderer/3d/textures/atlas.ts';
 import { resolveBlockColor } from '../renderer/colors.ts';
 import { loadBlockColorDatabase } from '../renderer/block-palette.ts';
@@ -41,6 +42,8 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const BLOCKS_JSON_KEY_BY_ID: Record<string, string> = {
   'minecraft:grass_block': 'grass',
   'minecraft:trip_wire': 'tripWire',
+  'minecraft:oak_door': 'wooden_door',
+  'minecraft:oak_trapdoor': 'trapdoor',
 };
 
 /**
@@ -50,6 +53,8 @@ const BLOCKS_JSON_KEY_BY_ID: Record<string, string> = {
 const EXTRA_IDS_BY_BLOCKS_JSON_KEY: Record<string, string[]> = {
   grass: ['minecraft:grass_block'],
   tripWire: ['minecraft:trip_wire'],
+  wooden_door: ['minecraft:oak_door'],
+  trapdoor: ['minecraft:oak_trapdoor'],
 };
 
 function samplesRoot(): string {
@@ -258,61 +263,79 @@ function normalizeAppearance(
     return { all: key };
   }
 
+  const resolve = (alias: string | undefined): string | undefined => {
+    if (!alias) return undefined;
+    return (
+      resolveAliasToKey(alias, textureData, resourcePackRoot, images, overlayColorOverride) ??
+      undefined
+    );
+  };
+
   const upAlias = textures.up ?? textures['*'];
   const downAlias = textures.down ?? textures['*'];
-  const sideAlias =
-    textures.side ?? textures.north ?? textures.south ?? textures.east ?? textures.west ?? textures['*'];
+  const starAlias = textures['*'];
+  const sideAlias = textures.side ?? starAlias;
 
-  // Require at least one resolvable face; prefer compact all/up/down/side form.
-  if (upAlias && downAlias && sideAlias && upAlias === downAlias && downAlias === sideAlias) {
-    const key = resolveAliasToKey(
-      upAlias,
-      textureData,
-      resourcePackRoot,
-      images,
-      overlayColorOverride,
-    );
+  const hasDistinctCardinals =
+    textures.north !== undefined ||
+    textures.south !== undefined ||
+    textures.east !== undefined ||
+    textures.west !== undefined;
+
+  // Compact `all` when every authored face shares one alias and no cardinal split.
+  if (
+    !hasDistinctCardinals &&
+    upAlias &&
+    downAlias &&
+    sideAlias &&
+    upAlias === downAlias &&
+    downAlias === sideAlias
+  ) {
+    const key = resolve(upAlias);
     return key ? { all: key } : null;
   }
 
   const appearance: BlockAppearance = {};
-  if (upAlias) {
-    const key = resolveAliasToKey(
-      upAlias,
-      textureData,
-      resourcePackRoot,
-      images,
-      overlayColorOverride,
-    );
-    if (key) appearance.up = key;
-  }
-  if (downAlias) {
-    const key = resolveAliasToKey(
-      downAlias,
-      textureData,
-      resourcePackRoot,
-      images,
-      overlayColorOverride,
-    );
-    if (key) appearance.down = key;
-  }
-  if (sideAlias) {
-    const key = resolveAliasToKey(
-      sideAlias,
-      textureData,
-      resourcePackRoot,
-      images,
-      overlayColorOverride,
-    );
-    if (key) appearance.side = key;
+  const up = resolve(upAlias);
+  const down = resolve(downAlias);
+  if (up) appearance.up = up;
+  if (down) appearance.down = down;
+
+  if (textures.side || (!hasDistinctCardinals && sideAlias)) {
+    const side = resolve(sideAlias);
+    if (side) appearance.side = side;
   }
 
-  if (!appearance.up && !appearance.down && !appearance.side && !appearance.all) return null;
+  // PR31: keep north/south/east/west when blocks.json distinguishes them.
+  // Fall back each cardinal to side / * only at *runtime* lookup — here we
+  // store only explicitly authored aliases (plus side when present).
+  for (const face of ['north', 'south', 'east', 'west'] as const) {
+    const alias = textures[face] ?? (hasDistinctCardinals ? sideAlias : undefined);
+    if (!alias) continue;
+    // When cardinals are distinct, still allow an omitted cardinal to inherit
+    // side/* so furnace north can use furnace_side while south keeps front.
+    const explicit = textures[face];
+    const resolved = resolve(explicit ?? sideAlias);
+    if (resolved) appearance[face] = resolved;
+  }
 
-  // If only one unique key, collapse to `all`.
-  const keys = [appearance.up, appearance.down, appearance.side].filter(Boolean) as string[];
-  if (keys.length > 0 && keys.every((k) => k === keys[0])) {
-    return { all: keys[0] };
+  if (
+    !appearance.up &&
+    !appearance.down &&
+    !appearance.side &&
+    !appearance.north &&
+    !appearance.south &&
+    !appearance.east &&
+    !appearance.west &&
+    !appearance.all
+  ) {
+    return null;
+  }
+
+  // Collapse to `all` only when every stored key is identical.
+  const keys = appearanceTextureKeys(appearance);
+  if (keys.length === 1) {
+    return { all: keys[0]! };
   }
   return appearance;
 }

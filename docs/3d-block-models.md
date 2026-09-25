@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR30 frozen in beta · PR31 textures draft (separate) · **PR32** complete stair corners (this PR).
+**Status:** PR19–PR31 frozen in beta · **PR32** complete stair corners (this PR).
 
 **Frozen predecessors:**
 
@@ -21,8 +21,8 @@
 | **PR28** | Constructed Bedrock fixture world + model-resolution report (**frozen**, in beta) |
 | **PR29** | Occlusion shared-plane gate + fixture-driven visual/integration fixes (**frozen**, in beta) |
 | **PR30** | Coverage-driven common geometry (carpet, plate, snow, ladder, torch, cactus) (**frozen**, in beta) |
+| **PR31** | Accurate per-face textures (cardinals, facing, UV density, tint safety) (**frozen**, in beta) |
 | **PR32** | Complete stair corner models (`minecraft:corner`) |
-
 ### PR20 implemented
 
 - `ChunkBlocks` palette stores immutable `BlockRef { name, states }` (NBT `version` still dropped)
@@ -185,7 +185,7 @@ Before adding plants/walls/crosses, freeze these contracts:
 
 **Do not** merge door/trapdoor/slab into a generic “thin block” framework yet. Extract shared primitives only when three+ families need the same helper.
 
-**Next:** PR29 fixture-driven visual/integration fixes (below) — then coverage-driven geometry (PR30), water (PR31), complex models, performance/LOD. Do not add families opportunistically.
+**Next:** PR29 fixture-driven visual/integration fixes (below) — then coverage-driven geometry (PR30), accurate textures (PR31), lighting (PR32). Do not add families opportunistically.
 
 ### Deferred (still)
 
@@ -343,7 +343,7 @@ decodeSubChunk → ChunkBlocks → contextual resolve → mesh → Three.js view
 
 ---
 
-## 22. Coverage-driven common geometry (PR30)
+## 22. Coverage-driven common geometry (PR30) — **frozen**
 
 **Goal:** stop rendering common non-cubes as full cubes when Bedrock evidence is sufficient. No texture redesign, no lighting, no ThinBlock abstraction.
 
@@ -365,7 +365,30 @@ decodeSubChunk → ChunkBlocks → contextual resolve → mesh → Three.js view
 
 ---
 
-## 23. Complete stair corner models (PR32)
+## 23. Accurate per-face textures (PR31) — **frozen**
+
+**Goal:** make face materials match Bedrock definitions against the PR30 geometry. No lighting / emissive / water / LOD.
+
+```text
+BlockRef → model family → ModelFace → Bedrock texture → atlas frame → UV crop → tint/overlay
+```
+
+| Change | Detail |
+|--------|--------|
+| Cardinal slots | `BlockAppearance` keeps `north/south/east/west` when `blocks.json` distinguishes them (no collapse into one `side`) |
+| Lookup | `textureKeyForCubeFace` / `fullCubeFaceTexture` — cardinal → side → all → null |
+| Facing remap | `fullCubeModelForRef` rotates materials so authored front matches `minecraft:cardinal_direction` / `facing_direction` |
+| Pillar axis | `pillar_axis` x/z remaps log end-caps to top texture |
+| Aliases | builder emits `oak_door`↔`wooden_door`, `oak_trapdoor`↔`trapdoor` |
+| UV density | unchanged unit-cell crop (`faceCornerUvsForBox`) — thin faces do not stretch full tiles |
+| Tint safety | overlay-composited keys stay vertex-white (no double grass tint) |
+| Missing texture | `textureKey: null` → vertex colour only (deterministic; no invented texture) |
+
+**Validation:** `test/block-models-pr31.test.ts` + `npm run textures:build` + existing atlas/family suites.
+
+---
+
+## 24. Complete stair corner models (PR32)
 
 **Goal:** replace the PR21 full-cube fallback for `minecraft:corner` ≠ `none` with correct Bedrock corner geometry. No texture/lighting work.
 
@@ -398,6 +421,8 @@ All corner stairs keep `isFullCube: false`. Occlusion uses existing PR29 shared-
 **Validation:** `test/block-models-stair.test.ts` (PR32 suite) + fixture cells at z=40 + `report-model-fixture --assert`.
 
 **Out of scope:** textures (PR31), lighting, water, LOD, unrelated families.
+
+**Next:** PR33 lighting + emissive (rendered lights; not full Minecraft light propagation yet).
 
 ---
 ## 1. Current architecture
