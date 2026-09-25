@@ -119,16 +119,17 @@ export class TerrainViewer3D {
       side: THREE.FrontSide,
     });
 
-    // PR33: self-lit emitters (torch, glowstone, …). Emissive channel + warmer
-    // roughness so they read as glowing under the same hemisphere/sun lights.
+    // PR33: self-lit emitters (torch, glowstone, …). Strong emissive channel so
+    // thin torches and full-cube lamps read as glowing under the same sun.
     this.emissiveMaterial = new THREE.MeshStandardMaterial({
       vertexColors: true,
-      roughness: 0.55,
+      roughness: 0.4,
       metalness: 0,
       flatShading: false,
       side: THREE.FrontSide,
       emissive: new THREE.Color(0xffffff),
-      emissiveIntensity: 0.9,
+      emissiveIntensity: 2.2,
+      toneMapped: false,
     });
 
     const hemi = new THREE.HemisphereLight(0xb1e1ff, 0x444422, 0.55);
@@ -218,6 +219,9 @@ export class TerrainViewer3D {
         this.material.map = texture;
         this.material.needsUpdate = true;
         this.emissiveMaterial.map = texture;
+        // Drive the emissive channel from the same atlas so lamps glow their texture,
+        // not a flat white overlay.
+        this.emissiveMaterial.emissiveMap = texture;
         this.emissiveMaterial.needsUpdate = true;
         return true;
       } catch (error) {
@@ -416,6 +420,7 @@ export class TerrainViewer3D {
     this.material.map = null;
     this.material.dispose();
     this.emissiveMaterial.map = null;
+    this.emissiveMaterial.emissiveMap = null;
     this.emissiveMaterial.dispose();
     this._atlasTexture?.dispose();
     this._atlasTexture = null;
