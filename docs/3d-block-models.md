@@ -523,7 +523,43 @@ Bedrock has no separate floor Y-rotation — footprint orientation is fixed. Tex
 
 **Validation:** `test/block-models-pr35.test.ts` + fixture cells at z=46 + `report-model-fixture --assert`.
 
-**Next:** PR36 levers → PR37 rails, then BlockLight/SkyLight propagation.
+**Frozen.** Visual check confirmed floor / ceiling / wall thin plates (pressed thinner). No attachment-system refactor. Merge into beta when ready; no further button geometry in this PR.
+
+---
+
+## 28. Lever models (PR36)
+
+**Goal:** stop rendering levers as full cubes. Separate base (attach face) + handle (orientation / powered) using Bedrock states — **not** button `facing_direction`.
+
+### Bedrock state research
+
+| State | Domain | Evidence |
+|-------|--------|----------|
+| `lever_direction` | string enum (or legacy int 0–7) | Microsoft listings / intrinsic list; Wiki Lever/BS Bedrock |
+| `open_bit` | bool | activated / powered (same name as doors, different meaning) |
+
+| `lever_direction` | Attachment | Off handle points |
+|-------------------|------------|-------------------|
+| `up_north_south` (5) | floor | south |
+| `up_east_west` (6) | floor | east |
+| `down_north_south` (7) | ceiling | south |
+| `down_east_west` (0) | ceiling | east |
+| `north` (4) / `south` (3) / `west` (2) / `east` (1) | wall | (wall: down=on, up=off) |
+
+**Do not** reuse button `facing_direction` — levers use a dedicated enum.
+
+### Geometry (Java `lever` / `lever_on` parity)
+
+| Part | Floor AABB (px) | Notes |
+|------|-----------------|-------|
+| Base | [5,0,4]–[11,3,12] | cobblestone texture |
+| Handle | [7,1,7]–[9,11,9] | lever texture; ±45° about X at origin (8,1,8) |
+
+`open_bit=true` → −45° (Java `lever.json`); `false` → +45° (`lever_on.json`). Floor/ceiling variants via `rotateModelY` / `flipModelY`; wall variants remapped onto the attach face. `isFullCube: false`. Intrinsic only.
+
+**Validation:** `test/block-models-pr36.test.ts` + fixture + `report-model-fixture --assert`.
+
+**Next:** PR37 rails (contextual shape), then BlockLight/SkyLight.
 
 ---
 ## 1. Current architecture
