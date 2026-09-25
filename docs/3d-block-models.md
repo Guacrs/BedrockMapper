@@ -486,7 +486,9 @@ Sprite UVs cropped via `tileUv` from the lantern atlas tile. Occlusion uses body
 
 **Validation:** `test/block-models-pr34.test.ts` + fixture cells at z=44 + `report-model-fixture --assert`.
 
-**Next:** buttons → levers → rails → tripwire hooks → signs → chains → candles (evidence-driven family PRs), then BlockLight/SkyLight propagation.
+**Frozen.** Visual check confirmed floor vs hanging cages + warm/cool emissive; hanging body stays low in-cell with hangers to Y=16 (Java-parity — not raised to the ceiling). No further geometry or lighting changes in this PR.
+
+**Next:** PR35 buttons → PR36 levers → PR37 rails (evidence-driven family PRs), then BlockLight/SkyLight propagation.
 
 ---
 ## 1. Current architecture
@@ -500,7 +502,7 @@ SubChunk { layers[].palette: BlockState{name, states}[], indices }
 ChunkBlocks
     ↓
 VoxelNeighborhood
-    ↓  resolveBlockModel(BlockRef[, ConnectionMask[, WallShape]]) → full_cube | slab | stair | fence | pane | door | trapdoor | cross | wall | carpet | pressure_plate | snow_layer | ladder | torch | cactus
+    ↓  resolveBlockModel(BlockRef[, ConnectionMask[, WallShape]]) → full_cube | slab | stair | fence | pane | door | trapdoor | cross | wall | carpet | pressure_plate | snow_layer | ladder | torch | cactus | lantern
     ↓  isFaceFullyOccluded (Option A)
 box-face mesher (voxel-mesh-builder.ts)
     ↓  PR17: appearance → atlas UVs (side UV crop for half-height boxes)
@@ -512,6 +514,7 @@ Three.js (terrain material + emissive material)
 
 **PR20–32 geometry:** full cubes + slabs + straight **and corner** stairs + fences + panes/bars + doors + trapdoors + cross plants + walls + PR30 thin families. Double plants / vines / etc. still use the full-cube fallback.
 **PR33 lighting:** researched emitters only; no light propagation.
+**PR34:** lantern floor/hanging models.
 
 ---
 
