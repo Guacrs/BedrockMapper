@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR26 frozen in beta · **§19 / PR27** model-system audit (**frozen**, in beta) · **PR28** constructed model fixture world (this PR).
+**Status:** PR19–PR28 frozen in beta · **PR29** occlusion shared-plane / visual integration fixes (this PR).
 
 **Frozen predecessors:**
 
@@ -18,7 +18,8 @@
 | **PR25** | Cross / plant models — `minecraft:geometry.cross` planes (**frozen**, in beta) |
 | **PR26** | Wall models — contextual ConnectionMask + post/tall (**frozen**) |
 | **PR27** | Model-system audit + coverage inventory A–K (**frozen**, in beta) |
-| **PR28** | Constructed Bedrock fixture world + model-resolution report |
+| **PR28** | Constructed Bedrock fixture world + model-resolution report (**frozen**, in beta) |
+| **PR29** | Occlusion shared-plane gate + fixture-driven visual/integration fixes |
 
 ### PR20 implemented
 
@@ -172,7 +173,7 @@ Before adding plants/walls/crosses, freeze these contracts:
 | Layer | Contract |
 |-------|----------|
 | `BlockRef` | Intrinsic palette identity only — never neighbour rails/arms |
-| `ConnectionMask` | Fence/pane only; computed at mesh time via `VoxelNeighborhood` |
+| `ConnectionMask` | Fence/pane/**wall** horizontal attach; computed at mesh time via `VoxelNeighborhood` |
 | `resolveBlockModel` | Process cache by family key; contextual families require mask |
 | `rotateModelY` / `flipModelY` | Shared transform primitives — families stay separate |
 | `isFullCube` | Fast occlusion path; thin/hinged/connected families stay false |
@@ -182,7 +183,7 @@ Before adding plants/walls/crosses, freeze these contracts:
 
 **Do not** merge door/trapdoor/slab into a generic “thin block” framework yet. Extract shared primitives only when three+ families need the same helper.
 
-**Next:** PR28 constructed fixture world (below) — then fixture-driven visual/integration fixes, then coverage-driven geometry. Do not add families opportunistically.
+**Next:** PR29 fixture-driven visual/integration fixes (below) — then coverage-driven geometry (PR30), water (PR31), complex models, performance/LOD. Do not add families opportunistically.
 
 ### Deferred (still)
 
@@ -312,7 +313,24 @@ decodeSubChunk → ChunkBlocks → contextual resolve → mesh → Three.js view
 
 **Architecture preserved:** `BlockRef` intrinsic; `ConnectionMask` / `WallShape` contextual; `isFullCube` occlusion-only — no ThinBlock abstraction. PR28 validates the existing model system; it does not change family geometry.
 
-**Next after PR28:** fixture-driven visual/integration fixes (PR29), then coverage inventory → remaining geometry → water/transparency → complex models → performance/LOD.
+**Next after PR28:** fixture-driven visual/integration fixes (PR29, below), then coverage inventory → remaining geometry → water/transparency → complex models → performance/LOD.
+
+---
+
+## 21. Occlusion shared-plane fix (PR29)
+
+**Bug found by PR28 audit:** `isFaceFullyOccluded` treated any full-cube neighbour as covering *every* emit face, including faces that do not lie on the shared unit-cell plane. That violated the Option A examples in §5.3 and silently removed:
+
+- bottom-slab tops under a cube above
+- top-slab bottoms under a cube below
+- door / cross / fence / pane / wall interior panels beside solids
+- stair step tops under cubes above
+
+**Fix:** require `faceLiesOnUnitSharedPlane(emitBox, face)` before either the `isFullCube` fast path or the `rectCovers` loop. Interior faces never cull against adjacent cells.
+
+**Wall tall:** fixture `wall-tall` remains post-only (tall only affects arms). Uniform-tall limitation is **unchanged** — not redesigned in PR29.
+
+**Validation:** `test/block-models-occlusion.test.ts` + existing family suites + `npm run report-model-fixture -- --assert`.
 
 ---
 
@@ -349,7 +367,7 @@ Three.js
 | Field | Type | Present in LevelDB | Kept in `SubChunk.BlockState` | Kept in `ChunkBlocks` |
 |-------|------|--------------------|-------------------------------|------------------------|
 | `name` | string (`minecraft:oak_stairs`) | yes | **yes** | **yes** |
-| `states` | compound of string/int/bool | yes | **yes** | **no** (stripped) |
+| `states` | compound of string/int/bool | yes | **yes** | **yes** (`BlockRef.states`, PR20) |
 | `version` | int (e.g. serialization epoch) | yes | **no** (`toBlockState` ignores it) | n/a |
 
 There is **no separate runtime ID** in the SubChunkPrefix palette today. Numeric `raw_id` exists only in metadata (`mojang-blocks.json`), not in the chunk palette path BedrockMapper uses.
@@ -359,7 +377,7 @@ Decoder API already sufficient to reconstruct state for meshing:
 - `entryContentTypeToFormatMap.SubChunkPrefix.parse` → layers with full `Block` compounds
 - `decodeSubChunk` → `BlockState { name, states }`
 
-**Nothing is missing from the decoder for stairs/slabs/fences.** The gap is intentional discard in `ChunkBlocks.fromSubChunks`.
+**PR20 closed the historical discard gap:** `ChunkBlocks` now retains `states` on each palette `BlockRef`. NBT `version` is still dropped. Boolean `*_bit` TAG_Byte values are coerced to JS booleans on load (PR28).
 
 Demo-world samples (full cubes only):
 
@@ -552,10 +570,13 @@ Optional later: neighbour-dependent **connection** resolution for fences/panes (
 | Self | Neighbour | Expected |
 |------|-----------|----------|
 | full cube | full cube | shared face removed (today) |
-| bottom slab | full cube | slab’s bottom/side faces vs cube: top of slab stays; sides may partial-cull against cube |
+| bottom slab | full cube **beside** | slab’s **side** on the unit plane may cull; **top at y=0.5 stays** (not on shared plane with the cell above) |
+| bottom slab | full cube **above** | slab top stays — emit face must lie on the unit shared plane (PR29) |
 | bottom slab | bottom slab | shared vertical faces between overlapping halves removed |
 | fence | fence | only post/rail overlaps cull; lots of faces remain |
 | stair | stair | approximate via 2–3 boxes; small cracks acceptable in v1 |
+
+**PR29 invariant:** a neighbour can only occlude an emit face that lies on the unit-cell plane toward that neighbour (`faceLiesOnUnitSharedPlane`).
 
 ---
 
@@ -633,7 +654,7 @@ for each cell:
 | Are colors still sufficient? | Yes — keep PR17 white-vs-tint rules |
 | Generate into MeshChunk arrays? | Yes, same as today; no per-block Three.js objects |
 
-**Required production change when coding starts (not in this PR):** `ChunkBlocks` must stop discarding `states` (store `BlockState` or parallel state arrays). That is the single unavoidable data-path change before models work.
+**Required for models (done in PR20):** `ChunkBlocks` retains `BlockRef { name, states }` (NBT `version` still dropped).
 
 ---
 
