@@ -18,8 +18,15 @@ interface LayerView {
   indices: ArrayLike<number>;
 }
 
-function normalizeStateValue(value: WorldStateValue): BlockStateValue {
+/**
+ * Coerce palette NBT values into BlockRef state types.
+ *
+ * Bedrock stores boolean `*_bit` states as TAG_Byte (0/1). Model families use
+ * `=== true` checks, so those bytes must become real booleans here.
+ */
+function normalizeStateValue(key: string, value: WorldStateValue): BlockStateValue {
   if (typeof value === 'bigint') return Number(value);
+  if (key.endsWith('_bit') && (value === 0 || value === 1)) return value === 1;
   return value;
 }
 
@@ -27,7 +34,7 @@ function normalizeStateValue(value: WorldStateValue): BlockStateValue {
 export function blockRefFromPaletteEntry(entry: BlockState): BlockRef {
   const states: Record<string, BlockStateValue> = {};
   for (const [key, value] of Object.entries(entry.states)) {
-    states[key] = normalizeStateValue(value);
+    states[key] = normalizeStateValue(key, value);
   }
   return Object.freeze({
     name: entry.name,
