@@ -18,6 +18,11 @@ import {
   candleLightLevel,
   isCandleName,
 } from '../models/families/candle.ts';
+import {
+  campfireIsLit,
+  isCampfireName,
+  isSoulCampfireName,
+} from '../models/families/campfire.ts';
 import type { BlockRef } from '../models/types.ts';
 
 export interface BlockLighting {
@@ -98,6 +103,7 @@ const EMITTERS: ReadonlyMap<string, BlockLighting> = new Map([
   ['waxed_exposed_copper_lantern', Object.freeze({ emission: level(15), lightColor: rgb(0xffd28a) })],
   ['waxed_weathered_copper_lantern', Object.freeze({ emission: level(15), lightColor: rgb(0xffd28a) })],
   ['waxed_oxidized_copper_lantern', Object.freeze({ emission: level(15), lightColor: rgb(0xffd28a) })],
+  // Campfire *levels* — lit/unlit gated in campfireLighting() below (PR44)
   ['campfire', Object.freeze({ emission: level(15), lightColor: rgb(0xffa040) })],
   ['soul_campfire', Object.freeze({ emission: level(10), lightColor: rgb(0x6fe0ff) })],
 
@@ -123,18 +129,39 @@ function candleLighting(states: BlockStates | undefined): BlockLighting {
   });
 }
 
+const CAMPFIRE_GLOW = rgb(0xffa040);
+const SOUL_CAMPFIRE_GLOW = rgb(0x6fe0ff);
+
+/**
+ * State-aware campfire emission (Bedrock `extinguished`).
+ * Extinguished / missing lit → emission 0.
+ */
+function campfireLighting(blockName: string, states: BlockStates | undefined): BlockLighting {
+  const soul = isSoulCampfireName(blockName);
+  const glow = soul ? SOUL_CAMPFIRE_GLOW : CAMPFIRE_GLOW;
+  if (!states || !campfireIsLit(states)) {
+    return Object.freeze({ emission: 0, lightColor: glow });
+  }
+  return Object.freeze({
+    emission: level(soul ? 10 : 15),
+    lightColor: glow,
+  });
+}
+
 /**
  * Return lighting for a palette block name, or null when non-emissive.
  * Emission 0 entries (e.g. unlit redstone torch, unlit candle) still return
  * a record so callers can distinguish “known dark” from “unknown”.
  *
- * Pass `states` for blocks whose emission depends on intrinsic state (candles).
+ * Pass `states` for blocks whose emission depends on intrinsic state (candles,
+ * campfires).
  */
 export function blockLightingFor(
   blockName: string,
   states?: BlockStates,
 ): BlockLighting | null {
   if (isCandleName(blockName)) return candleLighting(states);
+  if (isCampfireName(blockName)) return campfireLighting(blockName, states);
   const short = shortId(blockName);
   const hit = EMITTERS.get(short);
   if (!hit) return null;

@@ -20,6 +20,7 @@ import { isCarpetName } from './families/carpet.ts';
 import { isCrossName } from './families/cross.ts';
 import { isChestName } from './families/chest.ts';
 import { isChainName } from './families/chain.ts';
+import { isCampfireName } from './families/campfire.ts';
 import { isHangingSignName } from './families/hanging-sign.ts';
 import { isSignName } from './families/sign.ts';
 import { isDoorName } from './families/door.ts';
@@ -63,6 +64,7 @@ export type ModelFamilyId =
   | 'hanging_sign' // PR41
   | 'chest' // PR42
   | 'chain' // PR43
+  | 'campfire' // PR44
   | 'fallback' // J — safe full-cube used as stand-in
   | 'future'; // K — researched as needing custom geo later
 
@@ -125,9 +127,7 @@ const FUTURE_SHORT_IDS: ReadonlySet<string> = new Set([
   'bed',
   'tripwire_hook',
   'cactus_flower',
-  // Campfires / cakes still future — candles are explicit (PR39)
-  'campfire',
-  'soul_campfire',
+  // Cakes still future — candles are explicit (PR39); campfires PR44
   'brewing_stand',
   'enchanting_table',
   'grindstone',
@@ -319,6 +319,14 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
       note: 'pillar_axis crossed 3px planes + 45°; copper variants share geometry',
     };
   }
+  if (isCampfireName(name)) {
+    return {
+      name,
+      family: 'campfire',
+      implementation: 'explicit',
+      note: 'logs + lit fire planes; extinguished + cardinal_direction; PR33 emissive',
+    };
+  }
   if (isCactusName(name)) {
     return { name, family: 'cactus', implementation: 'explicit' };
   }
@@ -377,6 +385,7 @@ export function summarizeCoverage(entries: readonly ModelCoverageEntry[]): Cover
     hanging_sign: 0,
     chest: 0,
     chain: 0,
+    campfire: 0,
     fallback: 0,
     future: 0,
   } satisfies Record<ModelFamilyId, number>;

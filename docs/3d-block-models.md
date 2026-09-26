@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR42 frozen · **PR43 chain models in progress** · Next after freeze: campfires (PR44); lighting only after model-coverage milestone.
+**Status:** PR19–PR43 frozen · **PR44 campfire models in progress** · Next after freeze: P1 fence gates (PR45); lighting only after model-coverage milestone.
 
 **Frozen predecessors:**
 
@@ -33,6 +33,7 @@
 | **PR40** | Standing/wall signs (**frozen**) |
 | **PR41** | Hanging signs — intrinsic hanging/attached_bit (**frozen**) |
 | **PR42** | Chest models — single closed AABB + cardinal facing (**frozen**) |
+| **PR43** | Chain models — pillar_axis crossed planes (**frozen**) |
 ### PR20 implemented
 
 - `ChunkBlocks` palette stores immutable `BlockRef { name, states }` (NBT `version` still dropped)
@@ -810,7 +811,44 @@ Matches Java `chain.json` crossed planes + wiki 3px centred collision (faces 3/3
 
 **Out of scope:** waterlogged, BlockLight/SkyLight, campfires, generic rod abstraction.
 
-**In progress.** Next after freeze: **PR44** campfires.
+**Frozen.** Intrinsic `pillar_axis`; crossed 3px planes; copper share geometry. Visual/mesh: thin non-cube shafts confirmed. Next: **PR44** campfires.
+
+---
+
+## 36. Campfire models (PR44)
+
+**Goal:** stop rendering campfires as full cubes. Logs + optional fire planes from Bedrock state; reuse PR33 emissive when lit.
+
+### Bedrock research
+
+```text
+campfire / soul_campfire
+├─ extinguished                 → true = unlit (no fire); false = lit
+└─ minecraft:cardinal_direction → facing (legacy direction 0–3)
+```
+
+Microsoft listings: only those two states. Wiki: since 1.20.30 Preview, `minecraft:cardinal_direction` replaced int `direction`. Java `lit` is inverted Bedrock `extinguished`. `signal_fire` / `waterlogged` are **not** on Bedrock palettes — deferred. Orientation is **intrinsic**.
+
+### Geometry (Java `template_campfire` parity)
+
+| Mode | Boxes |
+|------|--------|
+| Logs (always) | 4 outer logs + centre floor strip; height ≤7/16 |
+| Lit fire | two crossed fire planes (1px, 45° Y, `rescale`) using `campfire` / `soul_campfire` atlas tiles |
+
+Unlit: all log faces use `campfire_log`. Lit: inner faces use `*_log_lit`. Facing via `rotateModelY` from south base (Java blockstate Y).
+
+### Lighting
+
+When `!extinguished`, route through existing PR33 emissive (15 / soul 10). Extinguished → emission 0. **No** BlockLight/SkyLight, smoke particles, or animated flame.
+
+### Validation
+
+`test/block-models-pr44.test.ts` + fixture z=18 + coverage (campfires → `explicit_ok`).
+
+**Out of scope:** smoke particles, dynamic flame, signal_fire, waterlogged, BlockLight/SkyLight.
+
+**In progress.** P0 backlog clears after freeze; next is P1 fence gates (PR45).
 
 ---
 ## 1. Current architecture
@@ -824,11 +862,11 @@ SubChunk { layers[].palette: BlockState{name, states}[], indices }
 ChunkBlocks
     ↓
 VoxelNeighborhood
-    ↓  resolveBlockModel(…) → … | candle | sign | hanging_sign | chest | chain
+    ↓  resolveBlockModel(…) → … | chest | chain | campfire
     ↓  isFaceFullyOccluded (Option A)
 box-face mesher (voxel-mesh-builder.ts)
     ↓  PR17 atlas UVs
-    ↓  PR33 isEmissiveBlock(name, states?)
+    ↓  PR33 isEmissiveBlock(name, states?)  ← campfire extinguished-aware
 MeshChunk { positions…, indices, emissive? }
     ↓
 Three.js (terrain + emissive)
@@ -838,7 +876,8 @@ Three.js (terrain + emissive)
 **PR40:** standing/wall signs — palette orientation is model orientation. **Frozen.**
 **PR41:** hanging signs — intrinsic `hanging`/`attached_bit`/orientation; no text. **Frozen.**
 **PR42:** chests — facing from `minecraft:cardinal_direction`; double halves deferred. **Frozen.**
-**PR43:** chains — `pillar_axis` crossed planes; copper variants share geometry. **In progress.**
+**PR43:** chains — `pillar_axis` crossed planes; copper variants share geometry. **Frozen.**
+**PR44:** campfires — logs + lit fire planes; `extinguished` + cardinal facing; PR33 emissive. **In progress.**
 ---
 
 ## 2. Actual Bedrock data discovered

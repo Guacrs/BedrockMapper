@@ -600,6 +600,85 @@ export function modelFixtureCells(): readonly FixtureCell[] {
     'chain at chunk boundary east',
   );
 
+  // --- PR44 campfires (z=18) — logs + lit/unlit; cardinal facing ---
+  place(
+    'campfire-lit-s',
+    2,
+    18,
+    b('minecraft:campfire', {
+      extinguished: false,
+      'minecraft:cardinal_direction': 'south',
+    }),
+    'campfire lit facing south',
+  );
+  place(
+    'campfire-lit-n',
+    4,
+    18,
+    b('minecraft:campfire', {
+      extinguished: false,
+      'minecraft:cardinal_direction': 'north',
+    }),
+    'campfire lit facing north',
+  );
+  place(
+    'campfire-lit-e',
+    6,
+    18,
+    b('minecraft:campfire', {
+      extinguished: false,
+      'minecraft:cardinal_direction': 'east',
+    }),
+    'campfire lit facing east',
+  );
+  place(
+    'campfire-lit-w',
+    8,
+    18,
+    b('minecraft:campfire', {
+      extinguished: false,
+      'minecraft:cardinal_direction': 'west',
+    }),
+    'campfire lit facing west',
+  );
+  place(
+    'campfire-unlit',
+    10,
+    18,
+    b('minecraft:campfire', {
+      extinguished: true,
+      'minecraft:cardinal_direction': 'south',
+    }),
+    'campfire extinguished',
+  );
+  place(
+    'soul-campfire-lit',
+    12,
+    18,
+    b('minecraft:soul_campfire', {
+      extinguished: false,
+      'minecraft:cardinal_direction': 'south',
+    }),
+    'soul campfire lit',
+  );
+  place(
+    'soul-campfire-unlit',
+    14,
+    18,
+    b('minecraft:soul_campfire', {
+      extinguished: true,
+      'minecraft:cardinal_direction': 'east',
+    }),
+    'soul campfire extinguished',
+  );
+  place(
+    'campfire-legacy-dir',
+    16,
+    18,
+    b('minecraft:campfire', { extinguished: false, direction: 2 }),
+    'legacy direction=2 → north',
+  );
+
   // --- PR34 lanterns (z=44) ---
   place(
     'lantern-floor',
@@ -1034,6 +1113,14 @@ export function modelFixtureExpectations(): readonly FixtureExpectation[] {
     { id: 'chain-default', family: 'chain', isFullCube: false, modelKeyPrefix: 'chain:y:' },
     { id: 'chain-boundary-w', family: 'chain', isFullCube: false, modelKeyPrefix: 'chain:y:' },
     { id: 'chain-boundary-e', family: 'chain', isFullCube: false, modelKeyPrefix: 'chain:y:' },
+    { id: 'campfire-lit-s', family: 'campfire', isFullCube: false, modelKeyPrefix: 'campfire:south:lit:' },
+    { id: 'campfire-lit-n', family: 'campfire', isFullCube: false, modelKeyPrefix: 'campfire:north:lit:' },
+    { id: 'campfire-lit-e', family: 'campfire', isFullCube: false, modelKeyPrefix: 'campfire:east:lit:' },
+    { id: 'campfire-lit-w', family: 'campfire', isFullCube: false, modelKeyPrefix: 'campfire:west:lit:' },
+    { id: 'campfire-unlit', family: 'campfire', isFullCube: false, modelKeyPrefix: 'campfire:south:unlit:' },
+    { id: 'soul-campfire-lit', family: 'campfire', isFullCube: false, modelKeyPrefix: 'campfire:south:lit:' },
+    { id: 'soul-campfire-unlit', family: 'campfire', isFullCube: false, modelKeyPrefix: 'campfire:east:unlit:' },
+    { id: 'campfire-legacy-dir', family: 'campfire', isFullCube: false, modelKeyPrefix: 'campfire:north:lit:' },
     { id: 'lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },
     { id: 'lantern-hanging', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:hanging:' },
     { id: 'soul-lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },
