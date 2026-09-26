@@ -29,6 +29,11 @@ import {
   tryBuildChest,
 } from './families/chest.ts';
 import {
+  chainAxisFromStates,
+  isChainName,
+  tryBuildChain,
+} from './families/chain.ts';
+import {
   hangingFacingFromStates,
   hangingGroundDirFromStates,
   hangingSignModeFromStates,
@@ -155,6 +160,9 @@ function cacheKey(
   if (isChestName(ref.name)) {
     const facing = chestFacingFromStates(ref.states) ?? '?';
     return `chest:${facing}:${ref.name}`;
+  }
+  if (isChainName(ref.name)) {
+    return `chain:${chainAxisFromStates(ref.states)}:${ref.name}`;
   }
   if (isRailName(ref.name)) {
     const allowCorners = railAllowsCorners(ref.name);
@@ -285,6 +293,9 @@ export function resolveBlockModel(
   } else if (isChestName(ref.name)) {
     const built = tryBuildChest(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
+  } else if (isChainName(ref.name)) {
+    const built = tryBuildChain(ref);
+    model = built.ok ? built.model : fullCubeModel(ref.name);
   } else if (isRailName(ref.name)) {
     const built = tryBuildRail(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
@@ -340,6 +351,7 @@ export function neighbourIsFullCubeForConnection(ref: BlockRef | null): boolean 
     isSignName(ref.name) ||
     isHangingSignName(ref.name) ||
     isChestName(ref.name) ||
+    isChainName(ref.name) ||
     isRailName(ref.name) ||
     isCactusName(ref.name)
   ) {

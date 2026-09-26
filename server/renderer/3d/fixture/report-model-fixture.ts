@@ -14,6 +14,7 @@ import {
 import { isButtonName } from '../models/families/button.ts';
 import { isCandleName } from '../models/families/candle.ts';
 import { isChestName } from '../models/families/chest.ts';
+import { isChainName } from '../models/families/chain.ts';
 import { isCactusName } from '../models/families/cactus.ts';
 import { isCarpetName } from '../models/families/carpet.ts';
 import { isCrossName } from '../models/families/cross.ts';
@@ -87,6 +88,7 @@ function familyOf(name: string): string {
   if (isSignName(name)) return 'sign';
   if (isHangingSignName(name)) return 'hanging_sign';
   if (isChestName(name)) return 'chest';
+  if (isChainName(name)) return 'chain';
   if (isRailName(name)) return 'rail';
   if (isCactusName(name)) return 'cactus';
   if (name.includes('double_slab') || name.includes('double_cut_')) return 'full_cube';

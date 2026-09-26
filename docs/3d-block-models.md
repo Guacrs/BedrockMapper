@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR41 frozen · **PR42 chest models in progress** · Next after freeze: chains (PR43); lighting only after model-coverage milestone.
+**Status:** PR19–PR42 frozen · **PR43 chain models in progress** · Next after freeze: campfires (PR44); lighting only after model-coverage milestone.
 
 **Frozen predecessors:**
 
@@ -32,6 +32,7 @@
 | **PR39** | Candle family — multi-box by count + lit/emissive (**frozen**) |
 | **PR40** | Standing/wall signs (**frozen**) |
 | **PR41** | Hanging signs — intrinsic hanging/attached_bit (**frozen**) |
+| **PR42** | Chest models — single closed AABB + cardinal facing (**frozen**) |
 ### PR20 implemented
 
 - `ChunkBlocks` palette stores immutable `BlockRef { name, states }` (NBT `version` still dropped)
@@ -777,7 +778,39 @@ Inventory textures (`chest_front` / `_side` / `_top`, copper `*_inventory_*`) ar
 
 **Out of scope:** double-chest halves, lid animation, BlockLight/SkyLight, chains.
 
-**In progress.** Next after freeze: **PR43** chains.
+**Frozen.** Facing intrinsic; Bedrock has no `type` double state. Visual: inset AABB + cardinal fronts confirmed. Next: **PR43** chains (`pillar_axis`).
+
+---
+
+## 35. Chain models (PR43)
+
+**Goal:** stop rendering chains as full cubes. Orientation from stored Bedrock `pillar_axis` only.
+
+### Bedrock research
+
+```text
+chain / iron_chain / *copper_chain
+└─ pillar_axis ∈ {x, y, z}  → length axis (intrinsic)
+```
+
+Microsoft listings + wiki (Bedrock): only `pillar_axis`. Default `y` (vertical). Java `axis` / `waterlogged` — waterlogged deferred (not geometry). Orientation is **intrinsic** — no neighbour probe. Copper oxidization/waxed variants share geometry; textures differ via appearance DB. Legacy id `minecraft:chain` aliases iron textures.
+
+### Geometry
+
+| Axis | Boxes |
+|------|--------|
+| `y` (vertical) | two 3px crossed planes (1px thick), 45° about Y; collision shaft `[6.5,0,6.5]–[9.5,16,9.5]` |
+| `x` / `z` | same crossed planes remapped along the length axis; 45° about that axis |
+
+Matches Java `chain.json` crossed planes + wiki 3px centred collision (faces 3/32 from centre).
+
+### Validation
+
+`test/block-models-pr43.test.ts` + fixture z=20 + coverage (chains → `explicit_ok`).
+
+**Out of scope:** waterlogged, BlockLight/SkyLight, campfires, generic rod abstraction.
+
+**In progress.** Next after freeze: **PR44** campfires.
 
 ---
 ## 1. Current architecture
@@ -791,7 +824,7 @@ SubChunk { layers[].palette: BlockState{name, states}[], indices }
 ChunkBlocks
     ↓
 VoxelNeighborhood
-    ↓  resolveBlockModel(…) → … | candle | sign | hanging_sign | chest
+    ↓  resolveBlockModel(…) → … | candle | sign | hanging_sign | chest | chain
     ↓  isFaceFullyOccluded (Option A)
 box-face mesher (voxel-mesh-builder.ts)
     ↓  PR17 atlas UVs
@@ -804,7 +837,8 @@ Three.js (terrain + emissive)
 **PR39:** candle family — multi-box from `candles`/`lit`; cakes deferred. **Frozen.**
 **PR40:** standing/wall signs — palette orientation is model orientation. **Frozen.**
 **PR41:** hanging signs — intrinsic `hanging`/`attached_bit`/orientation; no text. **Frozen.**
-**PR42:** chests — facing from `minecraft:cardinal_direction`; double halves deferred (not in Bedrock palette). **In progress.**
+**PR42:** chests — facing from `minecraft:cardinal_direction`; double halves deferred. **Frozen.**
+**PR43:** chains — `pillar_axis` crossed planes; copper variants share geometry. **In progress.**
 ---
 
 ## 2. Actual Bedrock data discovered

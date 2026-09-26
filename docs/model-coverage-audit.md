@@ -6,34 +6,30 @@ Catalog size: **1505** block ids (appearance ∪ block-colors).
 
 | Bucket | Count | Meaning |
 | --- | ---: | --- |
-| explicit_ok | 513 | Dedicated model family already |
+| explicit_ok | 523 | Dedicated model family already |
 | intentional_full_cube | 779 | True / intentional cube mesh |
 | intentional_fallback | 13 | Safe full-cube stand-in (J) |
-| known_incorrect | 178 | Non-cube evidence; still cube mesh |
+| known_incorrect | 168 | Non-cube evidence; still cube mesh |
 | suspected_incorrect | 22 | Heuristic non-cube; needs research |
 
-**Incorrect / suspected total: 200** (plus 13 intentional fallbacks).
+**Incorrect / suspected total: 190** (plus 13 intentional fallbacks).
 
 ## Priority backlog (incorrect + fallback)
 
 | Priority | Count | Role |
 | --- | ---: | --- |
-| p0 | 12 | High-frequency build visuals (chests, chains, campfires) |
+| p0 | 2 | High-frequency build visuals (chests, chains, campfires) |
 | p1 | 32 | Attachment / redstone / thin deco |
 | p2 | 46 | Functional furniture / rods |
 | p3 | 80 | Vegetation / clusters / cakes (incl. candle cakes) |
 | p4 | 43 | Rare / complex / heuristic |
 
-Candles (PR39), standing/wall signs (PR40), hanging signs (PR41), and chests (PR42) are **explicit_ok**. Next family PR starts at **PR43** (chains).
+Candles (PR39), standing/wall signs (PR40), hanging signs (PR41), chests (PR42), and chains (PR43) are **explicit_ok**. Next family PR starts at **PR44** (campfires).
 
 ## Suggested family PR sequence
 
 Do **not** implement this list blindly — each PR still needs Bedrock state research.
 One family (or tightly related group) per PR.
-
-### P0 — `chain` (10 ids) → candidate PR43
-
-Samples: `minecraft:chain`, `minecraft:copper_chain`, `minecraft:exposed_copper_chain`, `minecraft:iron_chain`, `minecraft:oxidized_copper_chain`, `minecraft:waxed_copper_chain`, `minecraft:waxed_exposed_copper_chain`, `minecraft:waxed_oxidized_copper_chain`
 
 ### P0 — `campfire` (2 ids) → candidate PR44
 
@@ -197,16 +193,6 @@ Deferred until the model-coverage milestone. Next lighting phase is **research /
 | --- | --- | --- | --- |
 | p0 | campfire | known_incorrect | `minecraft:campfire` |
 | p0 | campfire | known_incorrect | `minecraft:soul_campfire` |
-| p0 | chain | known_incorrect | `minecraft:chain` |
-| p0 | chain | known_incorrect | `minecraft:copper_chain` |
-| p0 | chain | known_incorrect | `minecraft:exposed_copper_chain` |
-| p0 | chain | known_incorrect | `minecraft:iron_chain` |
-| p0 | chain | known_incorrect | `minecraft:oxidized_copper_chain` |
-| p0 | chain | known_incorrect | `minecraft:waxed_copper_chain` |
-| p0 | chain | known_incorrect | `minecraft:waxed_exposed_copper_chain` |
-| p0 | chain | known_incorrect | `minecraft:waxed_oxidized_copper_chain` |
-| p0 | chain | known_incorrect | `minecraft:waxed_weathered_copper_chain` |
-| p0 | chain | known_incorrect | `minecraft:weathered_copper_chain` |
 | p1 | banner | known_incorrect | `minecraft:standing_banner` |
 | p1 | banner | known_incorrect | `minecraft:wall_banner` |
 | p1 | daylight_detector | known_incorrect | `minecraft:daylight_detector` |
