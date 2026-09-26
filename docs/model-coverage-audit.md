@@ -6,34 +6,30 @@ Catalog size: **1505** block ids (appearance ∪ block-colors).
 
 | Bucket | Count | Meaning |
 | --- | ---: | --- |
-| explicit_ok | 489 | Dedicated model family already |
+| explicit_ok | 502 | Dedicated model family already |
 | intentional_full_cube | 779 | True / intentional cube mesh |
 | intentional_fallback | 13 | Safe full-cube stand-in (J) |
-| known_incorrect | 202 | Non-cube evidence; still cube mesh |
+| known_incorrect | 189 | Non-cube evidence; still cube mesh |
 | suspected_incorrect | 22 | Heuristic non-cube; needs research |
 
-**Incorrect / suspected total: 224** (plus 13 intentional fallbacks).
+**Incorrect / suspected total: 211** (plus 13 intentional fallbacks).
 
 ## Priority backlog (incorrect + fallback)
 
 | Priority | Count | Role |
 | --- | ---: | --- |
-| p0 | 36 | High-frequency build visuals (hanging signs, chests, chains, campfires) |
+| p0 | 23 | High-frequency build visuals (chests, chains, campfires) |
 | p1 | 32 | Attachment / redstone / thin deco |
 | p2 | 46 | Functional furniture / rods |
 | p3 | 80 | Vegetation / clusters / cakes (incl. candle cakes) |
 | p4 | 43 | Rare / complex / heuristic |
 
-Floor candles (PR39) and standing/wall signs (PR40) are **explicit_ok**. Next family PR starts at **PR41** (hanging signs).
+Candles (PR39), standing/wall signs (PR40), and hanging signs (PR41) are **explicit_ok**. Next family PR starts at **PR42** (chests).
 
 ## Suggested family PR sequence
 
 Do **not** implement this list blindly — each PR still needs Bedrock state research.
 One family (or tightly related group) per PR.
-
-### P0 — `hanging_sign` (13 ids) → candidate PR41
-
-Samples: `minecraft:acacia_hanging_sign`, `minecraft:bamboo_hanging_sign`, `minecraft:birch_hanging_sign`, `minecraft:cherry_hanging_sign`, `minecraft:crimson_hanging_sign`, `minecraft:dark_oak_hanging_sign`, `minecraft:jungle_hanging_sign`, `minecraft:mangrove_hanging_sign`
 
 ### P0 — `chest` (11 ids) → candidate PR42
 
@@ -226,19 +222,6 @@ Deferred until the model-coverage milestone. Next lighting phase is **research /
 | p0 | chest | known_incorrect | `minecraft:waxed_oxidized_copper_chest` |
 | p0 | chest | known_incorrect | `minecraft:waxed_weathered_copper_chest` |
 | p0 | chest | known_incorrect | `minecraft:weathered_copper_chest` |
-| p0 | hanging_sign | known_incorrect | `minecraft:acacia_hanging_sign` |
-| p0 | hanging_sign | known_incorrect | `minecraft:bamboo_hanging_sign` |
-| p0 | hanging_sign | known_incorrect | `minecraft:birch_hanging_sign` |
-| p0 | hanging_sign | known_incorrect | `minecraft:cherry_hanging_sign` |
-| p0 | hanging_sign | known_incorrect | `minecraft:crimson_hanging_sign` |
-| p0 | hanging_sign | known_incorrect | `minecraft:dark_oak_hanging_sign` |
-| p0 | hanging_sign | known_incorrect | `minecraft:jungle_hanging_sign` |
-| p0 | hanging_sign | known_incorrect | `minecraft:mangrove_hanging_sign` |
-| p0 | hanging_sign | known_incorrect | `minecraft:oak_hanging_sign` |
-| p0 | hanging_sign | known_incorrect | `minecraft:pale_oak_hanging_sign` |
-| p0 | hanging_sign | known_incorrect | `minecraft:poplar_hanging_sign` |
-| p0 | hanging_sign | known_incorrect | `minecraft:spruce_hanging_sign` |
-| p0 | hanging_sign | known_incorrect | `minecraft:warped_hanging_sign` |
 | p1 | banner | known_incorrect | `minecraft:standing_banner` |
 | p1 | banner | known_incorrect | `minecraft:wall_banner` |
 | p1 | daylight_detector | known_incorrect | `minecraft:daylight_detector` |
