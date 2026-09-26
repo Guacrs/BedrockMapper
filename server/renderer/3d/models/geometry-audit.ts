@@ -123,16 +123,7 @@ const KNOWN_INCORRECT_RULES: readonly ResearchRule[] = [
     priority: 'p0',
     match: (s) => s.includes('hanging_sign'),
   },
-  {
-    category: 'sign',
-    priority: 'p0',
-    match: (s) =>
-      s.includes('wall_sign') ||
-      s.includes('standing_sign') ||
-      s === 'wall_sign' ||
-      s === 'standing_sign' ||
-      (s.endsWith('_sign') && !s.includes('hanging')),
-  },
+  // Standing / wall signs are explicit (PR40). Hanging remains known_incorrect.
   {
     category: 'chain',
     priority: 'p0',

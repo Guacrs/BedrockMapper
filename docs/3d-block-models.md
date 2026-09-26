@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR39 frozen · **PR40 standing/wall signs in progress** · Next after freeze: hanging signs (PR41); lighting only after model-coverage milestone.
+**Status:** PR19–PR40 frozen · **PR41 hanging signs in progress** · Next after freeze: chests (PR42); lighting only after model-coverage milestone.
 
 **Frozen predecessors:**
 
@@ -30,6 +30,7 @@
 | **PR37** | Rail flat/ascending/corner (**frozen**, in beta) |
 | **PR38** | Non-full-cube geometry coverage audit (**frozen**, in beta) |
 | **PR39** | Candle family — multi-box by count + lit/emissive (**frozen**) |
+| **PR40** | Standing/wall signs (**frozen**) |
 ### PR20 implemented
 
 - `ChunkBlocks` palette stores immutable `BlockRef { name, states }` (NBT `version` still dropped)
@@ -666,6 +667,49 @@ Reuse PR33 emissive mesh. When `lit=true`, emission = Bedrock light level `3 × 
 **Frozen.** One multi-box family by `candles`/`lit`; cakes deferred. Visual: multi-stick + lit/unlit emissive confirmed. Next: **PR40** standing/wall signs (hanging signs are PR41).
 
 ---
+
+## 32. Standing / wall sign models (PR40)
+
+**Goal:** stop rendering standing and wall signs as full cubes. Hanging signs stay **out of scope** (PR41).
+
+### Bedrock research
+
+```text
+Standing sign (*_standing_sign / standing_sign)
+├─ ground_sign_direction 0–15  (22.5°; 0=south … 8=north …)
+├─ wood variant = block id
+└─ text = Sign block entity (NOT a model state)
+
+Wall sign (*_wall_sign / wall_sign)
+├─ facing_direction 2–5 (N/S/W/E; 0/1 unused)
+├─ board faces that direction (attach opposite)
+└─ wood variant = block id
+```
+
+**Architectural answer:** Bedrock does **not** separate “model orientation” from “text-facing” on the palette — `ground_sign_direction` / `facing_direction` **are** the board orientation. Text content is block-entity / `BlockSignComponent` data and is not meshed here.
+
+No `waterlogged` sign block state (layers). Do not infer these semantics from Java `rotation` / `facing` / `waterlogged` names.
+
+### Geometry
+
+Classic plank-board AABBs (Java uses an entity renderer for sign boards; silhouette matches common Bedrock collision):
+
+| Kind | Boxes |
+|------|--------|
+| Standing (dir=0 south) | post `[7,0,7]–[9,8,9]`, board `[0,8,7]–[16,14,9]`; Y-rotate `−dir×22.5°` |
+| Wall north | board `[0,4.5,14]–[16,12.5,16]`; other facings remap |
+
+Appearance DB maps signs → plank `all` textures.
+
+### Validation
+
+`test/block-models-pr40.test.ts` + fixture cells at z=30 + `report-model-fixture --assert` + coverage audit (standing/wall → `explicit_ok`; hanging remain `known_incorrect`).
+
+**Out of scope:** hanging signs, sign text glyphs, BlockLight/SkyLight.
+
+**Frozen.** One `sign.ts` family; palette orientation is the model orientation (no separate textFacing). Visual: standing post+board and wall thin boards confirmed. Next: **PR41** hanging signs (intrinsic `hanging`/`attached_bit`/orientation — no text glyphs).
+
+---
 ## 1. Current architecture
 
 
@@ -677,7 +721,7 @@ SubChunk { layers[].palette: BlockState{name, states}[], indices }
 ChunkBlocks
     ↓
 VoxelNeighborhood
-    ↓  resolveBlockModel(BlockRef[, ConnectionMask[, WallShape]]) → full_cube | slab | stair | fence | pane | door | trapdoor | cross | wall | carpet | pressure_plate | snow_layer | ladder | torch | cactus | lantern | button | lever | rail | candle
+    ↓  resolveBlockModel(BlockRef[, ConnectionMask[, WallShape]]) → full_cube | slab | stair | fence | pane | door | trapdoor | cross | wall | carpet | pressure_plate | snow_layer | ladder | torch | cactus | lantern | button | lever | rail | candle | sign
     ↓  isFaceFullyOccluded (Option A)
 box-face mesher (voxel-mesh-builder.ts)
     ↓  PR17: appearance → atlas UVs (side UV crop for half-height boxes)
@@ -694,7 +738,8 @@ Three.js (terrain material + emissive material)
 **PR36:** lever base + angled handle (`lever_direction` / `open_bit`).
 **PR37:** rails from stored `rail_direction` (+ `rail_data_bit` texture); narrow neighbour fallback only. **Frozen on beta.**
 **PR38:** geometry correctness audit — incorrect full-cube backlog + prioritized family roadmap (`docs/model-coverage-audit.md`). **Frozen on beta.**
-**PR39:** candle family — multi-box from `candles`/`lit`; cakes deferred.
+**PR39:** candle family — multi-box from `candles`/`lit`; cakes deferred. **Frozen.**
+**PR40:** standing/wall signs — `ground_sign_direction` / `facing_direction`; hanging deferred to PR41.
 ---
 
 ## 2. Actual Bedrock data discovered

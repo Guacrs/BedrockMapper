@@ -6,34 +6,30 @@ Catalog size: **1505** block ids (appearance ∪ block-colors).
 
 | Bucket | Count | Meaning |
 | --- | ---: | --- |
-| explicit_ok | 463 | Dedicated model family already |
+| explicit_ok | 489 | Dedicated model family already |
 | intentional_full_cube | 779 | True / intentional cube mesh |
 | intentional_fallback | 13 | Safe full-cube stand-in (J) |
-| known_incorrect | 228 | Non-cube evidence; still cube mesh |
+| known_incorrect | 202 | Non-cube evidence; still cube mesh |
 | suspected_incorrect | 22 | Heuristic non-cube; needs research |
 
-**Incorrect / suspected total: 250** (plus 13 intentional fallbacks).
+**Incorrect / suspected total: 224** (plus 13 intentional fallbacks).
 
 ## Priority backlog (incorrect + fallback)
 
 | Priority | Count | Role |
 | --- | ---: | --- |
-| p0 | 62 | High-frequency build visuals (signs, hanging signs, chests, chains, campfires) |
+| p0 | 36 | High-frequency build visuals (hanging signs, chests, chains, campfires) |
 | p1 | 32 | Attachment / redstone / thin deco |
 | p2 | 46 | Functional furniture / rods |
 | p3 | 80 | Vegetation / clusters / cakes (incl. candle cakes) |
 | p4 | 43 | Rare / complex / heuristic |
 
-Floor candles are **explicit_ok** (PR39). Next family PR starts at **PR40** (signs).
+Floor candles (PR39) and standing/wall signs (PR40) are **explicit_ok**. Next family PR starts at **PR41** (hanging signs).
 
 ## Suggested family PR sequence
 
 Do **not** implement this list blindly — each PR still needs Bedrock state research.
 One family (or tightly related group) per PR.
-
-### P0 — `sign` (26 ids) → candidate PR40
-
-Samples: `minecraft:acacia_standing_sign`, `minecraft:acacia_wall_sign`, `minecraft:bamboo_standing_sign`, `minecraft:bamboo_wall_sign`, `minecraft:birch_standing_sign`, `minecraft:birch_wall_sign`, `minecraft:cherry_standing_sign`, `minecraft:cherry_wall_sign`
 
 ### P0 — `hanging_sign` (13 ids) → candidate PR41
 
@@ -243,32 +239,6 @@ Deferred until the model-coverage milestone. Next lighting phase is **research /
 | p0 | hanging_sign | known_incorrect | `minecraft:poplar_hanging_sign` |
 | p0 | hanging_sign | known_incorrect | `minecraft:spruce_hanging_sign` |
 | p0 | hanging_sign | known_incorrect | `minecraft:warped_hanging_sign` |
-| p0 | sign | known_incorrect | `minecraft:acacia_standing_sign` |
-| p0 | sign | known_incorrect | `minecraft:acacia_wall_sign` |
-| p0 | sign | known_incorrect | `minecraft:bamboo_standing_sign` |
-| p0 | sign | known_incorrect | `minecraft:bamboo_wall_sign` |
-| p0 | sign | known_incorrect | `minecraft:birch_standing_sign` |
-| p0 | sign | known_incorrect | `minecraft:birch_wall_sign` |
-| p0 | sign | known_incorrect | `minecraft:cherry_standing_sign` |
-| p0 | sign | known_incorrect | `minecraft:cherry_wall_sign` |
-| p0 | sign | known_incorrect | `minecraft:crimson_standing_sign` |
-| p0 | sign | known_incorrect | `minecraft:crimson_wall_sign` |
-| p0 | sign | known_incorrect | `minecraft:darkoak_standing_sign` |
-| p0 | sign | known_incorrect | `minecraft:darkoak_wall_sign` |
-| p0 | sign | known_incorrect | `minecraft:jungle_standing_sign` |
-| p0 | sign | known_incorrect | `minecraft:jungle_wall_sign` |
-| p0 | sign | known_incorrect | `minecraft:mangrove_standing_sign` |
-| p0 | sign | known_incorrect | `minecraft:mangrove_wall_sign` |
-| p0 | sign | known_incorrect | `minecraft:pale_oak_standing_sign` |
-| p0 | sign | known_incorrect | `minecraft:pale_oak_wall_sign` |
-| p0 | sign | known_incorrect | `minecraft:poplar_standing_sign` |
-| p0 | sign | known_incorrect | `minecraft:poplar_wall_sign` |
-| p0 | sign | known_incorrect | `minecraft:spruce_standing_sign` |
-| p0 | sign | known_incorrect | `minecraft:spruce_wall_sign` |
-| p0 | sign | known_incorrect | `minecraft:standing_sign` |
-| p0 | sign | known_incorrect | `minecraft:wall_sign` |
-| p0 | sign | known_incorrect | `minecraft:warped_standing_sign` |
-| p0 | sign | known_incorrect | `minecraft:warped_wall_sign` |
 | p1 | banner | known_incorrect | `minecraft:standing_banner` |
 | p1 | banner | known_incorrect | `minecraft:wall_banner` |
 | p1 | daylight_detector | known_incorrect | `minecraft:daylight_detector` |
