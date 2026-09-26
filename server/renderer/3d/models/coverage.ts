@@ -19,6 +19,7 @@ import { isCactusName } from './families/cactus.ts';
 import { isCarpetName } from './families/carpet.ts';
 import { isCrossName } from './families/cross.ts';
 import { isChestName } from './families/chest.ts';
+import { isChainName } from './families/chain.ts';
 import { isHangingSignName } from './families/hanging-sign.ts';
 import { isSignName } from './families/sign.ts';
 import { isDoorName } from './families/door.ts';
@@ -61,6 +62,7 @@ export type ModelFamilyId =
   | 'sign' // PR40 standing/wall
   | 'hanging_sign' // PR41
   | 'chest' // PR42
+  | 'chain' // PR43
   | 'fallback' // J — safe full-cube used as stand-in
   | 'future'; // K — researched as needing custom geo later
 
@@ -105,7 +107,6 @@ const FUTURE_SHORT_IDS: ReadonlySet<string> = new Set([
   'damaged_anvil',
   'hopper',
   'bell',
-  'chain',
   'lightning_rod',
   'end_rod',
   'scaffolding',
@@ -120,7 +121,7 @@ const FUTURE_SHORT_IDS: ReadonlySet<string> = new Set([
   'fire_coral_fan',
   'horn_coral_fan',
   'tube_coral_fan',
-  // Still research / complex — not PR30 (chests are explicit PR42)
+  // Still research / complex — not PR30 (chests PR42, chains PR43)
   'bed',
   'tripwire_hook',
   'cactus_flower',
@@ -310,6 +311,14 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
       note: 'single closed AABB + cardinal_direction; double halves deferred',
     };
   }
+  if (isChainName(name)) {
+    return {
+      name,
+      family: 'chain',
+      implementation: 'explicit',
+      note: 'pillar_axis crossed 3px planes + 45°; copper variants share geometry',
+    };
+  }
   if (isCactusName(name)) {
     return { name, family: 'cactus', implementation: 'explicit' };
   }
@@ -318,7 +327,6 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
     looksLikeCoralWallFan(short) ||
     looksLikeCandleCake(short) ||
     looksLikeShulkerOrBedOrBanner(short) ||
-    short.endsWith('_chain') ||
     short.endsWith('_cauldron') ||
     short.endsWith('_lightning_rod') ||
     short.includes('piston_arm') ||
@@ -368,6 +376,7 @@ export function summarizeCoverage(entries: readonly ModelCoverageEntry[]): Cover
     sign: 0,
     hanging_sign: 0,
     chest: 0,
+    chain: 0,
     fallback: 0,
     future: 0,
   } satisfies Record<ModelFamilyId, number>;

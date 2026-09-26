@@ -524,6 +524,81 @@ export function modelFixtureCells(): readonly FixtureCell[] {
     'legacy facing_direction=2 → north',
   );
 
+  // --- PR43 chains (z=24) — pillar_axis intrinsic; copper share geometry ---
+  place(
+    'chain-y',
+    2,
+    24,
+    b('minecraft:chain', { pillar_axis: 'y' }),
+    'iron chain vertical (legacy id)',
+  );
+  place(
+    'chain-x',
+    4,
+    24,
+    b('minecraft:iron_chain', { pillar_axis: 'x' }),
+    'iron chain east-west',
+  );
+  place(
+    'chain-z',
+    6,
+    24,
+    b('minecraft:iron_chain', { pillar_axis: 'z' }),
+    'iron chain north-south',
+  );
+  place(
+    'chain-copper-y',
+    8,
+    24,
+    b('minecraft:copper_chain', { pillar_axis: 'y' }),
+    'copper chain vertical',
+  );
+  place(
+    'chain-exposed-x',
+    10,
+    24,
+    b('minecraft:exposed_copper_chain', { pillar_axis: 'x' }),
+    'exposed copper chain EW',
+  );
+  place(
+    'chain-oxidized-z',
+    12,
+    24,
+    b('minecraft:oxidized_copper_chain', { pillar_axis: 'z' }),
+    'oxidized copper chain NS',
+  );
+  place(
+    'chain-waxed-y',
+    14,
+    24,
+    b('minecraft:waxed_weathered_copper_chain', { pillar_axis: 'y' }),
+    'waxed weathered copper vertical',
+  );
+  // Default / missing axis → y
+  place(
+    'chain-default',
+    16,
+    24,
+    b('minecraft:iron_chain', {}),
+    'missing pillar_axis → y',
+  );
+  // Chunk-boundary vertical pair (x=15/16) — axis is intrinsic, not contextual,
+  // but proves both chunks resolve chain models independently.
+  place(
+    'chain-boundary-w',
+    15,
+    22,
+    b('minecraft:iron_chain', { pillar_axis: 'y' }),
+    'chain at chunk boundary west',
+  );
+  place(
+    'chain-boundary-e',
+    16,
+    22,
+    b('minecraft:copper_chain', { pillar_axis: 'y' }),
+    'chain at chunk boundary east',
+  );
+
   // --- PR34 lanterns (z=44) ---
   place(
     'lantern-floor',
@@ -948,6 +1023,16 @@ export function modelFixtureExpectations(): readonly FixtureExpectation[] {
     { id: 'chest-west', family: 'chest', isFullCube: false, modelKeyPrefix: 'chest:west:' },
     { id: 'chest-copper', family: 'chest', isFullCube: false, modelKeyPrefix: 'chest:south:' },
     { id: 'chest-legacy-facing', family: 'chest', isFullCube: false, modelKeyPrefix: 'chest:north:' },
+    { id: 'chain-y', family: 'chain', isFullCube: false, modelKeyPrefix: 'chain:y:' },
+    { id: 'chain-x', family: 'chain', isFullCube: false, modelKeyPrefix: 'chain:x:' },
+    { id: 'chain-z', family: 'chain', isFullCube: false, modelKeyPrefix: 'chain:z:' },
+    { id: 'chain-copper-y', family: 'chain', isFullCube: false, modelKeyPrefix: 'chain:y:' },
+    { id: 'chain-exposed-x', family: 'chain', isFullCube: false, modelKeyPrefix: 'chain:x:' },
+    { id: 'chain-oxidized-z', family: 'chain', isFullCube: false, modelKeyPrefix: 'chain:z:' },
+    { id: 'chain-waxed-y', family: 'chain', isFullCube: false, modelKeyPrefix: 'chain:y:' },
+    { id: 'chain-default', family: 'chain', isFullCube: false, modelKeyPrefix: 'chain:y:' },
+    { id: 'chain-boundary-w', family: 'chain', isFullCube: false, modelKeyPrefix: 'chain:y:' },
+    { id: 'chain-boundary-e', family: 'chain', isFullCube: false, modelKeyPrefix: 'chain:y:' },
     { id: 'lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },
     { id: 'lantern-hanging', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:hanging:' },
     { id: 'soul-lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },
