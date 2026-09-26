@@ -309,8 +309,11 @@ function vertexRgb(
  * Uses researched lightColor, scaled by emission so weak emitters (magma)
  * read dimmer than glowstone without a custom shader.
  */
-function emissiveVertexRgb(blockName: string): [number, number, number] {
-  const lit = blockLightingFor(blockName);
+function emissiveVertexRgb(
+  blockName: string,
+  states?: BlockRef['states'],
+): [number, number, number] {
+  const lit = blockLightingFor(blockName, states);
   if (!lit || lit.emission <= 0) return [1, 1, 1];
   const [lr, lg, lb] = lit.lightColor ?? ([1, 1, 1] as const);
   // Keep a floor so low-emission blocks still tint; scale up to full at emission=1.
@@ -467,7 +470,7 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
           );
           if (!model) continue;
 
-          const selfLit = isEmissiveBlock(ref.name);
+          const selfLit = isEmissiveBlock(ref.name, ref.states);
           const target = selfLit ? emissive : terrain;
 
           for (const box of model.renderBoxes) {
@@ -491,7 +494,7 @@ export function buildVoxelMesh(chunkX: number, chunkZ: number, neighborhood: Vox
                 atlas && textureKey ? uvRectForKey(atlas, textureKey) : null;
               const hasTexture = rect != null;
               const [r, g, b] = selfLit
-                ? emissiveVertexRgb(ref.name)
+                ? emissiveVertexRgb(ref.name, ref.states)
                 : vertexRgb(ref.name, hasTexture, textureKey);
               const cornerUvs = cornerUvsForFace(rect, face, box, material);
 

@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR37 frozen · **PR38 coverage audit in progress** · Next: evidence-driven model families (p0+); lighting only after model-coverage milestone.
+**Status:** PR19–PR39 frozen · **PR40 standing/wall signs in progress** · Next after freeze: hanging signs (PR41); lighting only after model-coverage milestone.
 
 **Frozen predecessors:**
 
@@ -28,6 +28,8 @@
 | **PR35** | Button face-attached models (**frozen**, in beta) |
 | **PR36** | Lever base + angled handle (**frozen**, in beta) |
 | **PR37** | Rail flat/ascending/corner (**frozen**, in beta) |
+| **PR38** | Non-full-cube geometry coverage audit (**frozen**, in beta) |
+| **PR39** | Candle family — multi-box by count + lit/emissive (**frozen**) |
 ### PR20 implemented
 
 - `ChunkBlocks` palette stores immutable `BlockRef { name, states }` (NBT `version` still dropped)
@@ -594,6 +596,76 @@ Bedrock has no separate floor Y-rotation — footprint orientation is fixed. Tex
 **Frozen.** Landed on `beta` via fast-forward (`71b3a7b`). Stored `rail_direction` authoritative; no generic rail connectivity framework. Next: **PR38** systematic non-full-cube coverage audit (evidence-driven roadmap) — not ad-hoc tripwire/signs picks, and not BlockLight yet.
 
 ---
+
+## 30. Non-full-cube coverage audit (PR38)
+
+**Goal:** answer — *which blocks currently render incorrectly as full cubes even though Bedrock geometry is not a full cube?* — from the live catalog, not a guessed wishlist.
+
+### Pipeline
+
+```text
+appearance.json ∪ block-colors.json
+      ↓
+classifyBlockModelCoverage (family ownership)
+      ↓
+classifyGeometryAudit (correctness bucket)
+      ↓
+roadmap by priority × category
+```
+
+| Bucket | Meaning |
+|--------|---------|
+| `explicit_ok` | Dedicated family already |
+| `intentional_full_cube` | True / intentional cube |
+| `intentional_fallback` | J stand-in (fence gates) |
+| `known_incorrect` | Evidence says non-cube; still cube mesh |
+| `suspected_incorrect` | Heuristic only — research before coding |
+
+**CLI:** `npm run report-model-coverage` (optional `--markdown docs/model-coverage-audit.md`, `--json`).
+
+**Do not** jump to BlockLight/SkyLight from here. Next PRs implement **one audited family (or tight group) at a time** starting at p0 (candles / signs / hanging signs / chests / chains / campfires). Lighting remains a separate architectural milestone after the model-coverage bar.
+
+**Validation:** `test/block-models-pr38-audit.test.ts` + regenerated `docs/model-coverage-audit.md`.
+
+**Frozen.** Landed on `beta`. Use the audit as the coverage milestone baseline — implement one family (or tight group) per PR from the p0 roadmap. Do not jump to BlockLight/SkyLight yet.
+
+---
+
+## 31. Candle models (PR39)
+
+**Goal:** stop rendering floor candles as full cubes. One model family with multiple boxes driven by Bedrock state — not a separate model file per candle count.
+
+### Bedrock research
+
+```text
+Bedrock candle block
+├─ candles 0–3  → visual stick count 1–4 (“number of extra candles”)
+├─ lit true/false
+├─ (no waterlogged block state — layers system; mesh from stored lit)
+└─ colour = separate block ids sharing geometry
+```
+
+Candle cakes (`*_candle_cake`) are **out of scope** (cake + one candle — later family).
+
+### Geometry
+
+Java `template_*_candle(s)` parity: each stick is a 2×H×2 px AABB; layouts for 1–4 sticks share one resolver. Lit adds a 1px wick as crossed ±45° Y planes with UV crop from the same candle atlas tile (no separate flame/particle system).
+
+Heights (px): 1→H=6; 2→5+6; 3→3+5+6; 4→3+5+5+6.
+
+### Lighting
+
+Reuse PR33 emissive mesh. When `lit=true`, emission = Bedrock light level `3 × count` (3/6/9/12). Unlit → terrain layer only. Atlas ships unlit candle tiles; lit look is wax UV + emissive glow.
+
+### Validation
+
+`test/block-models-pr39.test.ts` + fixture cells at z=34 + `report-model-fixture --assert` + `npm run report-model-coverage` (floor candles move `known_incorrect` → `explicit_ok`).
+
+**Out of scope:** candle cakes, general transparent/emissive particle systems, BlockLight/SkyLight, signs.
+
+**Frozen.** One multi-box family by `candles`/`lit`; cakes deferred. Visual: multi-stick + lit/unlit emissive confirmed. Next: **PR40** standing/wall signs (hanging signs are PR41).
+
+---
 ## 1. Current architecture
 
 
@@ -605,24 +677,24 @@ SubChunk { layers[].palette: BlockState{name, states}[], indices }
 ChunkBlocks
     ↓
 VoxelNeighborhood
-    ↓  resolveBlockModel(BlockRef[, ConnectionMask[, WallShape]]) → full_cube | slab | stair | fence | pane | door | trapdoor | cross | wall | carpet | pressure_plate | snow_layer | ladder | torch | cactus | lantern | button | lever | rail
+    ↓  resolveBlockModel(BlockRef[, ConnectionMask[, WallShape]]) → full_cube | slab | stair | fence | pane | door | trapdoor | cross | wall | carpet | pressure_plate | snow_layer | ladder | torch | cactus | lantern | button | lever | rail | candle
     ↓  isFaceFullyOccluded (Option A)
 box-face mesher (voxel-mesh-builder.ts)
     ↓  PR17: appearance → atlas UVs (side UV crop for half-height boxes)
-    ↓  PR33: isEmissiveBlock → MeshChunk.emissive sibling
+    ↓  PR33: isEmissiveBlock(name, states?) → MeshChunk.emissive sibling
 MeshChunk { positions…, indices, emissive? }
     ↓
 Three.js (terrain material + emissive material)
 ```
 
 **PR20–32 geometry:** full cubes + slabs + straight **and corner** stairs + fences + panes/bars + doors + trapdoors + cross plants + walls + PR30 thin families. Double plants / vines / etc. still use the full-cube fallback.
-**PR33 lighting:** researched emitters only; no light propagation.
+**PR33 lighting:** researched emitters only; no light propagation. State-aware for candles (PR39).
 **PR34:** lantern floor/hanging models.
 **PR35:** button face-attached plates.
 **PR36:** lever base + angled handle (`lever_direction` / `open_bit`).
 **PR37:** rails from stored `rail_direction` (+ `rail_data_bit` texture); narrow neighbour fallback only. **Frozen on beta.**
-**PR38:** geometry correctness audit — incorrect full-cube backlog + prioritized family roadmap (`docs/model-coverage-audit.md`).
-
+**PR38:** geometry correctness audit — incorrect full-cube backlog + prioritized family roadmap (`docs/model-coverage-audit.md`). **Frozen on beta.**
+**PR39:** candle family — multi-box from `candles`/`lit`; cakes deferred.
 ---
 
 ## 2. Actual Bedrock data discovered

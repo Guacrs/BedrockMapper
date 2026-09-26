@@ -314,6 +314,50 @@ export function modelFixtureCells(): readonly FixtureCell[] {
   );
   place('cactus', 18, 36, b('minecraft:cactus', { age: 0 }), 'cactus inset');
 
+  // --- PR39 candles (z=34) — one family, multi-box from `candles` 0–3 ---
+  place(
+    'candle-1-unlit',
+    2,
+    34,
+    b('minecraft:candle', { candles: 0, lit: false }),
+    '1 candle unlit',
+  );
+  place(
+    'candle-1-lit',
+    4,
+    34,
+    b('minecraft:candle', { candles: 0, lit: true }),
+    '1 candle lit',
+  );
+  place(
+    'candle-2-lit',
+    6,
+    34,
+    b('minecraft:red_candle', { candles: 1, lit: true }),
+    '2 red candles lit',
+  );
+  place(
+    'candle-3-lit',
+    8,
+    34,
+    b('minecraft:blue_candle', { candles: 2, lit: true }),
+    '3 blue candles lit',
+  );
+  place(
+    'candle-4-lit',
+    10,
+    34,
+    b('minecraft:white_candle', { candles: 3, lit: true }),
+    '4 white candles lit',
+  );
+  place(
+    'candle-4-unlit',
+    12,
+    34,
+    b('minecraft:yellow_candle', { candles: 3, lit: false }),
+    '4 yellow candles unlit',
+  );
+
   // --- PR34 lanterns (z=44) ---
   place(
     'lantern-floor',
@@ -714,6 +758,12 @@ export function modelFixtureExpectations(): readonly FixtureExpectation[] {
     { id: 'torch-floor', family: 'torch', isFullCube: false, modelKeyPrefix: 'torch:top:' },
     { id: 'torch-wall', family: 'torch', isFullCube: false, modelKeyPrefix: 'torch:wall:west:' },
     { id: 'cactus', family: 'cactus', isFullCube: false, modelKeyPrefix: 'cactus:' },
+    { id: 'candle-1-unlit', family: 'candle', isFullCube: false, modelKeyPrefix: 'candle:1:unlit:' },
+    { id: 'candle-1-lit', family: 'candle', isFullCube: false, modelKeyPrefix: 'candle:1:lit:' },
+    { id: 'candle-2-lit', family: 'candle', isFullCube: false, modelKeyPrefix: 'candle:2:lit:' },
+    { id: 'candle-3-lit', family: 'candle', isFullCube: false, modelKeyPrefix: 'candle:3:lit:' },
+    { id: 'candle-4-lit', family: 'candle', isFullCube: false, modelKeyPrefix: 'candle:4:lit:' },
+    { id: 'candle-4-unlit', family: 'candle', isFullCube: false, modelKeyPrefix: 'candle:4:unlit:' },
     { id: 'lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },
     { id: 'lantern-hanging', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:hanging:' },
     { id: 'soul-lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },

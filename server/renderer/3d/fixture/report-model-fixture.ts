@@ -12,6 +12,7 @@ import {
   wallShapeAtWorld,
 } from '../models/contextual.ts';
 import { isButtonName } from '../models/families/button.ts';
+import { isCandleName } from '../models/families/candle.ts';
 import { isCactusName } from '../models/families/cactus.ts';
 import { isCarpetName } from '../models/families/carpet.ts';
 import { isCrossName } from '../models/families/cross.ts';
@@ -79,6 +80,7 @@ function familyOf(name: string): string {
   if (isLanternName(name)) return 'lantern';
   if (isButtonName(name)) return 'button';
   if (isLeverName(name)) return 'lever';
+  if (isCandleName(name)) return 'candle';
   if (isRailName(name)) return 'rail';
   if (isCactusName(name)) return 'cactus';
   if (name.includes('double_slab') || name.includes('double_cut_')) return 'full_cube';
