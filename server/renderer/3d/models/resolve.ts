@@ -15,6 +15,12 @@
 import { isInvisible } from '../../../world/blocks.ts';
 import { connectionMaskKey, type ConnectionMask } from './connection.ts';
 import { buttonFacingFromStates, buttonIsPressed, isButtonName, tryBuildButton } from './families/button.ts';
+import {
+  candleCountFromStates,
+  candleIsLit,
+  isCandleName,
+  tryBuildCandle,
+} from './families/candle.ts';
 import { cactusModel, isCactusName } from './families/cactus.ts';
 import { carpetModel, isCarpetName } from './families/carpet.ts';
 import { crossModel, isCrossName } from './families/cross.ts';
@@ -101,6 +107,10 @@ function cacheKey(
   if (isLeverName(ref.name)) {
     const dir = leverDirectionFromStates(ref.states) ?? '?';
     return `lever:${dir}:${leverIsOpen(ref.states) ? 'on' : 'off'}`;
+  }
+  if (isCandleName(ref.name)) {
+    const count = candleCountFromStates(ref.states);
+    return `candle:${count}:${candleIsLit(ref.states) ? 'lit' : 'unlit'}:${ref.name}`;
   }
   if (isRailName(ref.name)) {
     const allowCorners = railAllowsCorners(ref.name);
@@ -219,6 +229,9 @@ export function resolveBlockModel(
   } else if (isLeverName(ref.name)) {
     const built = tryBuildLever(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
+  } else if (isCandleName(ref.name)) {
+    const built = tryBuildCandle(ref);
+    model = built.ok ? built.model : fullCubeModel(ref.name);
   } else if (isRailName(ref.name)) {
     const built = tryBuildRail(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
@@ -270,6 +283,7 @@ export function neighbourIsFullCubeForConnection(ref: BlockRef | null): boolean 
     isLanternName(ref.name) ||
     isButtonName(ref.name) ||
     isLeverName(ref.name) ||
+    isCandleName(ref.name) ||
     isRailName(ref.name) ||
     isCactusName(ref.name)
   ) {

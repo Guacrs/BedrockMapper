@@ -28,7 +28,10 @@ describe('PR38 geometry audit classification', () => {
 
     assert.equal(classifyGeometryAudit('minecraft:chest')?.bucket, 'known_incorrect');
     assert.equal(classifyGeometryAudit('minecraft:chain')?.bucket, 'known_incorrect');
-    assert.equal(classifyGeometryAudit('minecraft:candle')?.bucket, 'known_incorrect');
+    assert.equal(classifyGeometryAudit('minecraft:candle')?.bucket, 'explicit_ok');
+    assert.equal(classifyGeometryAudit('minecraft:red_candle')?.bucket, 'explicit_ok');
+    assert.equal(classifyGeometryAudit('minecraft:candle_cake')?.bucket, 'known_incorrect');
+    assert.equal(classifyGeometryAudit('minecraft:candle_cake')?.category, 'candle');
     assert.equal(classifyGeometryAudit('minecraft:campfire')?.bucket, 'known_incorrect');
     assert.equal(classifyGeometryAudit('minecraft:tripwire_hook')?.category, 'tripwire_hook');
     assert.equal(classifyGeometryAudit('minecraft:brewing_stand')?.priority, 'p2');

@@ -14,6 +14,7 @@
 
 import { isInvisible } from '../../../world/blocks.ts';
 import { isButtonName } from './families/button.ts';
+import { isCandleName } from './families/candle.ts';
 import { isCactusName } from './families/cactus.ts';
 import { isCarpetName } from './families/carpet.ts';
 import { isCrossName } from './families/cross.ts';
@@ -53,6 +54,7 @@ export type ModelFamilyId =
   | 'button' // PR35
   | 'lever' // PR36
   | 'rail' // PR37
+  | 'candle' // PR39
   | 'fallback' // J — safe full-cube used as stand-in
   | 'future'; // K — researched as needing custom geo later
 
@@ -119,10 +121,9 @@ const FUTURE_SHORT_IDS: ReadonlySet<string> = new Set([
   'ender_chest',
   'tripwire_hook',
   'cactus_flower',
-  // PR38 audit — high-frequency non-cubes still on full-cube mesh
+  // Campfires / cakes still future — candles are explicit (PR39)
   'campfire',
   'soul_campfire',
-  'candle',
   'brewing_stand',
   'enchanting_table',
   'grindstone',
@@ -175,8 +176,8 @@ function looksLikeSign(short: string): boolean {
   );
 }
 
-function looksLikeCandle(short: string): boolean {
-  return short === 'candle' || short.endsWith('_candle') || short.includes('candle_cake');
+function looksLikeCandleCake(short: string): boolean {
+  return short === 'candle_cake' || short.endsWith('_candle_cake');
 }
 
 function looksLikeShulkerOrBedOrBanner(short: string): boolean {
@@ -285,6 +286,14 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
         : 'rail_direction 0–5 + rail_data_bit texture; no corners',
     };
   }
+  if (isCandleName(name)) {
+    return {
+      name,
+      family: 'candle',
+      implementation: 'explicit',
+      note: 'candles 0–3 → 1–4 sticks; lit → wick + emissive; cakes deferred',
+    };
+  }
   if (isCactusName(name)) {
     return { name, family: 'cactus', implementation: 'explicit' };
   }
@@ -292,7 +301,7 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
     FUTURE_SHORT_IDS.has(short) ||
     looksLikeCoralWallFan(short) ||
     looksLikeSign(short) ||
-    looksLikeCandle(short) ||
+    looksLikeCandleCake(short) ||
     looksLikeShulkerOrBedOrBanner(short) ||
     short.includes('copper_chest') ||
     short.endsWith('_chain') ||
@@ -341,6 +350,7 @@ export function summarizeCoverage(entries: readonly ModelCoverageEntry[]): Cover
     button: 0,
     lever: 0,
     rail: 0,
+    candle: 0,
     fallback: 0,
     future: 0,
   } satisfies Record<ModelFamilyId, number>;

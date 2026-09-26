@@ -3,13 +3,22 @@
  *
  * This is **not** Minecraft light propagation. It only describes whether a
  * block should *look* self-lit in Three.js. Nearby illumination from
- * BlockLight / SkyLight is PR34.
+ * BlockLight / SkyLight is a later milestone (after model coverage).
  *
  * Values are researched from Bedrock block behaviour / wiki light levels
  * (0–15), normalized to 0..1 for materials. Prefer Bedrock ids that exist in
  * LevelDB palettes; state-dependent lit variants use distinct ids where
- * Bedrock splits them (`lit_redstone_lamp`, `lit_furnace`, …).
+ * Bedrock splits them (`lit_redstone_lamp`, `lit_furnace`, …). Candles keep
+ * one id and use the `lit` + `candles` states (PR39).
  */
+
+import {
+  candleCountFromStates,
+  candleIsLit,
+  candleLightLevel,
+  isCandleName,
+} from '../models/families/candle.ts';
+import type { BlockRef } from '../models/types.ts';
 
 export interface BlockLighting {
   /** 0..1 self-glow strength (derived from Minecraft light level / 15). */
@@ -17,6 +26,8 @@ export interface BlockLighting {
   /** Optional RGB tint for the glow (0..1). Defaults to white. */
   readonly lightColor?: readonly [number, number, number];
 }
+
+type BlockStates = BlockRef['states'];
 
 function level(n: number): number {
   return Math.min(1, Math.max(0, n / 15));
@@ -29,6 +40,8 @@ function rgb(hex: number): readonly [number, number, number] {
     (hex & 0xff) / 255,
   ] as const);
 }
+
+const CANDLE_GLOW = rgb(0xffd28a);
 
 function shortId(name: string): string {
   return name.startsWith('minecraft:') ? name.slice('minecraft:'.length) : name;
@@ -96,11 +109,32 @@ const EMITTERS: ReadonlyMap<string, BlockLighting> = new Map([
 ]);
 
 /**
- * Return lighting for a palette block name, or null when non-emissive.
- * Emission 0 entries (e.g. unlit redstone torch) still return a record so
- * callers can distinguish “known dark” from “unknown”.
+ * State-aware candle emission (Bedrock light = 3 × stick count when lit).
+ * Unlit / missing lit → emission 0 (known dark, not unknown).
  */
-export function blockLightingFor(blockName: string): BlockLighting | null {
+function candleLighting(states: BlockStates | undefined): BlockLighting {
+  if (!states || !candleIsLit(states)) {
+    return Object.freeze({ emission: 0, lightColor: CANDLE_GLOW });
+  }
+  const count = candleCountFromStates(states);
+  return Object.freeze({
+    emission: level(candleLightLevel(count)),
+    lightColor: CANDLE_GLOW,
+  });
+}
+
+/**
+ * Return lighting for a palette block name, or null when non-emissive.
+ * Emission 0 entries (e.g. unlit redstone torch, unlit candle) still return
+ * a record so callers can distinguish “known dark” from “unknown”.
+ *
+ * Pass `states` for blocks whose emission depends on intrinsic state (candles).
+ */
+export function blockLightingFor(
+  blockName: string,
+  states?: BlockStates,
+): BlockLighting | null {
+  if (isCandleName(blockName)) return candleLighting(states);
   const short = shortId(blockName);
   const hit = EMITTERS.get(short);
   if (!hit) return null;
@@ -108,8 +142,8 @@ export function blockLightingFor(blockName: string): BlockLighting | null {
 }
 
 /** True when the block should be routed to the emissive mesh layer. */
-export function isEmissiveBlock(blockName: string): boolean {
-  const lit = blockLightingFor(blockName);
+export function isEmissiveBlock(blockName: string, states?: BlockStates): boolean {
+  const lit = blockLightingFor(blockName, states);
   return lit != null && lit.emission > 0;
 }
 
