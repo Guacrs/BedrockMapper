@@ -43,8 +43,7 @@ describe('PR40 sign coverage', () => {
     assert.equal(classifyBlockModelCoverage('minecraft:wall_sign')?.implementation, 'explicit');
     assert.equal(classifyGeometryAudit('minecraft:standing_sign')?.bucket, 'explicit_ok');
     assert.equal(classifyGeometryAudit('minecraft:wall_sign')?.bucket, 'explicit_ok');
-    assert.equal(classifyGeometryAudit('minecraft:oak_hanging_sign')?.bucket, 'known_incorrect');
-    assert.equal(classifyGeometryAudit('minecraft:oak_hanging_sign')?.category, 'hanging_sign');
+    assert.equal(classifyGeometryAudit('minecraft:oak_hanging_sign')?.bucket, 'explicit_ok');
   });
 });
 

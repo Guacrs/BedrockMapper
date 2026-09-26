@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR40 frozen · **PR41 hanging signs in progress** · Next after freeze: chests (PR42); lighting only after model-coverage milestone.
+**Status:** PR19–PR41 frozen · **PR42 chest models in progress** · Next after freeze: chains (PR43); lighting only after model-coverage milestone.
 
 **Frozen predecessors:**
 
@@ -31,6 +31,7 @@
 | **PR38** | Non-full-cube geometry coverage audit (**frozen**, in beta) |
 | **PR39** | Candle family — multi-box by count + lit/emissive (**frozen**) |
 | **PR40** | Standing/wall signs (**frozen**) |
+| **PR41** | Hanging signs — intrinsic hanging/attached_bit (**frozen**) |
 ### PR20 implemented
 
 - `ChunkBlocks` palette stores immutable `BlockRef { name, states }` (NBT `version` still dropped)
@@ -710,6 +711,44 @@ Appearance DB maps signs → plank `all` textures.
 **Frozen.** One `sign.ts` family; palette orientation is the model orientation (no separate textFacing). Visual: standing post+board and wall thin boards confirmed. Next: **PR41** hanging signs (intrinsic `hanging`/`attached_bit`/orientation — no text glyphs).
 
 ---
+
+## 33. Hanging sign models (PR41)
+
+**Goal:** stop rendering hanging signs as full cubes. Support chains/bracket from **stored Bedrock states** — no neighbour probe, no text glyphs.
+
+### Bedrock research — intrinsic, not contextual
+
+```text
+*_hanging_sign (one id per wood)
+├─ hanging          → ceiling (true) vs wall bracket (false)
+├─ attached_bit     → V / up-arrow chains (true) vs parallel (false)
+├─ facing_direction → wall + ceiling-parallel orientation (2–5)
+└─ ground_sign_direction → ceiling-attached orientation (0–15)
+```
+
+Microsoft listings put all four states on the same block id. Wiki: wide ceiling → parallel; narrow/sneak → V (`attached_bit`); side → wall bracket. Placement writes those bits into LevelDB; meshing reads them only (same authority rule as rails / PR40 signs).
+
+**Architectural answer:** support configuration is **intrinsic**. PR41 does **not** need a ConnectionMask / neighbour resolver.
+
+Text remains Sign block-entity data — **out of scope**.
+
+### Geometry
+
+| Mode | States | Boxes |
+|------|--------|--------|
+| Ceiling parallel | `hanging` + !`attached_bit` | board + 2 vertical chains; `facing_direction` |
+| Ceiling attached | `hanging` + `attached_bit` | board + ±30° Z-lean V chains; `ground_sign_direction` |
+| Wall | !`hanging` | bar + short hangers + board; `facing_direction` |
+
+### Validation
+
+`test/block-models-pr41.test.ts` + fixture z=28 + coverage (hanging → `explicit_ok`).
+
+**Out of scope:** sign text glyphs, BlockLight/SkyLight, chests.
+
+**Frozen.** Support mode is intrinsic (`hanging`/`attached_bit`); no neighbour probe; no text glyphs. Visual: ceiling chains + wall brackets confirmed. Next: **PR42** chests (facing intrinsic; Bedrock has no `type` double state).
+
+---
 ## 1. Current architecture
 
 
@@ -721,25 +760,20 @@ SubChunk { layers[].palette: BlockState{name, states}[], indices }
 ChunkBlocks
     ↓
 VoxelNeighborhood
-    ↓  resolveBlockModel(BlockRef[, ConnectionMask[, WallShape]]) → full_cube | slab | stair | fence | pane | door | trapdoor | cross | wall | carpet | pressure_plate | snow_layer | ladder | torch | cactus | lantern | button | lever | rail | candle | sign
+    ↓  resolveBlockModel(…) → … | candle | sign | hanging_sign
     ↓  isFaceFullyOccluded (Option A)
 box-face mesher (voxel-mesh-builder.ts)
-    ↓  PR17: appearance → atlas UVs (side UV crop for half-height boxes)
-    ↓  PR33: isEmissiveBlock(name, states?) → MeshChunk.emissive sibling
+    ↓  PR17 atlas UVs
+    ↓  PR33 isEmissiveBlock(name, states?)
 MeshChunk { positions…, indices, emissive? }
     ↓
-Three.js (terrain material + emissive material)
+Three.js (terrain + emissive)
 ```
 
-**PR20–32 geometry:** full cubes + slabs + straight **and corner** stairs + fences + panes/bars + doors + trapdoors + cross plants + walls + PR30 thin families. Double plants / vines / etc. still use the full-cube fallback.
-**PR33 lighting:** researched emitters only; no light propagation. State-aware for candles (PR39).
-**PR34:** lantern floor/hanging models.
-**PR35:** button face-attached plates.
-**PR36:** lever base + angled handle (`lever_direction` / `open_bit`).
-**PR37:** rails from stored `rail_direction` (+ `rail_data_bit` texture); narrow neighbour fallback only. **Frozen on beta.**
-**PR38:** geometry correctness audit — incorrect full-cube backlog + prioritized family roadmap (`docs/model-coverage-audit.md`). **Frozen on beta.**
 **PR39:** candle family — multi-box from `candles`/`lit`; cakes deferred. **Frozen.**
-**PR40:** standing/wall signs — `ground_sign_direction` / `facing_direction`; hanging deferred to PR41.
+**PR40:** standing/wall signs — palette orientation is model orientation. **Frozen.**
+**PR41:** hanging signs — intrinsic `hanging`/`attached_bit`/orientation; no text. **Frozen.**
+**PR42:** chests — facing from `minecraft:cardinal_direction`; double halves deferred (not in Bedrock palette).
 ---
 
 ## 2. Actual Bedrock data discovered

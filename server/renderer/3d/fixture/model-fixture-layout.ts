@@ -413,6 +413,73 @@ export function modelFixtureCells(): readonly FixtureCell[] {
     'warped wall facing west',
   );
 
+  // --- PR41 hanging signs (z=28) — intrinsic hanging/attached_bit; no text ---
+  place('hanging-ceil-par-support', 2, 28, b('minecraft:stone'), undefined, y + 1);
+  place(
+    'hanging-ceil-parallel',
+    2,
+    28,
+    b('minecraft:oak_hanging_sign', {
+      hanging: true,
+      attached_bit: false,
+      facing_direction: 3,
+      ground_sign_direction: 0,
+    }),
+    'oak ceiling parallel south',
+  );
+  place('hanging-ceil-att-support', 4, 28, b('minecraft:stone'), undefined, y + 1);
+  place(
+    'hanging-ceil-attached',
+    4,
+    28,
+    b('minecraft:spruce_hanging_sign', {
+      hanging: true,
+      attached_bit: true,
+      facing_direction: 2,
+      ground_sign_direction: 0,
+    }),
+    'spruce ceiling attached V (dir 0)',
+  );
+  place('hanging-ceil-diag-support', 6, 28, b('minecraft:stone'), undefined, y + 1);
+  place(
+    'hanging-ceil-diag',
+    6,
+    28,
+    b('minecraft:birch_hanging_sign', {
+      hanging: true,
+      attached_bit: true,
+      facing_direction: 2,
+      ground_sign_direction: 2,
+    }),
+    'birch ceiling attached SW (dir 2)',
+  );
+  place('hanging-wall-n-support', 10, 29, b('minecraft:stone'));
+  place(
+    'hanging-wall-n',
+    10,
+    28,
+    b('minecraft:acacia_hanging_sign', {
+      hanging: false,
+      attached_bit: false,
+      facing_direction: 2,
+      ground_sign_direction: 0,
+    }),
+    'acacia wall hanging north',
+  );
+  place('hanging-wall-e-support', 13, 28, b('minecraft:stone'));
+  place(
+    'hanging-wall-e',
+    14,
+    28,
+    b('minecraft:crimson_hanging_sign', {
+      hanging: false,
+      attached_bit: false,
+      facing_direction: 5,
+      ground_sign_direction: 0,
+    }),
+    'crimson wall hanging east',
+  );
+
   // --- PR34 lanterns (z=44) ---
   place(
     'lantern-floor',
@@ -826,6 +893,11 @@ export function modelFixtureExpectations(): readonly FixtureExpectation[] {
     { id: 'sign-wall-e', family: 'sign', isFullCube: false, modelKeyPrefix: 'sign:wall:east:' },
     { id: 'sign-wall-s', family: 'sign', isFullCube: false, modelKeyPrefix: 'sign:wall:south:' },
     { id: 'sign-wall-w', family: 'sign', isFullCube: false, modelKeyPrefix: 'sign:wall:west:' },
+    { id: 'hanging-ceil-parallel', family: 'hanging_sign', isFullCube: false, modelKeyPrefix: 'hanging_sign:ceiling_parallel:south:' },
+    { id: 'hanging-ceil-attached', family: 'hanging_sign', isFullCube: false, modelKeyPrefix: 'hanging_sign:ceiling_attached:0:' },
+    { id: 'hanging-ceil-diag', family: 'hanging_sign', isFullCube: false, modelKeyPrefix: 'hanging_sign:ceiling_attached:2:' },
+    { id: 'hanging-wall-n', family: 'hanging_sign', isFullCube: false, modelKeyPrefix: 'hanging_sign:wall:north:' },
+    { id: 'hanging-wall-e', family: 'hanging_sign', isFullCube: false, modelKeyPrefix: 'hanging_sign:wall:east:' },
     { id: 'lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },
     { id: 'lantern-hanging', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:hanging:' },
     { id: 'soul-lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },

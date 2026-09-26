@@ -118,12 +118,7 @@ const KNOWN_INCORRECT_RULES: readonly ResearchRule[] = [
     match: (s) => s === 'fence_gate' || s.endsWith('_fence_gate'),
     note: 'attach target only today; dedicated gate model still open',
   },
-  {
-    category: 'hanging_sign',
-    priority: 'p0',
-    match: (s) => s.includes('hanging_sign'),
-  },
-  // Standing / wall signs are explicit (PR40). Hanging remains known_incorrect.
+  // Standing / wall signs are explicit (PR40). Hanging signs are explicit (PR41).
   {
     category: 'chain',
     priority: 'p0',

@@ -24,6 +24,13 @@ import {
 import { cactusModel, isCactusName } from './families/cactus.ts';
 import { carpetModel, isCarpetName } from './families/carpet.ts';
 import {
+  hangingFacingFromStates,
+  hangingGroundDirFromStates,
+  hangingSignModeFromStates,
+  isHangingSignName,
+  tryBuildHangingSign,
+} from './families/hanging-sign.ts';
+import {
   groundSignDirectionFromStates,
   isSignName,
   signKindFromName,
@@ -127,6 +134,18 @@ function cacheKey(
     }
     const dir = groundSignDirectionFromStates(ref.states);
     return `sign:standing:${dir}:${ref.name}`;
+  }
+  if (isHangingSignName(ref.name)) {
+    const mode = hangingSignModeFromStates(ref.states);
+    if (mode === 'ceiling_attached') {
+      return `hanging_sign:ceiling_attached:${hangingGroundDirFromStates(ref.states)}:${ref.name}`;
+    }
+    if (mode === 'ceiling_parallel') {
+      const facing = hangingFacingFromStates(ref.states) ?? 'south';
+      return `hanging_sign:ceiling_parallel:${facing}:${ref.name}`;
+    }
+    const facing = hangingFacingFromStates(ref.states) ?? '?';
+    return `hanging_sign:wall:${facing}:${ref.name}`;
   }
   if (isRailName(ref.name)) {
     const allowCorners = railAllowsCorners(ref.name);
@@ -251,6 +270,9 @@ export function resolveBlockModel(
   } else if (isSignName(ref.name)) {
     const built = tryBuildSign(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
+  } else if (isHangingSignName(ref.name)) {
+    const built = tryBuildHangingSign(ref);
+    model = built.ok ? built.model : fullCubeModel(ref.name);
   } else if (isRailName(ref.name)) {
     const built = tryBuildRail(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
@@ -304,6 +326,7 @@ export function neighbourIsFullCubeForConnection(ref: BlockRef | null): boolean 
     isLeverName(ref.name) ||
     isCandleName(ref.name) ||
     isSignName(ref.name) ||
+    isHangingSignName(ref.name) ||
     isRailName(ref.name) ||
     isCactusName(ref.name)
   ) {
