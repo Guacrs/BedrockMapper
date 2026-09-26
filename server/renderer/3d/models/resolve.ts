@@ -40,6 +40,12 @@ import {
   tryBuildCampfire,
 } from './families/campfire.ts';
 import {
+  fenceGateFacingFromStates,
+  fenceGateInWall,
+  fenceGateIsOpen,
+  tryBuildFenceGate,
+} from './families/fence_gate.ts';
+import {
   hangingFacingFromStates,
   hangingGroundDirFromStates,
   hangingSignModeFromStates,
@@ -173,6 +179,12 @@ function cacheKey(
   if (isCampfireName(ref.name)) {
     const facing = campfireFacingFromStates(ref.states) ?? '?';
     return `campfire:${facing}:${campfireIsLit(ref.states) ? 'lit' : 'unlit'}:${ref.name}`;
+  }
+  if (isFenceGateName(ref.name)) {
+    const facing = fenceGateFacingFromStates(ref.states) ?? '?';
+    const open = fenceGateIsOpen(ref.states) ? 'open' : 'closed';
+    const wall = fenceGateInWall(ref.states) ? 'wall' : 'normal';
+    return `fence_gate:${facing}:${open}:${wall}:${ref.name}`;
   }
   if (isRailName(ref.name)) {
     const allowCorners = railAllowsCorners(ref.name);
@@ -308,6 +320,9 @@ export function resolveBlockModel(
     model = built.ok ? built.model : fullCubeModel(ref.name);
   } else if (isCampfireName(ref.name)) {
     const built = tryBuildCampfire(ref);
+    model = built.ok ? built.model : fullCubeModel(ref.name);
+  } else if (isFenceGateName(ref.name)) {
+    const built = tryBuildFenceGate(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
   } else if (isRailName(ref.name)) {
     const built = tryBuildRail(ref);

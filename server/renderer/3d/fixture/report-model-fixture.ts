@@ -23,6 +23,7 @@ import { isHangingSignName } from '../models/families/hanging-sign.ts';
 import { isSignName } from '../models/families/sign.ts';
 import { isDoorName } from '../models/families/door.ts';
 import { isFenceName } from '../models/families/fence.ts';
+import { isFenceGateName } from '../models/families/fence_gate.ts';
 import { isLadderName } from '../models/families/ladder.ts';
 import { isLanternName } from '../models/families/lantern.ts';
 import { isLeverName } from '../models/families/lever.ts';
@@ -91,6 +92,7 @@ function familyOf(name: string): string {
   if (isChestName(name)) return 'chest';
   if (isChainName(name)) return 'chain';
   if (isCampfireName(name)) return 'campfire';
+  if (isFenceGateName(name)) return 'fence_gate';
   if (isRailName(name)) return 'rail';
   if (isCactusName(name)) return 'cactus';
   if (name.includes('double_slab') || name.includes('double_cut_')) return 'full_cube';
