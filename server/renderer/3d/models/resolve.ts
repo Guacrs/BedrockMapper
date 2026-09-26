@@ -34,6 +34,12 @@ import {
   tryBuildChain,
 } from './families/chain.ts';
 import {
+  campfireFacingFromStates,
+  campfireIsLit,
+  isCampfireName,
+  tryBuildCampfire,
+} from './families/campfire.ts';
+import {
   hangingFacingFromStates,
   hangingGroundDirFromStates,
   hangingSignModeFromStates,
@@ -163,6 +169,10 @@ function cacheKey(
   }
   if (isChainName(ref.name)) {
     return `chain:${chainAxisFromStates(ref.states)}:${ref.name}`;
+  }
+  if (isCampfireName(ref.name)) {
+    const facing = campfireFacingFromStates(ref.states) ?? '?';
+    return `campfire:${facing}:${campfireIsLit(ref.states) ? 'lit' : 'unlit'}:${ref.name}`;
   }
   if (isRailName(ref.name)) {
     const allowCorners = railAllowsCorners(ref.name);
@@ -296,6 +306,9 @@ export function resolveBlockModel(
   } else if (isChainName(ref.name)) {
     const built = tryBuildChain(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
+  } else if (isCampfireName(ref.name)) {
+    const built = tryBuildCampfire(ref);
+    model = built.ok ? built.model : fullCubeModel(ref.name);
   } else if (isRailName(ref.name)) {
     const built = tryBuildRail(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
@@ -352,6 +365,7 @@ export function neighbourIsFullCubeForConnection(ref: BlockRef | null): boolean 
     isHangingSignName(ref.name) ||
     isChestName(ref.name) ||
     isChainName(ref.name) ||
+    isCampfireName(ref.name) ||
     isRailName(ref.name) ||
     isCactusName(ref.name)
   ) {
