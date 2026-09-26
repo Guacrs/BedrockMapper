@@ -749,6 +749,37 @@ Text remains Sign block-entity data — **out of scope**.
 **Frozen.** Support mode is intrinsic (`hanging`/`attached_bit`); no neighbour probe; no text glyphs. Visual: ceiling chains + wall brackets confirmed. Next: **PR42** chests (facing intrinsic; Bedrock has no `type` double state).
 
 ---
+
+## 34. Chest models (PR42)
+
+**Goal:** stop rendering chests as full cubes. Facing from stored Bedrock states only — no double-half pairing yet.
+
+### Bedrock research
+
+```text
+chest / trapped_chest / ender_chest / *copper_chest
+└─ minecraft:cardinal_direction ∈ {north,south,east,west}  → latch / front facing
+```
+
+Microsoft listings and wiki (Bedrock ≥1.20.40): only `minecraft:cardinal_direction`. Java's `type` left/right/single is **not** on Bedrock palettes — double chests are neighbour/block-entity pairing. **Deferred.** Legacy int `facing_direction` 2–5 accepted as fallback for older worlds.
+
+### Geometry
+
+| Mode | Boxes |
+|------|--------|
+| Single closed | one inset AABB `[1,0,1]–[15,14,15]`; south = authored front; `rotateModelY` for facing |
+
+Inventory textures (`chest_front` / `_side` / `_top`, copper `*_inventory_*`) are authored for that single box — no separate latch mesh.
+
+### Validation
+
+`test/block-models-pr42.test.ts` + fixture z=26 + coverage (chests → `explicit_ok`).
+
+**Out of scope:** double-chest halves, lid animation, BlockLight/SkyLight, chains.
+
+**In progress.** Next after freeze: **PR43** chains.
+
+---
 ## 1. Current architecture
 
 
@@ -760,7 +791,7 @@ SubChunk { layers[].palette: BlockState{name, states}[], indices }
 ChunkBlocks
     ↓
 VoxelNeighborhood
-    ↓  resolveBlockModel(…) → … | candle | sign | hanging_sign
+    ↓  resolveBlockModel(…) → … | candle | sign | hanging_sign | chest
     ↓  isFaceFullyOccluded (Option A)
 box-face mesher (voxel-mesh-builder.ts)
     ↓  PR17 atlas UVs
@@ -773,7 +804,7 @@ Three.js (terrain + emissive)
 **PR39:** candle family — multi-box from `candles`/`lit`; cakes deferred. **Frozen.**
 **PR40:** standing/wall signs — palette orientation is model orientation. **Frozen.**
 **PR41:** hanging signs — intrinsic `hanging`/`attached_bit`/orientation; no text. **Frozen.**
-**PR42:** chests — facing from `minecraft:cardinal_direction`; double halves deferred (not in Bedrock palette).
+**PR42:** chests — facing from `minecraft:cardinal_direction`; double halves deferred (not in Bedrock palette). **In progress.**
 ---
 
 ## 2. Actual Bedrock data discovered

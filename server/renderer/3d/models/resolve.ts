@@ -24,6 +24,11 @@ import {
 import { cactusModel, isCactusName } from './families/cactus.ts';
 import { carpetModel, isCarpetName } from './families/carpet.ts';
 import {
+  chestFacingFromStates,
+  isChestName,
+  tryBuildChest,
+} from './families/chest.ts';
+import {
   hangingFacingFromStates,
   hangingGroundDirFromStates,
   hangingSignModeFromStates,
@@ -146,6 +151,10 @@ function cacheKey(
     }
     const facing = hangingFacingFromStates(ref.states) ?? '?';
     return `hanging_sign:wall:${facing}:${ref.name}`;
+  }
+  if (isChestName(ref.name)) {
+    const facing = chestFacingFromStates(ref.states) ?? '?';
+    return `chest:${facing}:${ref.name}`;
   }
   if (isRailName(ref.name)) {
     const allowCorners = railAllowsCorners(ref.name);
@@ -273,6 +282,9 @@ export function resolveBlockModel(
   } else if (isHangingSignName(ref.name)) {
     const built = tryBuildHangingSign(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
+  } else if (isChestName(ref.name)) {
+    const built = tryBuildChest(ref);
+    model = built.ok ? built.model : fullCubeModel(ref.name);
   } else if (isRailName(ref.name)) {
     const built = tryBuildRail(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
@@ -327,6 +339,7 @@ export function neighbourIsFullCubeForConnection(ref: BlockRef | null): boolean 
     isCandleName(ref.name) ||
     isSignName(ref.name) ||
     isHangingSignName(ref.name) ||
+    isChestName(ref.name) ||
     isRailName(ref.name) ||
     isCactusName(ref.name)
   ) {

@@ -480,6 +480,50 @@ export function modelFixtureCells(): readonly FixtureCell[] {
     'crimson wall hanging east',
   );
 
+  // --- PR42 chests (z=26) — single closed AABB + cardinal_direction; no double type ---
+  place(
+    'chest-south',
+    2,
+    26,
+    b('minecraft:chest', { 'minecraft:cardinal_direction': 'south' }),
+    'oak chest facing south',
+  );
+  place(
+    'chest-north',
+    4,
+    26,
+    b('minecraft:chest', { 'minecraft:cardinal_direction': 'north' }),
+    'oak chest facing north',
+  );
+  place(
+    'chest-east',
+    6,
+    26,
+    b('minecraft:trapped_chest', { 'minecraft:cardinal_direction': 'east' }),
+    'trapped chest facing east',
+  );
+  place(
+    'chest-west',
+    8,
+    26,
+    b('minecraft:ender_chest', { 'minecraft:cardinal_direction': 'west' }),
+    'ender chest facing west',
+  );
+  place(
+    'chest-copper',
+    10,
+    26,
+    b('minecraft:copper_chest', { 'minecraft:cardinal_direction': 'south' }),
+    'copper chest facing south',
+  );
+  place(
+    'chest-legacy-facing',
+    12,
+    26,
+    b('minecraft:chest', { facing_direction: 2 }),
+    'legacy facing_direction=2 → north',
+  );
+
   // --- PR34 lanterns (z=44) ---
   place(
     'lantern-floor',
@@ -898,6 +942,12 @@ export function modelFixtureExpectations(): readonly FixtureExpectation[] {
     { id: 'hanging-ceil-diag', family: 'hanging_sign', isFullCube: false, modelKeyPrefix: 'hanging_sign:ceiling_attached:2:' },
     { id: 'hanging-wall-n', family: 'hanging_sign', isFullCube: false, modelKeyPrefix: 'hanging_sign:wall:north:' },
     { id: 'hanging-wall-e', family: 'hanging_sign', isFullCube: false, modelKeyPrefix: 'hanging_sign:wall:east:' },
+    { id: 'chest-south', family: 'chest', isFullCube: false, modelKeyPrefix: 'chest:south:' },
+    { id: 'chest-north', family: 'chest', isFullCube: false, modelKeyPrefix: 'chest:north:' },
+    { id: 'chest-east', family: 'chest', isFullCube: false, modelKeyPrefix: 'chest:east:' },
+    { id: 'chest-west', family: 'chest', isFullCube: false, modelKeyPrefix: 'chest:west:' },
+    { id: 'chest-copper', family: 'chest', isFullCube: false, modelKeyPrefix: 'chest:south:' },
+    { id: 'chest-legacy-facing', family: 'chest', isFullCube: false, modelKeyPrefix: 'chest:north:' },
     { id: 'lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },
     { id: 'lantern-hanging', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:hanging:' },
     { id: 'soul-lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },

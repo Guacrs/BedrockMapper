@@ -23,7 +23,7 @@ describe('PR38 geometry audit classification', () => {
 
   it('flags known non-cubes that still mesh as full cubes', () => {
     assert.equal(classifyGeometryAudit('minecraft:oak_hanging_sign')?.bucket, 'explicit_ok');
-    assert.equal(classifyGeometryAudit('minecraft:chest')?.bucket, 'known_incorrect');
+    assert.equal(classifyGeometryAudit('minecraft:chest')?.bucket, 'explicit_ok');
     assert.equal(classifyGeometryAudit('minecraft:chain')?.bucket, 'known_incorrect');
     assert.equal(classifyGeometryAudit('minecraft:standing_sign')?.bucket, 'explicit_ok');
     assert.equal(classifyGeometryAudit('minecraft:wall_sign')?.bucket, 'explicit_ok');
@@ -64,7 +64,8 @@ describe('PR38 catalog audit', () => {
     const roadmap = groupRoadmapByCategory(entries);
     assert.ok(!roadmap.some((g) => g.category === 'hanging_sign'), 'hanging signs should be explicit_ok');
     assert.ok(!roadmap.some((g) => g.category === 'sign'), 'standing/wall signs should be explicit_ok');
-    assert.ok(roadmap.some((g) => g.category === 'chest'));
+    assert.ok(!roadmap.some((g) => g.category === 'chest'), 'chests should be explicit_ok');
+    assert.ok(roadmap.some((g) => g.category === 'chain'), 'chains remain on roadmap');
     assert.ok(roadmapEntries(entries).length === summary.incorrectTotal + summary.byBucket.intentional_fallback);
   });
 });
