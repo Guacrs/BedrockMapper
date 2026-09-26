@@ -96,6 +96,7 @@ describe('PR39 candle coverage', () => {
     assert.equal(classifyBlockModelCoverage('minecraft:blue_candle')?.family, 'candle');
     assert.equal(classifyGeometryAudit('minecraft:candle')?.bucket, 'explicit_ok');
     assert.equal(classifyGeometryAudit('minecraft:candle_cake')?.bucket, 'known_incorrect');
+    assert.equal(classifyGeometryAudit('minecraft:candle_cake')?.priority, 'p3');
   });
 });
 

@@ -6,32 +6,30 @@ Catalog size: **1505** block ids (appearance ∪ block-colors).
 
 | Bucket | Count | Meaning |
 | --- | ---: | --- |
-| explicit_ok | 446 | Dedicated model family already |
+| explicit_ok | 463 | Dedicated model family already |
 | intentional_full_cube | 779 | True / intentional cube mesh |
 | intentional_fallback | 13 | Safe full-cube stand-in (J) |
-| known_incorrect | 245 | Non-cube evidence; still cube mesh |
+| known_incorrect | 228 | Non-cube evidence; still cube mesh |
 | suspected_incorrect | 22 | Heuristic non-cube; needs research |
 
-**Incorrect / suspected total: 267** (plus 13 intentional fallbacks).
+**Incorrect / suspected total: 250** (plus 13 intentional fallbacks).
 
 ## Priority backlog (incorrect + fallback)
 
 | Priority | Count | Role |
 | --- | ---: | --- |
-| p0 | 96 | High-frequency build visuals (signs, chests, candles, chains, campfires) |
+| p0 | 62 | High-frequency build visuals (signs, hanging signs, chests, chains, campfires) |
 | p1 | 32 | Attachment / redstone / thin deco |
 | p2 | 46 | Functional furniture / rods |
-| p3 | 63 | Vegetation / clusters / cakes |
+| p3 | 80 | Vegetation / clusters / cakes (incl. candle cakes) |
 | p4 | 43 | Rare / complex / heuristic |
+
+Floor candles are **explicit_ok** (PR39). Next family PR starts at **PR40** (signs).
 
 ## Suggested family PR sequence
 
 Do **not** implement this list blindly — each PR still needs Bedrock state research.
 One family (or tightly related group) per PR.
-
-### P0 — `candle` (34 ids) → candidate PR39
-
-Samples: `minecraft:black_candle`, `minecraft:black_candle_cake`, `minecraft:blue_candle`, `minecraft:blue_candle_cake`, `minecraft:brown_candle`, `minecraft:brown_candle_cake`, `minecraft:candle`, `minecraft:candle_cake`
 
 ### P0 — `sign` (26 ids) → candidate PR40
 
@@ -157,43 +155,47 @@ Samples: `minecraft:scaffolding`
 
 Samples: `minecraft:brain_coral_fan`, `minecraft:brain_coral_wall_fan`, `minecraft:bubble_coral_fan`, `minecraft:bubble_coral_wall_fan`, `minecraft:coral_fan`, `minecraft:coral_fan_dead`, `minecraft:coral_fan_hang`, `minecraft:coral_fan_hang2`
 
-### P3 — `double_plant` (15 ids) → candidate PR71
+### P3 — `candle` (17 ids) → candidate PR71
+
+Samples: `minecraft:black_candle_cake`, `minecraft:blue_candle_cake`, `minecraft:brown_candle_cake`, `minecraft:candle_cake`, `minecraft:cyan_candle_cake`, `minecraft:gray_candle_cake`, `minecraft:green_candle_cake`, `minecraft:light_blue_candle_cake`
+
+### P3 — `double_plant` (15 ids) → candidate PR72
 
 Samples: `minecraft:cactus_flower`, `minecraft:dried_kelp_block`, `minecraft:kelp`, `minecraft:large_fern`, `minecraft:lilac`, `minecraft:peony`, `minecraft:pink_petals`, `minecraft:pitcher_crop`
 
-### P3 — `skull` (8 ids) → candidate PR72
+### P3 — `skull` (8 ids) → candidate PR73
 
 Samples: `minecraft:creeper_head`, `minecraft:dragon_head`, `minecraft:piglin_head`, `minecraft:player_head`, `minecraft:skeleton_skull`, `minecraft:skull`, `minecraft:wither_skeleton_skull`, `minecraft:zombie_head`
 
-### P3 — `vine_hanging` (8 ids) → candidate PR73
+### P3 — `vine_hanging` (8 ids) → candidate PR74
 
 Samples: `minecraft:cave_vines`, `minecraft:cave_vines_body_with_berries`, `minecraft:cave_vines_head_with_berries`, `minecraft:hanging_roots`, `minecraft:pale_hanging_moss`, `minecraft:twisting_vines`, `minecraft:vine`, `minecraft:weeping_vines`
 
-### P3 — `amethyst` (4 ids) → candidate PR74
+### P3 — `amethyst` (4 ids) → candidate PR75
 
 Samples: `minecraft:amethyst_cluster`, `minecraft:large_amethyst_bud`, `minecraft:medium_amethyst_bud`, `minecraft:small_amethyst_bud`
 
-### P3 — `bamboo_plant` (1 ids) → candidate PR75
+### P3 — `bamboo_plant` (1 ids) → candidate PR76
 
 Samples: `minecraft:bamboo`
 
-### P3 — `cake` (1 ids) → candidate PR76
+### P3 — `cake` (1 ids) → candidate PR77
 
 Samples: `minecraft:cake`
 
-### P3 — `dripstone` (1 ids) → candidate PR77
+### P3 — `dripstone` (1 ids) → candidate PR78
 
 Samples: `minecraft:pointed_dripstone`
 
-### P4 — `heuristic_other` (22 ids) → candidate PR78
+### P4 — `heuristic_other` (22 ids) → candidate PR79
 
 Samples: `minecraft:acacia_shelf`, `minecraft:bamboo_shelf`, `minecraft:birch_shelf`, `minecraft:cherry_shelf`, `minecraft:copper_bulb`, `minecraft:crimson_shelf`, `minecraft:dark_oak_shelf`, `minecraft:exposed_copper_bulb`
 
-### P4 — `other_researched` (18 ids) → candidate PR79
+### P4 — `other_researched` (18 ids) → candidate PR80
 
 Samples: `minecraft:conduit`, `minecraft:copper_golem_statue`, `minecraft:crafter`, `minecraft:dried_ghast`, `minecraft:end_portal_frame`, `minecraft:exposed_copper_golem_statue`, `minecraft:frame`, `minecraft:glow_frame`
 
-### P4 — `egg` (3 ids) → candidate PR80
+### P4 — `egg` (3 ids) → candidate PR81
 
 Samples: `minecraft:frog_spawn`, `minecraft:sniffer_egg`, `minecraft:turtle_egg`
 
@@ -207,40 +209,6 @@ Deferred until the model-coverage milestone. Next lighting phase is **research /
 | --- | --- | --- | --- |
 | p0 | campfire | known_incorrect | `minecraft:campfire` |
 | p0 | campfire | known_incorrect | `minecraft:soul_campfire` |
-| p0 | candle | known_incorrect | `minecraft:black_candle` |
-| p0 | candle | known_incorrect | `minecraft:black_candle_cake` |
-| p0 | candle | known_incorrect | `minecraft:blue_candle` |
-| p0 | candle | known_incorrect | `minecraft:blue_candle_cake` |
-| p0 | candle | known_incorrect | `minecraft:brown_candle` |
-| p0 | candle | known_incorrect | `minecraft:brown_candle_cake` |
-| p0 | candle | known_incorrect | `minecraft:candle` |
-| p0 | candle | known_incorrect | `minecraft:candle_cake` |
-| p0 | candle | known_incorrect | `minecraft:cyan_candle` |
-| p0 | candle | known_incorrect | `minecraft:cyan_candle_cake` |
-| p0 | candle | known_incorrect | `minecraft:gray_candle` |
-| p0 | candle | known_incorrect | `minecraft:gray_candle_cake` |
-| p0 | candle | known_incorrect | `minecraft:green_candle` |
-| p0 | candle | known_incorrect | `minecraft:green_candle_cake` |
-| p0 | candle | known_incorrect | `minecraft:light_blue_candle` |
-| p0 | candle | known_incorrect | `minecraft:light_blue_candle_cake` |
-| p0 | candle | known_incorrect | `minecraft:light_gray_candle` |
-| p0 | candle | known_incorrect | `minecraft:light_gray_candle_cake` |
-| p0 | candle | known_incorrect | `minecraft:lime_candle` |
-| p0 | candle | known_incorrect | `minecraft:lime_candle_cake` |
-| p0 | candle | known_incorrect | `minecraft:magenta_candle` |
-| p0 | candle | known_incorrect | `minecraft:magenta_candle_cake` |
-| p0 | candle | known_incorrect | `minecraft:orange_candle` |
-| p0 | candle | known_incorrect | `minecraft:orange_candle_cake` |
-| p0 | candle | known_incorrect | `minecraft:pink_candle` |
-| p0 | candle | known_incorrect | `minecraft:pink_candle_cake` |
-| p0 | candle | known_incorrect | `minecraft:purple_candle` |
-| p0 | candle | known_incorrect | `minecraft:purple_candle_cake` |
-| p0 | candle | known_incorrect | `minecraft:red_candle` |
-| p0 | candle | known_incorrect | `minecraft:red_candle_cake` |
-| p0 | candle | known_incorrect | `minecraft:white_candle` |
-| p0 | candle | known_incorrect | `minecraft:white_candle_cake` |
-| p0 | candle | known_incorrect | `minecraft:yellow_candle` |
-| p0 | candle | known_incorrect | `minecraft:yellow_candle_cake` |
 | p0 | chain | known_incorrect | `minecraft:chain` |
 | p0 | chain | known_incorrect | `minecraft:copper_chain` |
 | p0 | chain | known_incorrect | `minecraft:exposed_copper_chain` |
@@ -385,6 +353,23 @@ Deferred until the model-coverage milestone. Next lighting phase is **research /
 | p3 | amethyst | known_incorrect | `minecraft:small_amethyst_bud` |
 | p3 | bamboo_plant | known_incorrect | `minecraft:bamboo` |
 | p3 | cake | known_incorrect | `minecraft:cake` |
+| p3 | candle | known_incorrect | `minecraft:black_candle_cake` |
+| p3 | candle | known_incorrect | `minecraft:blue_candle_cake` |
+| p3 | candle | known_incorrect | `minecraft:brown_candle_cake` |
+| p3 | candle | known_incorrect | `minecraft:candle_cake` |
+| p3 | candle | known_incorrect | `minecraft:cyan_candle_cake` |
+| p3 | candle | known_incorrect | `minecraft:gray_candle_cake` |
+| p3 | candle | known_incorrect | `minecraft:green_candle_cake` |
+| p3 | candle | known_incorrect | `minecraft:light_blue_candle_cake` |
+| p3 | candle | known_incorrect | `minecraft:light_gray_candle_cake` |
+| p3 | candle | known_incorrect | `minecraft:lime_candle_cake` |
+| p3 | candle | known_incorrect | `minecraft:magenta_candle_cake` |
+| p3 | candle | known_incorrect | `minecraft:orange_candle_cake` |
+| p3 | candle | known_incorrect | `minecraft:pink_candle_cake` |
+| p3 | candle | known_incorrect | `minecraft:purple_candle_cake` |
+| p3 | candle | known_incorrect | `minecraft:red_candle_cake` |
+| p3 | candle | known_incorrect | `minecraft:white_candle_cake` |
+| p3 | candle | known_incorrect | `minecraft:yellow_candle_cake` |
 | p3 | coral_fan | known_incorrect | `minecraft:brain_coral_fan` |
 | p3 | coral_fan | known_incorrect | `minecraft:brain_coral_wall_fan` |
 | p3 | coral_fan | known_incorrect | `minecraft:bubble_coral_fan` |

@@ -140,9 +140,9 @@ const KNOWN_INCORRECT_RULES: readonly ResearchRule[] = [
   },
   {
     category: 'candle',
-    priority: 'p0',
+    priority: 'p3',
     match: (s) => s === 'candle_cake' || s.endsWith('_candle_cake'),
-    note: 'candle cakes deferred (PR39 covers floor candles only)',
+    note: 'candle cakes deferred (PR39 covers floor candles only); not in p0 six',
   },
   {
     category: 'campfire',
