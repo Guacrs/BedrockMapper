@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR38 frozen · **PR39 candle models in progress** · Next after freeze: signs (PR40); lighting only after model-coverage milestone.
+**Status:** PR19–PR39 frozen · **PR40 standing/wall signs in progress** · Next after freeze: hanging signs (PR41); lighting only after model-coverage milestone.
 
 **Frozen predecessors:**
 
@@ -29,6 +29,7 @@
 | **PR36** | Lever base + angled handle (**frozen**, in beta) |
 | **PR37** | Rail flat/ascending/corner (**frozen**, in beta) |
 | **PR38** | Non-full-cube geometry coverage audit (**frozen**, in beta) |
+| **PR39** | Candle family — multi-box by count + lit/emissive (**frozen**) |
 ### PR20 implemented
 
 - `ChunkBlocks` palette stores immutable `BlockRef { name, states }` (NBT `version` still dropped)
@@ -661,6 +662,8 @@ Reuse PR33 emissive mesh. When `lit=true`, emission = Bedrock light level `3 × 
 `test/block-models-pr39.test.ts` + fixture cells at z=34 + `report-model-fixture --assert` + `npm run report-model-coverage` (floor candles move `known_incorrect` → `explicit_ok`).
 
 **Out of scope:** candle cakes, general transparent/emissive particle systems, BlockLight/SkyLight, signs.
+
+**Frozen.** One multi-box family by `candles`/`lit`; cakes deferred. Visual: multi-stick + lit/unlit emissive confirmed. Next: **PR40** standing/wall signs (hanging signs are PR41).
 
 ---
 ## 1. Current architecture
