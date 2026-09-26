@@ -679,6 +679,110 @@ export function modelFixtureCells(): readonly FixtureCell[] {
     'legacy direction=2 → north',
   );
 
+  // --- PR45 fence gates (z=10) — intrinsic facing/open/in_wall; not fence mask ---
+  // Keep clear of fence pad at z=8 and panes at z=12 (fixture chunks z=0..47).
+  place(
+    'gate-closed-s',
+    2,
+    10,
+    b('minecraft:oak_fence_gate', {
+      open_bit: false,
+      in_wall_bit: false,
+      'minecraft:cardinal_direction': 'south',
+    }),
+    'gate closed facing south',
+  );
+  place(
+    'gate-closed-n',
+    4,
+    10,
+    b('minecraft:oak_fence_gate', {
+      open_bit: false,
+      in_wall_bit: false,
+      'minecraft:cardinal_direction': 'north',
+    }),
+    'gate closed facing north',
+  );
+  place(
+    'gate-closed-e',
+    6,
+    10,
+    b('minecraft:oak_fence_gate', {
+      open_bit: false,
+      in_wall_bit: false,
+      'minecraft:cardinal_direction': 'east',
+    }),
+    'gate closed facing east',
+  );
+  place(
+    'gate-closed-w',
+    8,
+    10,
+    b('minecraft:oak_fence_gate', {
+      open_bit: false,
+      in_wall_bit: false,
+      'minecraft:cardinal_direction': 'west',
+    }),
+    'gate closed facing west',
+  );
+  place(
+    'gate-open-s',
+    10,
+    10,
+    b('minecraft:oak_fence_gate', {
+      open_bit: true,
+      in_wall_bit: false,
+      'minecraft:cardinal_direction': 'south',
+    }),
+    'gate open facing south',
+  );
+  place(
+    'gate-in-wall',
+    12,
+    10,
+    b('minecraft:oak_fence_gate', {
+      open_bit: false,
+      in_wall_bit: true,
+      'minecraft:cardinal_direction': 'south',
+    }),
+    'gate in_wall lowered 3px',
+  );
+  place(
+    'gate-open-in-wall',
+    14,
+    10,
+    b('minecraft:spruce_fence_gate', {
+      open_bit: true,
+      in_wall_bit: true,
+      'minecraft:cardinal_direction': 'east',
+    }),
+    'spruce gate open + in_wall',
+  );
+  place(
+    'gate-legacy-dir',
+    18,
+    10,
+    b('minecraft:birch_fence_gate', {
+      open_bit: false,
+      in_wall_bit: false,
+      direction: 2,
+    }),
+    'legacy direction=2 → north',
+  );
+  // Fence still attaches to gate (connectivity ≠ gate geometry).
+  place(
+    'gate-fence-attach',
+    22,
+    10,
+    b('minecraft:oak_fence_gate', {
+      open_bit: false,
+      in_wall_bit: false,
+      'minecraft:cardinal_direction': 'south',
+    }),
+    'gate with fence neighbour (fence attaches)',
+  );
+  place('gate-fence-attach-n', 22, 11, b('minecraft:oak_fence'));
+
   // --- PR34 lanterns (z=44) ---
   place(
     'lantern-floor',
@@ -1121,6 +1225,15 @@ export function modelFixtureExpectations(): readonly FixtureExpectation[] {
     { id: 'soul-campfire-lit', family: 'campfire', isFullCube: false, modelKeyPrefix: 'campfire:south:lit:' },
     { id: 'soul-campfire-unlit', family: 'campfire', isFullCube: false, modelKeyPrefix: 'campfire:east:unlit:' },
     { id: 'campfire-legacy-dir', family: 'campfire', isFullCube: false, modelKeyPrefix: 'campfire:north:lit:' },
+    { id: 'gate-closed-s', family: 'fence_gate', isFullCube: false, modelKeyPrefix: 'fence_gate:south:closed:normal:' },
+    { id: 'gate-closed-n', family: 'fence_gate', isFullCube: false, modelKeyPrefix: 'fence_gate:north:closed:normal:' },
+    { id: 'gate-closed-e', family: 'fence_gate', isFullCube: false, modelKeyPrefix: 'fence_gate:east:closed:normal:' },
+    { id: 'gate-closed-w', family: 'fence_gate', isFullCube: false, modelKeyPrefix: 'fence_gate:west:closed:normal:' },
+    { id: 'gate-open-s', family: 'fence_gate', isFullCube: false, modelKeyPrefix: 'fence_gate:south:open:normal:' },
+    { id: 'gate-in-wall', family: 'fence_gate', isFullCube: false, modelKeyPrefix: 'fence_gate:south:closed:wall:' },
+    { id: 'gate-open-in-wall', family: 'fence_gate', isFullCube: false, modelKeyPrefix: 'fence_gate:east:open:wall:' },
+    { id: 'gate-legacy-dir', family: 'fence_gate', isFullCube: false, modelKeyPrefix: 'fence_gate:north:closed:normal:' },
+    { id: 'gate-fence-attach', family: 'fence_gate', isFullCube: false, modelKeyPrefix: 'fence_gate:south:closed:normal:' },
     { id: 'lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },
     { id: 'lantern-hanging', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:hanging:' },
     { id: 'soul-lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },

@@ -65,6 +65,7 @@ export type ModelFamilyId =
   | 'chest' // PR42
   | 'chain' // PR43
   | 'campfire' // PR44
+  | 'fence_gate' // PR45 — intrinsic; not fence ConnectionMask
   | 'fallback' // J — safe full-cube used as stand-in
   | 'future'; // K — researched as needing custom geo later
 
@@ -204,9 +205,9 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
   if (isFenceGateName(name)) {
     return {
       name,
-      family: 'fallback',
-      implementation: 'safe_full_cube_fallback',
-      note: 'fence gates: attach target only; no dedicated gate model yet',
+      family: 'fence_gate',
+      implementation: 'explicit',
+      note: 'intrinsic cardinal_direction + open_bit + in_wall_bit (PR45)',
     };
   }
   if (isPaneName(name)) {
@@ -386,6 +387,7 @@ export function summarizeCoverage(entries: readonly ModelCoverageEntry[]): Cover
     chest: 0,
     chain: 0,
     campfire: 0,
+    fence_gate: 0,
     fallback: 0,
     future: 0,
   } satisfies Record<ModelFamilyId, number>;

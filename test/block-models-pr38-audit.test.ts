@@ -38,11 +38,10 @@ describe('PR38 geometry audit classification', () => {
     assert.equal(classifyGeometryAudit('minecraft:brewing_stand')?.priority, 'p2');
   });
 
-  it('keeps fence gates as intentional fallback with roadmap priority', () => {
+  it('marks fence gates as explicit_ok after PR45', () => {
     const g = classifyGeometryAudit('minecraft:oak_fence_gate');
-    assert.equal(g?.bucket, 'intentional_fallback');
-    assert.equal(g?.category, 'fence_gate');
-    assert.equal(g?.priority, 'p1');
+    assert.equal(g?.bucket, 'explicit_ok');
+    assert.equal(classifyGeometryAudit('minecraft:spruce_fence_gate')?.bucket, 'explicit_ok');
   });
 
   it('does not flag ordinary planks/logs as incorrect', () => {
@@ -69,7 +68,8 @@ describe('PR38 catalog audit', () => {
     assert.ok(!roadmap.some((g) => g.category === 'chest'), 'chests should be explicit_ok');
     assert.ok(!roadmap.some((g) => g.category === 'chain'), 'chains should be explicit_ok');
     assert.ok(!roadmap.some((g) => g.category === 'campfire'), 'campfires should be explicit_ok');
-    assert.ok(roadmap.some((g) => g.category === 'fence_gate'), 'fence gates remain on roadmap');
+    assert.ok(!roadmap.some((g) => g.category === 'fence_gate'), 'fence gates should be explicit_ok');
+    assert.ok(roadmap.some((g) => g.category === 'piston'), 'pistons remain on roadmap');
     assert.ok(roadmapEntries(entries).length === summary.incorrectTotal + summary.byBucket.intentional_fallback);
   });
 });

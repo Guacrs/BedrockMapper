@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR43 frozen · **PR44 campfire models in progress** · Next after freeze: P1 fence gates (PR45); lighting only after model-coverage milestone.
+**Status:** PR19–PR44 frozen · **PR45 fence gate models in progress** · Next after freeze: P1 pistons (PR46); lighting only after model-coverage milestone.
 
 **Frozen predecessors:**
 
@@ -34,6 +34,8 @@
 | **PR41** | Hanging signs — intrinsic hanging/attached_bit (**frozen**) |
 | **PR42** | Chest models — single closed AABB + cardinal facing (**frozen**) |
 | **PR43** | Chain models — pillar_axis crossed planes (**frozen**) |
+| **PR44** | Campfire models — logs + lit/unlit + PR33 emissive (**frozen**) |
+| **PR45** | Fence gate models — intrinsic facing/open/in_wall (**in progress**) |
 ### PR20 implemented
 
 - `ChunkBlocks` palette stores immutable `BlockRef { name, states }` (NBT `version` still dropped)
@@ -848,7 +850,42 @@ When `!extinguished`, route through existing PR33 emissive (15 / soul 10). Extin
 
 **Out of scope:** smoke particles, dynamic flame, signal_fire, waterlogged, BlockLight/SkyLight.
 
-**In progress.** P0 backlog clears after freeze; next is P1 fence gates (PR45).
+**Frozen.** Logs + fire planes; extinguished + cardinal facing; PR33 emissive. Live mesh: lit 17/16 / unlit 7/16. P0 backlog cleared. Next: **PR45** fence gates.
+
+---
+
+## 37. Fence gate models (PR45)
+
+**Goal:** stop rendering fence gates as full cubes. Dedicated gate family — **not** fences with a gate-shaped texture.
+
+### Bedrock research
+
+```text
+*_fence_gate / fence_gate
+├─ minecraft:cardinal_direction → facing (legacy direction 0–3)
+├─ open_bit                     → doors swung open
+└─ in_wall_bit                  → lowered 3px for wall flush
+```
+
+Microsoft listings + 1.21.60 changelog: `minecraft:cardinal_direction` replaced int `direction`. Wiki: `in_wall_bit` lowers the gate by three pixels. Orientation is **intrinsic** — do **not** reuse fence `ConnectionMask`. Fences still *attach* to gates via existing `fenceConnectsTo`; that is connectivity, not gate geometry.
+
+### Geometry (Java `template_fence_gate*` parity)
+
+| Mode | Boxes |
+|------|--------|
+| Closed / open | 2 hinge posts + 2 inner verticals + 4 horizontal bars (8 total) |
+| `in_wall` | same topology with all Y −3px |
+| Open | posts fixed; doors swing toward facing (+Z in south base) |
+
+Wood / bamboo / nether variants share geometry; textures from appearance (`oak_fence_gate` → legacy `fence_gate` planks).
+
+### Validation
+
+`test/block-models-pr45.test.ts` + fixture z=10 + coverage (gates → `explicit_ok`).
+
+**Out of scope:** fence ConnectionMask for gates, BlockLight/SkyLight, double-gate pairing.
+
+**In progress.** Next after freeze: P1 pistons (PR46).
 
 ---
 ## 1. Current architecture
@@ -862,7 +899,7 @@ SubChunk { layers[].palette: BlockState{name, states}[], indices }
 ChunkBlocks
     ↓
 VoxelNeighborhood
-    ↓  resolveBlockModel(…) → … | chest | chain | campfire
+    ↓  resolveBlockModel(…) → … | chest | chain | campfire | fence_gate
     ↓  isFaceFullyOccluded (Option A)
 box-face mesher (voxel-mesh-builder.ts)
     ↓  PR17 atlas UVs
@@ -877,7 +914,8 @@ Three.js (terrain + emissive)
 **PR41:** hanging signs — intrinsic `hanging`/`attached_bit`/orientation; no text. **Frozen.**
 **PR42:** chests — facing from `minecraft:cardinal_direction`; double halves deferred. **Frozen.**
 **PR43:** chains — `pillar_axis` crossed planes; copper variants share geometry. **Frozen.**
-**PR44:** campfires — logs + lit fire planes; `extinguished` + cardinal facing; PR33 emissive. **In progress.**
+**PR44:** campfires — logs + lit fire planes; `extinguished` + cardinal facing; PR33 emissive. **Frozen.**
+**PR45:** fence gates — intrinsic `cardinal_direction` + `open_bit` + `in_wall_bit`; not fence mask. **In progress.**
 ---
 
 ## 2. Actual Bedrock data discovered

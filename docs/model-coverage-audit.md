@@ -6,34 +6,30 @@ Catalog size: **1505** block ids (appearance ∪ block-colors).
 
 | Bucket | Count | Meaning |
 | --- | ---: | --- |
-| explicit_ok | 525 | Dedicated model family already |
+| explicit_ok | 538 | Dedicated model family already |
 | intentional_full_cube | 779 | True / intentional cube mesh |
-| intentional_fallback | 13 | Safe full-cube stand-in (J) |
+| intentional_fallback | 0 | Safe full-cube stand-in (J) |
 | known_incorrect | 166 | Non-cube evidence; still cube mesh |
 | suspected_incorrect | 22 | Heuristic non-cube; needs research |
 
-**Incorrect / suspected total: 188** (plus 13 intentional fallbacks).
+**Incorrect / suspected total: 188** (plus 0 intentional fallbacks).
 
 ## Priority backlog (incorrect + fallback)
 
 | Priority | Count | Role |
 | --- | ---: | --- |
 | p0 | 0 | High-frequency build visuals (chests, chains, campfires) |
-| p1 | 32 | Attachment / redstone / thin deco |
+| p1 | 19 | Attachment / redstone / thin deco |
 | p2 | 46 | Functional furniture / rods |
 | p3 | 80 | Vegetation / clusters / cakes (incl. candle cakes) |
 | p4 | 43 | Rare / complex / heuristic |
 
-Candles (PR39), standing/wall signs (PR40), hanging signs (PR41), chests (PR42), chains (PR43), and campfires (PR44) are **explicit_ok**. P0 backlog cleared; next family PR starts at **PR45** (fence gates).
+Candles (PR39), standing/wall signs (PR40), hanging signs (PR41), chests (PR42), chains (PR43), campfires (PR44), and fence gates (PR45) are **explicit_ok**. P0 backlog cleared; next family PR starts at **PR46** (pistons).
 
 ## Suggested family PR sequence
 
 Do **not** implement this list blindly — each PR still needs Bedrock state research.
 One family (or tightly related group) per PR.
-
-### P1 — `fence_gate` (13 ids) → candidate PR45
-
-Samples: `minecraft:acacia_fence_gate`, `minecraft:bamboo_fence_gate`, `minecraft:birch_fence_gate`, `minecraft:cherry_fence_gate`, `minecraft:crimson_fence_gate`, `minecraft:dark_oak_fence_gate`, `minecraft:fence_gate`, `minecraft:jungle_fence_gate`
 
 ### P1 — `piston` (6 ids) → candidate PR46
 
@@ -191,19 +187,6 @@ Deferred until the model-coverage milestone. Next lighting phase is **research /
 | p1 | banner | known_incorrect | `minecraft:wall_banner` |
 | p1 | daylight_detector | known_incorrect | `minecraft:daylight_detector` |
 | p1 | daylight_detector | known_incorrect | `minecraft:daylight_detector_inverted` |
-| p1 | fence_gate | intentional_fallback | `minecraft:acacia_fence_gate` |
-| p1 | fence_gate | intentional_fallback | `minecraft:bamboo_fence_gate` |
-| p1 | fence_gate | intentional_fallback | `minecraft:birch_fence_gate` |
-| p1 | fence_gate | intentional_fallback | `minecraft:cherry_fence_gate` |
-| p1 | fence_gate | intentional_fallback | `minecraft:crimson_fence_gate` |
-| p1 | fence_gate | intentional_fallback | `minecraft:dark_oak_fence_gate` |
-| p1 | fence_gate | intentional_fallback | `minecraft:fence_gate` |
-| p1 | fence_gate | intentional_fallback | `minecraft:jungle_fence_gate` |
-| p1 | fence_gate | intentional_fallback | `minecraft:mangrove_fence_gate` |
-| p1 | fence_gate | intentional_fallback | `minecraft:pale_oak_fence_gate` |
-| p1 | fence_gate | intentional_fallback | `minecraft:poplar_fence_gate` |
-| p1 | fence_gate | intentional_fallback | `minecraft:spruce_fence_gate` |
-| p1 | fence_gate | intentional_fallback | `minecraft:warped_fence_gate` |
 | p1 | flower_pot | known_incorrect | `minecraft:flower_pot` |
 | p1 | lily_pad | known_incorrect | `minecraft:waterlily` |
 | p1 | piston | known_incorrect | `minecraft:movingBlock` |
