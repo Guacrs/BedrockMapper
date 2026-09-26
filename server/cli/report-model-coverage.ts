@@ -60,7 +60,7 @@ function formatSummary(summary: GeometryAuditSummary): string {
     `| p3 | ${summary.byPriority.p3} | Vegetation / clusters / cakes (incl. candle cakes) |`,
     `| p4 | ${summary.byPriority.p4} | Rare / complex / heuristic |`,
     ``,
-    `Candles (PR39), standing/wall signs (PR40), and hanging signs (PR41) are **explicit_ok**. Next family PR starts at **PR42** (chests).`,
+    `Candles (PR39), standing/wall signs (PR40), hanging signs (PR41), and chests (PR42) are **explicit_ok**. Next family PR starts at **PR43** (chains).`,
     ``,
   ];
   return lines.join('\n');
@@ -76,7 +76,7 @@ function formatRoadmap(
     `One family (or tightly related group) per PR.`,
     ``,
   ];
-  let n = 42; // PR39–41 done; next backlog starts at chests
+  let n = 43; // PR39–42 done; next backlog starts at chains
   for (const g of groups) {
     lines.push(
       `### ${g.priority.toUpperCase()} — \`${g.category}\` (${g.count} ids) → candidate PR${n}`,

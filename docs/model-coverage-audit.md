@@ -6,34 +6,30 @@ Catalog size: **1505** block ids (appearance ∪ block-colors).
 
 | Bucket | Count | Meaning |
 | --- | ---: | --- |
-| explicit_ok | 502 | Dedicated model family already |
+| explicit_ok | 513 | Dedicated model family already |
 | intentional_full_cube | 779 | True / intentional cube mesh |
 | intentional_fallback | 13 | Safe full-cube stand-in (J) |
-| known_incorrect | 189 | Non-cube evidence; still cube mesh |
+| known_incorrect | 178 | Non-cube evidence; still cube mesh |
 | suspected_incorrect | 22 | Heuristic non-cube; needs research |
 
-**Incorrect / suspected total: 211** (plus 13 intentional fallbacks).
+**Incorrect / suspected total: 200** (plus 13 intentional fallbacks).
 
 ## Priority backlog (incorrect + fallback)
 
 | Priority | Count | Role |
 | --- | ---: | --- |
-| p0 | 23 | High-frequency build visuals (chests, chains, campfires) |
+| p0 | 12 | High-frequency build visuals (chests, chains, campfires) |
 | p1 | 32 | Attachment / redstone / thin deco |
 | p2 | 46 | Functional furniture / rods |
 | p3 | 80 | Vegetation / clusters / cakes (incl. candle cakes) |
 | p4 | 43 | Rare / complex / heuristic |
 
-Candles (PR39), standing/wall signs (PR40), and hanging signs (PR41) are **explicit_ok**. Next family PR starts at **PR42** (chests).
+Candles (PR39), standing/wall signs (PR40), hanging signs (PR41), and chests (PR42) are **explicit_ok**. Next family PR starts at **PR43** (chains).
 
 ## Suggested family PR sequence
 
 Do **not** implement this list blindly — each PR still needs Bedrock state research.
 One family (or tightly related group) per PR.
-
-### P0 — `chest` (11 ids) → candidate PR42
-
-Samples: `minecraft:chest`, `minecraft:copper_chest`, `minecraft:ender_chest`, `minecraft:exposed_copper_chest`, `minecraft:oxidized_copper_chest`, `minecraft:trapped_chest`, `minecraft:waxed_copper_chest`, `minecraft:waxed_exposed_copper_chest`
 
 ### P0 — `chain` (10 ids) → candidate PR43
 
@@ -211,17 +207,6 @@ Deferred until the model-coverage milestone. Next lighting phase is **research /
 | p0 | chain | known_incorrect | `minecraft:waxed_oxidized_copper_chain` |
 | p0 | chain | known_incorrect | `minecraft:waxed_weathered_copper_chain` |
 | p0 | chain | known_incorrect | `minecraft:weathered_copper_chain` |
-| p0 | chest | known_incorrect | `minecraft:chest` |
-| p0 | chest | known_incorrect | `minecraft:copper_chest` |
-| p0 | chest | known_incorrect | `minecraft:ender_chest` |
-| p0 | chest | known_incorrect | `minecraft:exposed_copper_chest` |
-| p0 | chest | known_incorrect | `minecraft:oxidized_copper_chest` |
-| p0 | chest | known_incorrect | `minecraft:trapped_chest` |
-| p0 | chest | known_incorrect | `minecraft:waxed_copper_chest` |
-| p0 | chest | known_incorrect | `minecraft:waxed_exposed_copper_chest` |
-| p0 | chest | known_incorrect | `minecraft:waxed_oxidized_copper_chest` |
-| p0 | chest | known_incorrect | `minecraft:waxed_weathered_copper_chest` |
-| p0 | chest | known_incorrect | `minecraft:weathered_copper_chest` |
 | p1 | banner | known_incorrect | `minecraft:standing_banner` |
 | p1 | banner | known_incorrect | `minecraft:wall_banner` |
 | p1 | daylight_detector | known_incorrect | `minecraft:daylight_detector` |

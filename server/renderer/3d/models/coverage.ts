@@ -18,6 +18,7 @@ import { isCandleName } from './families/candle.ts';
 import { isCactusName } from './families/cactus.ts';
 import { isCarpetName } from './families/carpet.ts';
 import { isCrossName } from './families/cross.ts';
+import { isChestName } from './families/chest.ts';
 import { isHangingSignName } from './families/hanging-sign.ts';
 import { isSignName } from './families/sign.ts';
 import { isDoorName } from './families/door.ts';
@@ -59,6 +60,7 @@ export type ModelFamilyId =
   | 'candle' // PR39
   | 'sign' // PR40 standing/wall
   | 'hanging_sign' // PR41
+  | 'chest' // PR42
   | 'fallback' // J — safe full-cube used as stand-in
   | 'future'; // K — researched as needing custom geo later
 
@@ -118,11 +120,8 @@ const FUTURE_SHORT_IDS: ReadonlySet<string> = new Set([
   'fire_coral_fan',
   'horn_coral_fan',
   'tube_coral_fan',
-  // Still research / complex — not PR30
+  // Still research / complex — not PR30 (chests are explicit PR42)
   'bed',
-  'chest',
-  'trapped_chest',
-  'ender_chest',
   'tripwire_hook',
   'cactus_flower',
   // Campfires / cakes still future — candles are explicit (PR39)
@@ -303,6 +302,14 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
       note: 'intrinsic hanging/attached_bit + facing or ground_sign_direction; no text glyphs',
     };
   }
+  if (isChestName(name)) {
+    return {
+      name,
+      family: 'chest',
+      implementation: 'explicit',
+      note: 'single closed AABB + cardinal_direction; double halves deferred',
+    };
+  }
   if (isCactusName(name)) {
     return { name, family: 'cactus', implementation: 'explicit' };
   }
@@ -311,7 +318,6 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
     looksLikeCoralWallFan(short) ||
     looksLikeCandleCake(short) ||
     looksLikeShulkerOrBedOrBanner(short) ||
-    short.includes('copper_chest') ||
     short.endsWith('_chain') ||
     short.endsWith('_cauldron') ||
     short.endsWith('_lightning_rod') ||
@@ -361,6 +367,7 @@ export function summarizeCoverage(entries: readonly ModelCoverageEntry[]): Cover
     candle: 0,
     sign: 0,
     hanging_sign: 0,
+    chest: 0,
     fallback: 0,
     future: 0,
   } satisfies Record<ModelFamilyId, number>;
