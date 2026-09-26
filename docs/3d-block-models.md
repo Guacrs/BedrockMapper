@@ -806,7 +806,7 @@ Matches Java `chain.json` crossed planes + wiki 3px centred collision (faces 3/3
 
 ### Validation
 
-`test/block-models-pr43.test.ts` + fixture z=24 + coverage (chains → `explicit_ok`).
+`test/block-models-pr43.test.ts` + fixture z=20 + coverage (chains → `explicit_ok`).
 
 **Out of scope:** waterlogged, BlockLight/SkyLight, campfires, generic rod abstraction.
 

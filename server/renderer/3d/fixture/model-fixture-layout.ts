@@ -524,77 +524,78 @@ export function modelFixtureCells(): readonly FixtureCell[] {
     'legacy facing_direction=2 → north',
   );
 
-  // --- PR43 chains (z=24) — pillar_axis intrinsic; copper share geometry ---
+  // --- PR43 chains (z=20) — pillar_axis intrinsic; copper share geometry ---
+  // Keep clear of wall-boundary at z=24 (x=15/16).
   place(
     'chain-y',
     2,
-    24,
+    20,
     b('minecraft:chain', { pillar_axis: 'y' }),
     'iron chain vertical (legacy id)',
   );
   place(
     'chain-x',
     4,
-    24,
+    20,
     b('minecraft:iron_chain', { pillar_axis: 'x' }),
     'iron chain east-west',
   );
   place(
     'chain-z',
     6,
-    24,
+    20,
     b('minecraft:iron_chain', { pillar_axis: 'z' }),
     'iron chain north-south',
   );
   place(
     'chain-copper-y',
     8,
-    24,
+    20,
     b('minecraft:copper_chain', { pillar_axis: 'y' }),
     'copper chain vertical',
   );
   place(
     'chain-exposed-x',
     10,
-    24,
+    20,
     b('minecraft:exposed_copper_chain', { pillar_axis: 'x' }),
     'exposed copper chain EW',
   );
   place(
     'chain-oxidized-z',
     12,
-    24,
+    20,
     b('minecraft:oxidized_copper_chain', { pillar_axis: 'z' }),
     'oxidized copper chain NS',
   );
   place(
     'chain-waxed-y',
     14,
-    24,
+    20,
     b('minecraft:waxed_weathered_copper_chain', { pillar_axis: 'y' }),
     'waxed weathered copper vertical',
   );
-  // Default / missing axis → y
+  // Default / missing axis → y (x=18 avoids wall-boundary at x=15/16 z=24)
   place(
     'chain-default',
-    16,
-    24,
+    18,
+    20,
     b('minecraft:iron_chain', {}),
     'missing pillar_axis → y',
   );
-  // Chunk-boundary vertical pair (x=15/16) — axis is intrinsic, not contextual,
+  // Chunk-boundary vertical pair (x=15/16, z=20) — axis is intrinsic, not contextual,
   // but proves both chunks resolve chain models independently.
   place(
     'chain-boundary-w',
     15,
-    22,
+    20,
     b('minecraft:iron_chain', { pillar_axis: 'y' }),
     'chain at chunk boundary west',
   );
   place(
     'chain-boundary-e',
     16,
-    22,
+    20,
     b('minecraft:copper_chain', { pillar_axis: 'y' }),
     'chain at chunk boundary east',
   );
