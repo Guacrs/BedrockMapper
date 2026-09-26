@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR40 frozen · **PR41 hanging signs in progress** · Next after freeze: chests (PR42); lighting only after model-coverage milestone.
+**Status:** PR19–PR41 frozen · **PR42 chest models in progress** · Next after freeze: chains (PR43); lighting only after model-coverage milestone.
 
 **Frozen predecessors:**
 
@@ -31,6 +31,7 @@
 | **PR38** | Non-full-cube geometry coverage audit (**frozen**, in beta) |
 | **PR39** | Candle family — multi-box by count + lit/emissive (**frozen**) |
 | **PR40** | Standing/wall signs (**frozen**) |
+| **PR41** | Hanging signs — intrinsic hanging/attached_bit (**frozen**) |
 ### PR20 implemented
 
 - `ChunkBlocks` palette stores immutable `BlockRef { name, states }` (NBT `version` still dropped)
@@ -745,6 +746,8 @@ Text remains Sign block-entity data — **out of scope**.
 
 **Out of scope:** sign text glyphs, BlockLight/SkyLight, chests.
 
+**Frozen.** Support mode is intrinsic (`hanging`/`attached_bit`); no neighbour probe; no text glyphs. Visual: ceiling chains + wall brackets confirmed. Next: **PR42** chests (facing intrinsic; Bedrock has no `type` double state).
+
 ---
 ## 1. Current architecture
 
@@ -769,7 +772,8 @@ Three.js (terrain + emissive)
 
 **PR39:** candle family — multi-box from `candles`/`lit`; cakes deferred. **Frozen.**
 **PR40:** standing/wall signs — palette orientation is model orientation. **Frozen.**
-**PR41:** hanging signs — intrinsic `hanging`/`attached_bit`/orientation; no text.
+**PR41:** hanging signs — intrinsic `hanging`/`attached_bit`/orientation; no text. **Frozen.**
+**PR42:** chests — facing from `minecraft:cardinal_direction`; double halves deferred (not in Bedrock palette).
 ---
 
 ## 2. Actual Bedrock data discovered
