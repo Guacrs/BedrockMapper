@@ -18,6 +18,7 @@ import { isCandleName } from './families/candle.ts';
 import { isCactusName } from './families/cactus.ts';
 import { isCarpetName } from './families/carpet.ts';
 import { isCrossName } from './families/cross.ts';
+import { isHangingSignName } from './families/hanging-sign.ts';
 import { isSignName } from './families/sign.ts';
 import { isDoorName } from './families/door.ts';
 import { isFenceGateName, isFenceName, shortBlockId } from './families/fence.ts';
@@ -56,7 +57,8 @@ export type ModelFamilyId =
   | 'lever' // PR36
   | 'rail' // PR37
   | 'candle' // PR39
-  | 'sign' // PR40 standing/wall (hanging = PR41)
+  | 'sign' // PR40 standing/wall
+  | 'hanging_sign' // PR41
   | 'fallback' // J — safe full-cube used as stand-in
   | 'future'; // K — researched as needing custom geo later
 
@@ -165,10 +167,6 @@ const FUTURE_SHORT_IDS: ReadonlySet<string> = new Set([
 
 function looksLikeCoralWallFan(short: string): boolean {
   return short.includes('coral_wall_fan') || short.endsWith('_wall_fan');
-}
-
-function looksLikeHangingSign(short: string): boolean {
-  return short.includes('hanging_sign');
 }
 
 function looksLikeCandleCake(short: string): boolean {
@@ -294,7 +292,15 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
       name,
       family: 'sign',
       implementation: 'explicit',
-      note: 'standing ground_sign_direction 0–15; wall facing_direction 2–5; hanging deferred',
+      note: 'standing ground_sign_direction 0–15; wall facing_direction 2–5',
+    };
+  }
+  if (isHangingSignName(name)) {
+    return {
+      name,
+      family: 'hanging_sign',
+      implementation: 'explicit',
+      note: 'intrinsic hanging/attached_bit + facing or ground_sign_direction; no text glyphs',
     };
   }
   if (isCactusName(name)) {
@@ -303,7 +309,6 @@ export function classifyBlockModelCoverage(name: string): ModelCoverageEntry | n
   if (
     FUTURE_SHORT_IDS.has(short) ||
     looksLikeCoralWallFan(short) ||
-    looksLikeHangingSign(short) ||
     looksLikeCandleCake(short) ||
     looksLikeShulkerOrBedOrBanner(short) ||
     short.includes('copper_chest') ||
@@ -355,6 +360,7 @@ export function summarizeCoverage(entries: readonly ModelCoverageEntry[]): Cover
     rail: 0,
     candle: 0,
     sign: 0,
+    hanging_sign: 0,
     fallback: 0,
     future: 0,
   } satisfies Record<ModelFamilyId, number>;
