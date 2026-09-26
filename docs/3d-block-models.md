@@ -1,6 +1,6 @@
 # Experimental 3D: block states + block models
 
-**Status:** PR19–PR39 frozen · **PR40 standing/wall signs in progress** · Next after freeze: hanging signs (PR41); lighting only after model-coverage milestone.
+**Status:** PR19–PR40 frozen · **PR41 hanging signs in progress** · Next after freeze: chests (PR42); lighting only after model-coverage milestone.
 
 **Frozen predecessors:**
 
@@ -30,6 +30,7 @@
 | **PR37** | Rail flat/ascending/corner (**frozen**, in beta) |
 | **PR38** | Non-full-cube geometry coverage audit (**frozen**, in beta) |
 | **PR39** | Candle family — multi-box by count + lit/emissive (**frozen**) |
+| **PR40** | Standing/wall signs (**frozen**) |
 ### PR20 implemented
 
 - `ChunkBlocks` palette stores immutable `BlockRef { name, states }` (NBT `version` still dropped)
@@ -705,6 +706,8 @@ Appearance DB maps signs → plank `all` textures.
 `test/block-models-pr40.test.ts` + fixture cells at z=30 + `report-model-fixture --assert` + coverage audit (standing/wall → `explicit_ok`; hanging remain `known_incorrect`).
 
 **Out of scope:** hanging signs, sign text glyphs, BlockLight/SkyLight.
+
+**Frozen.** One `sign.ts` family; palette orientation is the model orientation (no separate textFacing). Visual: standing post+board and wall thin boards confirmed. Next: **PR41** hanging signs (intrinsic `hanging`/`attached_bit`/orientation — no text glyphs).
 
 ---
 ## 1. Current architecture
