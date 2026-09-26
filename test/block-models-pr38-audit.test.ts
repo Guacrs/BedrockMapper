@@ -28,6 +28,8 @@ describe('PR38 geometry audit classification', () => {
 
     assert.equal(classifyGeometryAudit('minecraft:chest')?.bucket, 'known_incorrect');
     assert.equal(classifyGeometryAudit('minecraft:chain')?.bucket, 'known_incorrect');
+    assert.equal(classifyGeometryAudit('minecraft:standing_sign')?.bucket, 'explicit_ok');
+    assert.equal(classifyGeometryAudit('minecraft:wall_sign')?.bucket, 'explicit_ok');
     assert.equal(classifyGeometryAudit('minecraft:candle')?.bucket, 'explicit_ok');
     assert.equal(classifyGeometryAudit('minecraft:red_candle')?.bucket, 'explicit_ok');
     assert.equal(classifyGeometryAudit('minecraft:candle_cake')?.bucket, 'known_incorrect');
@@ -60,10 +62,11 @@ describe('PR38 catalog audit', () => {
     assert.ok(summary.byBucket.explicit_ok > 100);
     assert.ok(summary.byBucket.intentional_full_cube > 100);
     assert.ok(summary.incorrectTotal > 50, `expected substantial incorrect backlog, got ${summary.incorrectTotal}`);
-    assert.ok(summary.byPriority.p0 > 10, 'p0 should include signs/chests/candles/chains');
+    assert.ok(summary.byPriority.p0 > 10, 'p0 should include hanging signs/chests/chains/campfires');
 
     const roadmap = groupRoadmapByCategory(entries);
-    assert.ok(roadmap.some((g) => g.category === 'hanging_sign' || g.category === 'sign'));
+    assert.ok(roadmap.some((g) => g.category === 'hanging_sign'));
+    assert.ok(!roadmap.some((g) => g.category === 'sign'), 'standing/wall signs should be explicit_ok');
     assert.ok(roadmap.some((g) => g.category === 'chest'));
     assert.ok(roadmapEntries(entries).length === summary.incorrectTotal + summary.byBucket.intentional_fallback);
   });

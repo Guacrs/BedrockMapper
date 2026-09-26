@@ -358,6 +358,61 @@ export function modelFixtureCells(): readonly FixtureCell[] {
     '4 yellow candles unlit',
   );
 
+  // --- PR40 standing / wall signs (z=30) — hanging signs are PR41 ---
+  place(
+    'sign-standing-s',
+    2,
+    30,
+    b('minecraft:standing_sign', { ground_sign_direction: 0 }),
+    'oak standing south (dir 0)',
+  );
+  place(
+    'sign-standing-n',
+    4,
+    30,
+    b('minecraft:spruce_standing_sign', { ground_sign_direction: 8 }),
+    'spruce standing north (dir 8)',
+  );
+  place(
+    'sign-standing-diag',
+    6,
+    30,
+    b('minecraft:birch_standing_sign', { ground_sign_direction: 2 }),
+    'birch standing SW (dir 2, 45°)',
+  );
+  place('sign-wall-n-support', 10, 31, b('minecraft:stone'));
+  place(
+    'sign-wall-n',
+    10,
+    30,
+    b('minecraft:wall_sign', { facing_direction: 2 }),
+    'oak wall facing north',
+  );
+  place('sign-wall-e-support', 11, 30, b('minecraft:stone'));
+  place(
+    'sign-wall-e',
+    12,
+    30,
+    b('minecraft:acacia_wall_sign', { facing_direction: 5 }),
+    'acacia wall facing east',
+  );
+  place('sign-wall-s-support', 16, 29, b('minecraft:stone'));
+  place(
+    'sign-wall-s',
+    16,
+    30,
+    b('minecraft:crimson_wall_sign', { facing_direction: 3 }),
+    'crimson wall facing south',
+  );
+  place('sign-wall-w-support', 21, 30, b('minecraft:stone'));
+  place(
+    'sign-wall-w',
+    20,
+    30,
+    b('minecraft:warped_wall_sign', { facing_direction: 4 }),
+    'warped wall facing west',
+  );
+
   // --- PR34 lanterns (z=44) ---
   place(
     'lantern-floor',
@@ -764,6 +819,13 @@ export function modelFixtureExpectations(): readonly FixtureExpectation[] {
     { id: 'candle-3-lit', family: 'candle', isFullCube: false, modelKeyPrefix: 'candle:3:lit:' },
     { id: 'candle-4-lit', family: 'candle', isFullCube: false, modelKeyPrefix: 'candle:4:lit:' },
     { id: 'candle-4-unlit', family: 'candle', isFullCube: false, modelKeyPrefix: 'candle:4:unlit:' },
+    { id: 'sign-standing-s', family: 'sign', isFullCube: false, modelKeyPrefix: 'sign:standing:0:' },
+    { id: 'sign-standing-n', family: 'sign', isFullCube: false, modelKeyPrefix: 'sign:standing:8:' },
+    { id: 'sign-standing-diag', family: 'sign', isFullCube: false, modelKeyPrefix: 'sign:standing:2:' },
+    { id: 'sign-wall-n', family: 'sign', isFullCube: false, modelKeyPrefix: 'sign:wall:north:' },
+    { id: 'sign-wall-e', family: 'sign', isFullCube: false, modelKeyPrefix: 'sign:wall:east:' },
+    { id: 'sign-wall-s', family: 'sign', isFullCube: false, modelKeyPrefix: 'sign:wall:south:' },
+    { id: 'sign-wall-w', family: 'sign', isFullCube: false, modelKeyPrefix: 'sign:wall:west:' },
     { id: 'lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },
     { id: 'lantern-hanging', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:hanging:' },
     { id: 'soul-lantern-floor', family: 'lantern', isFullCube: false, modelKeyPrefix: 'lantern:floor:' },

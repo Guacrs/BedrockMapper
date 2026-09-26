@@ -23,6 +23,13 @@ import {
 } from './families/candle.ts';
 import { cactusModel, isCactusName } from './families/cactus.ts';
 import { carpetModel, isCarpetName } from './families/carpet.ts';
+import {
+  groundSignDirectionFromStates,
+  isSignName,
+  signKindFromName,
+  tryBuildSign,
+  wallSignFacingFromStates,
+} from './families/sign.ts';
 import { crossModel, isCrossName } from './families/cross.ts';
 import { isDoorName, tryBuildDoor } from './families/door.ts';
 import { fenceModel, isFenceGateName, isFenceName } from './families/fence.ts';
@@ -111,6 +118,15 @@ function cacheKey(
   if (isCandleName(ref.name)) {
     const count = candleCountFromStates(ref.states);
     return `candle:${count}:${candleIsLit(ref.states) ? 'lit' : 'unlit'}:${ref.name}`;
+  }
+  if (isSignName(ref.name)) {
+    const kind = signKindFromName(ref.name);
+    if (kind === 'wall') {
+      const facing = wallSignFacingFromStates(ref.states) ?? '?';
+      return `sign:wall:${facing}:${ref.name}`;
+    }
+    const dir = groundSignDirectionFromStates(ref.states);
+    return `sign:standing:${dir}:${ref.name}`;
   }
   if (isRailName(ref.name)) {
     const allowCorners = railAllowsCorners(ref.name);
@@ -232,6 +248,9 @@ export function resolveBlockModel(
   } else if (isCandleName(ref.name)) {
     const built = tryBuildCandle(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
+  } else if (isSignName(ref.name)) {
+    const built = tryBuildSign(ref);
+    model = built.ok ? built.model : fullCubeModel(ref.name);
   } else if (isRailName(ref.name)) {
     const built = tryBuildRail(ref);
     model = built.ok ? built.model : fullCubeModel(ref.name);
@@ -284,6 +303,7 @@ export function neighbourIsFullCubeForConnection(ref: BlockRef | null): boolean 
     isButtonName(ref.name) ||
     isLeverName(ref.name) ||
     isCandleName(ref.name) ||
+    isSignName(ref.name) ||
     isRailName(ref.name) ||
     isCactusName(ref.name)
   ) {
